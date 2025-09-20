@@ -37,6 +37,17 @@ class Settings:
     LOCAL_MODELS_DIR = os.getenv("LOCAL_MODELS_DIR", "./models")
     SUPABASE_BUCKET = os.getenv("SUPABASE_BUCKET", "models")
     
+    # GPU Training Paths
+    GPU_TRAINING_DIR = os.getenv("GPU_TRAINING_DIR", "/home/ubuntu/ai-training")
+    GPU_LOGS_DIR = os.getenv("GPU_LOGS_DIR", "/var/log/ai-training")
+    GPU_TEMP_DIR = os.getenv("GPU_TEMP_DIR", "/tmp")
+    
+    # S3 Paths
+    S3_TRAINING_DATA_PREFIX = os.getenv("S3_TRAINING_DATA_PREFIX", "training_data")
+    S3_MODELS_PREFIX = os.getenv("S3_MODELS_PREFIX", "models")
+    S3_RESULTS_PREFIX = os.getenv("S3_RESULTS_PREFIX", "training_results")
+    S3_SCRIPTS_PREFIX = os.getenv("S3_SCRIPTS_PREFIX", "scripts")
+    
     # Training Configuration
     MIN_GENUINE_SAMPLES = int(os.getenv("MIN_GENUINE_SAMPLES", 3))  # Reduced for minimal requirements like Teachable Machine
     MIN_FORGED_SAMPLES = int(os.getenv("MIN_FORGED_SAMPLES", 0))   # Disabled - no forgery detection needed
