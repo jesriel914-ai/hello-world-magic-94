@@ -7,7 +7,11 @@ import boto3
 import time
 import json
 import logging
-from typing import Dict, Optional, List
+import asyncio
+from typing import Dict, Optional
+import os
+from pathlib import Path
+from config import settings
 from botocore.exceptions import ClientError
 import asyncio
 import os
@@ -22,27 +26,29 @@ class AWSGPUTrainingManager:
     """
     
     def __init__(self):
-        region_name = os.getenv('AWS_REGION') or os.getenv('AWS_DEFAULT_REGION') or 'us-east-1'
-        self.ec2_client = boto3.client('ec2', region_name=region_name)
-        self.s3_client = boto3.client('s3', region_name=region_name)
-        self.ssm_client = boto3.client('ssm', region_name=region_name)
+        self.ec2_client = boto3.client('ec2', region_name=settings.AWS_REGION)
+        self.s3_client = boto3.client('s3', region_name=settings.AWS_REGION)
+        self.ssm_client = boto3.client('ssm', region_name=settings.AWS_REGION)
         
-        # GPU instance configuration
-        self.gpu_instance_type = os.getenv('AWS_GPU_INSTANCE_TYPE', 'g4dn.xlarge')
-        self.ami_id = os.getenv('AWS_GPU_AMI_ID', 'ami-0c02fb55956c7d316')
-        self.key_name = os.getenv('AWS_KEY_NAME', 'your-key-pair')
-        self.security_group_id = os.getenv('AWS_SECURITY_GROUP_ID', 'sg-xxxxxxxxx')
-        self.subnet_id = os.getenv('AWS_SUBNET_ID', 'subnet-xxxxxxxxx')
-        self.existing_instance_id = (os.getenv('AWS_GPU_EXISTING_INSTANCE_ID', '').strip() or None)
+        # Configuration
+        self.instance_type = settings.GPU_INSTANCE_TYPE
+        self.ami_id = settings.GPU_AMI_ID
+        self.key_name = settings.EC2_KEY_NAME
+        self.security_group_id = settings.EC2_SECURITY_GROUP_ID
+        self.subnet_id = settings.EC2_SUBNET_ID
+        self.iam_instance_profile = settings.EC2_IAM_INSTANCE_PROFILE
+        self.s3_bucket = settings.S3_BUCKET_NAME
+        self.training_script_path = '/home/ubuntu/ai-training'
+        
+        # Reuse existing instance if available
+        self.existing_instance_id = settings.EXISTING_GPU_INSTANCE_ID if hasattr(settings, 'EXISTING_GPU_INSTANCE_ID') else None
+        
+        # Skip setup flag - if True, assumes instance is pre-configured
+        self.skip_setup = getattr(settings, 'SKIP_GPU_SETUP', False)
         
         # Training configuration
-        self.training_script_path = '/home/ubuntu/ai-training'
-        self.s3_bucket = os.getenv('S3_BUCKET', 'your-s3-bucket')
         self.github_repo = os.getenv('AWS_GPU_GITHUB_REPO', 'https://github.com/your-repo/ai-training.git')
         
-        # IAM instance profile name
-        self.iam_instance_profile = os.getenv('AWS_IAM_INSTANCE_PROFILE', 'EC2-S3-Access')
-
     def is_available(self) -> bool:
         """Lightweight capability check to decide if GPU training can be attempted."""
         try:
@@ -88,16 +94,25 @@ class AWSGPUTrainingManager:
             
             # Step 4: Upload training data to S3
             job_queue.update_job_progress(job_id, 25.0, "Uploading training data to S3...")
+            logger.info("Uploading training data to S3...")
+            start_time = time.time()
             training_data_key = await self._upload_training_data(training_data, job_id)
+            logger.info(f"Training data uploaded to S3 in {time.time() - start_time} seconds")
             
             # Step 5: Setup and start training on GPU instance
             job_queue.update_job_progress(job_id, 30.0, "Setting up training environment...")
+            logger.info("Setting up training environment...")
+            start_time = time.time()
             await self._setup_training_environment(instance_id, job_id)
+            logger.info(f"Training environment setup completed in {time.time() - start_time} seconds")
             
             job_queue.update_job_progress(job_id, 40.0, "Starting training on GPU instance...")
+            logger.info("Starting training on GPU instance...")
+            start_time = time.time()
             training_result = await self._start_remote_training(
                 instance_id, training_data_key, job_id, student_id, job_queue
             )
+            logger.info(f"Training completed in {time.time() - start_time} seconds")
             
             if training_result.get('status') != 'success':
                 raise Exception(f"Training failed: {training_result.get('error', 'Unknown error')}")
@@ -516,37 +531,70 @@ echo "Instance setup completed at $(date)"
     async def _setup_training_environment(self, instance_id: str, job_id: str):
         """Setup training environment on the instance"""
         try:
-            # Create training script
-            training_script = self._generate_training_script()
-            
-            # Package script from local template to zip+b64 for maximum integrity
-            import zipfile
-            import io as _io
-            from pathlib import Path as _Path
-            tmpl_path = _Path(__file__).parent.parent / 'scripts' / 'train_gpu_template.py'
-            with open(tmpl_path, 'r') as _f:
-                training_script = _f.read()
-            buf = _io.BytesIO()
-            with zipfile.ZipFile(buf, 'w', zipfile.ZIP_DEFLATED) as zf:
-                zf.writestr('train_gpu.py', training_script)
-            zip_bytes = buf.getvalue()
-            encoded = base64.b64encode(zip_bytes)
-            script_key = f'scripts/{job_id}/train_gpu_py_zip.b64'
-            self.s3_client.put_object(Bucket=self.s3_bucket, Key=script_key, Body=encoded, ContentType='text/plain')
-            
-            # Download and setup script on instance using SSM
-            setup_commands = [
-                f'mkdir -p {self.training_script_path}',
-                f'cd {self.training_script_path}',
-                f'aws s3 cp s3://{self.s3_bucket}/{script_key} train_gpu_py_zip.b64',
-                # Decode and unzip using Python to avoid missing unzip
-                'python3 - <<\'PY\'\nimport base64,sys,zipfile,io\nenc=open("train_gpu_py_zip.b64","rb").read()\nraw=base64.b64decode(enc)\nzipfile.ZipFile(io.BytesIO(raw)).extractall(".")\nprint("Decoded and extracted train_gpu.py")\nPY',
-                'chmod +x train_gpu.py',
-                'rm -f train_gpu_py_zip.b64',
-                # Preflight syntax check with context dump on failure
-                'python3 -m py_compile train_gpu.py || (echo "Syntax check failed"; nl -ba train_gpu.py | sed -n "220,260p"; exit 1)',
-                f'echo "Setup complete for job {job_id}"'
-            ]
+            # If skip_setup is True, only upload the training script
+            if self.skip_setup:
+                logger.info("Skipping environment setup (using pre-configured instance)")
+                
+                # Just upload the training script
+                from pathlib import Path as _Path
+                tmpl_path = _Path(__file__).parent.parent / 'scripts' / 'train_gpu_template.py'
+                with open(tmpl_path, 'r') as _f:
+                    training_script = _f.read()
+                
+                # Upload script directly to S3
+                script_key = f'scripts/{job_id}/train_gpu.py'
+                self.s3_client.put_object(
+                    Bucket=self.s3_bucket, 
+                    Key=script_key, 
+                    Body=training_script.encode('utf-8'), 
+                    ContentType='text/plain'
+                )
+                
+                # Simple commands to download script
+                setup_commands = [
+                    f'mkdir -p {self.training_script_path}',
+                    f'cd {self.training_script_path}',
+                    f'aws s3 cp s3://{self.s3_bucket}/{script_key} train_gpu.py',
+                    'chmod +x train_gpu.py',
+                    f'echo "Script ready for job {job_id}"'
+                ]
+            else:
+                # Full setup for non-configured instances
+                logger.info("Running full environment setup")
+                
+                # Package script from local template to zip+b64 for maximum integrity
+                import zipfile
+                import io as _io
+                from pathlib import Path as _Path
+                tmpl_path = _Path(__file__).parent.parent / 'scripts' / 'train_gpu_template.py'
+                with open(tmpl_path, 'r') as _f:
+                    training_script = _f.read()
+                buf = _io.BytesIO()
+                with zipfile.ZipFile(buf, 'w', zipfile.ZIP_DEFLATED) as zf:
+                    zf.writestr('train_gpu.py', training_script)
+                zip_bytes = buf.getvalue()
+                encoded = base64.b64encode(zip_bytes)
+                script_key = f'scripts/{job_id}/train_gpu_py_zip.b64'
+                self.s3_client.put_object(Bucket=self.s3_bucket, Key=script_key, Body=encoded, ContentType='text/plain')
+                
+                # Full setup commands including dependency installation
+                setup_commands = [
+                    # Install Python dependencies
+                    'pip3 install --upgrade pip',
+                    'pip3 install tensorflow==2.15.* pillow numpy boto3 scikit-learn',
+                    
+                    # Setup training directory
+                    f'mkdir -p {self.training_script_path}',
+                    f'cd {self.training_script_path}',
+                    f'aws s3 cp s3://{self.s3_bucket}/{script_key} train_gpu_py_zip.b64',
+                    # Decode and unzip using Python
+                    'python3 - <<\'PY\'\nimport base64,sys,zipfile,io\nenc=open("train_gpu_py_zip.b64","rb").read()\nraw=base64.b64decode(enc)\nzipfile.ZipFile(io.BytesIO(raw)).extractall(".")\nprint("Decoded and extracted train_gpu.py")\nPY',
+                    'chmod +x train_gpu.py',
+                    'rm -f train_gpu_py_zip.b64',
+                    # Preflight syntax check
+                    'python3 -m py_compile train_gpu.py || (echo "Syntax check failed"; exit 1)',
+                    f'echo "Setup complete for job {job_id}"'
+                ]
             
             response = self.ssm_client.send_command(
                 InstanceIds=[instance_id],
@@ -727,112 +775,6 @@ class SignatureEmbeddingModel:
         if len(all_images) < 5:
             print("WARNING: Very few samples for training. Results may be poor.")
             validation_split = 0.0
-        print("Converting to numpy arrays...")
-        X = np.array(all_images)
-        y = keras.utils.to_categorical(all_labels, num_classes=len(training_data))
-        print("Final training data shape: {}".format(X.shape))
-        print("Labels shape: {}".format(y.shape))
-        print("Data type: {}, range: [{:.3f}, {:.3f}]".format(X.dtype, float(X.min()), float(X.max())))
-        model = keras.Sequential([
-            keras.layers.InputLayer(input_shape=(224, 224, 3)),
-            keras.layers.Conv2D(32, (3,3), activation='relu', padding='same'),
-            keras.layers.BatchNormalization(),
-            keras.layers.MaxPooling2D((2,2)),
-            keras.layers.Dropout(0.25),
-            keras.layers.Conv2D(64, (3,3), activation='relu', padding='same'),
-            keras.layers.BatchNormalization(),
-            keras.layers.MaxPooling2D((2,2)),
-            keras.layers.Dropout(0.25),
-            keras.layers.Conv2D(128, (3,3), activation='relu', padding='same'),
-            keras.layers.BatchNormalization(),
-            keras.layers.GlobalAveragePooling2D(),
-            keras.layers.Dropout(0.5),
-            keras.layers.Dense(256, activation='relu'),
-            keras.layers.BatchNormalization(),
-            keras.layers.Dropout(0.5),
-            keras.layers.Dense(len(training_data), activation='softmax')
-        ])
-        model.compile(optimizer=keras.optimizers.Adam(learning_rate=0.001), loss='categorical_crossentropy', metrics=['accuracy'])
-        print("Model summary:")
-        model.summary()
-        print("Starting training with validation_split={}".format(validation_split))
-        callbacks = [
-            keras.callbacks.EarlyStopping(monitor='val_accuracy' if validation_split>0 else 'accuracy', patience=5, restore_best_weights=True),
-            keras.callbacks.ReduceLROnPlateau(monitor='val_loss' if validation_split>0 else 'loss', factor=0.5, patience=3, min_lr=0.0001),
-        ]
-        try:
-            if validation_split > 0:
-                history = model.fit(X, y, batch_size=min(32, len(X)), epochs=epochs, validation_split=validation_split, callbacks=callbacks, verbose=1)
-            else:
-                history = model.fit(X, y, batch_size=min(32, len(X)), epochs=epochs, callbacks=callbacks, verbose=1)
-        except Exception as e:
-            print("Training failed: {}".format(e))
-            traceback.print_exc()
-            raise
-        self.classification_head = model
-        self.embedding_model = keras.Model(inputs=model.input, outputs=model.layers[-3].output)
-        print("Training completed successfully!")
-        return {'classification_history': history.history, 'siamese_history': {}}
-
-def train_on_gpu(training_data_key, job_id, student_id):
-    try:
-        s3 = boto3.client('s3')
-        bucket = os.environ.get('S3_BUCKET', 'signatureai-uploads')
-        print("Starting training for job {}".format(job_id))
-        print("S3 bucket: {}".format(bucket))
-        print("Training data key: {}".format(training_data_key))
-        print("Downloading training data from s3://{}/{}".format(bucket, training_data_key))
-        try:
-            response = s3.get_object(Bucket=bucket, Key=training_data_key)
-            training_data_raw = json.loads(response['Body'].read())
-            print("Successfully downloaded training data")
-        except Exception as e:
-            print("Failed to download training data: {}".format(e))
-            traceback.print_exc()
-            raise
-        print("Raw training data contains {} students".format(len(training_data_raw)))
-        preprocessor = SignaturePreprocessor(target_size=(224, 224))
-        model_manager = SignatureEmbeddingModel(max_students=150)
-        print("Processing training data...")
-        processed_data = {}
-        for student_name, data in training_data_raw.items():
-            print("\nProcessing student: {}".format(student_name))
-            genuine_images = []
-            forged_images = []
-            genuine_raw = data.get('genuine', [])
-            print("  Found {} genuine images".format(len(genuine_raw)))
-            for i, img_data in enumerate(genuine_raw):
-                print("    Processing genuine image {}/{}".format(i+1, len(genuine_raw)))
-                processed_img = preprocessor.preprocess_signature(img_data, debug_name="{}_genuine_{}".format(student_name, i))
-                if processed_img is not None:
-                    genuine_images.append(processed_img)
-                    print("      \u2713 Successfully processed")
-                else:
-                    print("      x Failed to process")
-            forged_raw = data.get('forged', [])
-            print("  Found {} forged images".format(len(forged_raw)))
-            for i, img_data in enumerate(forged_raw):
-                print("    Processing forged image {}/{}".format(i+1, len(forged_raw)))
-                processed_img = preprocessor.preprocess_signature(img_data, debug_name="{}_forged_{}".format(student_name, i))
-                if processed_img is not None:
-                    forged_images.append(processed_img)
-                    print("      \u2713 Successfully processed")
-                else:
-                    print("      x Failed to process")
-            processed_data[student_name] = {'genuine': genuine_images, 'forged': forged_images}
-            total_processed = len(genuine_images) + len(forged_images)
-            total_raw = len(genuine_raw) + len(forged_raw)
-            success_rate = (total_processed / total_raw * 100) if total_raw > 0 else 0
-            print("  Final: {} genuine, {} forged".format(len(genuine_images), len(forged_images)))
-            print("  Success rate: {}/{} ({:.1f}%)".format(total_processed, total_raw, success_rate))
-        print("\n=== PREPROCESSING SUMMARY ===")
-        print("Total images processed successfully: {}".format(preprocessor.processed_count))
-        print("Total processing errors: {}".format(preprocessor.error_count))
-        total_samples = sum(len(d['genuine']) + len(d['forged']) for d in processed_data.values())
-        print("Total processed samples available for training: {}".format(total_samples))
-        if total_samples == 0:
-            raise ValueError("No valid training samples found after processing")
-        validation_split = 0.0 if total_samples < 5 else 0.2
         print("\n=== STARTING MODEL TRAINING ===")
         training_result = model_manager.train_models(processed_data, epochs=25, validation_split=validation_split)
         print("Training completed! Saving models...")
@@ -926,10 +868,26 @@ if __name__ == "__main__":
                                    job_id: str, student_id: int, job_queue) -> Dict:
         """Start training on remote GPU instance"""
         try:
-            # Run training command
+            # Upload the training script to the instance
+            from pathlib import Path as _Path
+            tmpl_path = _Path(__file__).parent.parent / 'scripts' / 'train_gpu_template.py'
+            with open(tmpl_path, 'r') as _f:
+                training_script = _f.read()
+            script_key = f'scripts/{job_id}/train_gpu.py'
+            self.s3_client.put_object(
+                Bucket=self.s3_bucket, 
+                Key=script_key, 
+                Body=training_script.encode('utf-8'), 
+                ContentType='text/plain'
+            )
+            
+            # Run training command inside Docker container
             training_command = [
                 f'cd {self.training_script_path}',
-                f'python3 train_gpu.py {training_data_key} {job_id} {student_id}'
+                f'aws s3 cp s3://{self.s3_bucket}/{training_data_key} training_data.json',
+                f'aws s3 cp s3://{self.s3_bucket}/{script_key} train_gpu.py',
+                'chmod +x train_gpu.py',
+                f'docker exec ai-training-container python3 /workspace/train_gpu.py training_data.json {job_id} {student_id}'
             ]
             
             response = self.ssm_client.send_command(
@@ -941,10 +899,13 @@ if __name__ == "__main__":
             command_id = response['Command']['CommandId']
             logger.info(f"Started training command {command_id} on instance {instance_id}")
             
-            # Monitor training progress
+            # Monitor training progress with better logging
             start_time = time.time()
             check_interval = 10  # Check every 10 seconds
             max_duration = 3600  # 1 hour max
+            last_output_len = 0
+            
+            logger.info(f"Monitoring training progress for job {job_id}...")
             
             while True:
                 await asyncio.sleep(check_interval)
@@ -956,9 +917,22 @@ if __name__ == "__main__":
                     )
                     
                     status = result['Status']
+                    elapsed = int(time.time() - start_time)
+                    
+                    # Log status updates
+                    logger.info(f"Training status: {status} (elapsed: {elapsed}s)")
                     
                     # Update progress based on output
                     output = result.get('StandardOutputContent', '')
+                    if len(output) > last_output_len:
+                        # New output detected
+                        new_output = output[last_output_len:]
+                        last_output_len = len(output)
+                        
+                        # Log key training events
+                        if 'Epoch' in new_output:
+                            logger.info(f"Training output: {new_output[-200:]}")  # Last 200 chars
+                        
                     if 'Training progress:' in output:
                         # Extract progress from output
                         lines = output.split('\n')
@@ -968,11 +942,16 @@ if __name__ == "__main__":
                                     progress = float(line.split(':')[1].strip().replace('%', ''))
                                     job_queue.update_job_progress(job_id, 40 + (progress * 0.4), 
                                                                  f"Training in progress: {progress}%")
+                                    logger.info(f"Training progress: {progress}%")
                                 except:
                                     pass
                                 break
                     
                     if status in ['Success', 'Failed', 'Cancelled', 'TimedOut']:
+                        logger.info(f"Training completed with status: {status}")
+                        if status == 'Failed':
+                            error_output = result.get('StandardErrorContent', '')
+                            logger.error(f"Training failed with error: {error_output}")
                         break
                     
                     # Check timeout
