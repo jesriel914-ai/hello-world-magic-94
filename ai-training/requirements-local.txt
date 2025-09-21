@@ -1,5 +1,6 @@
-# Unified Requirements - TensorFlow 2.18 Compatible
-# Works for both CPU (Windows Ryzen 5 3400G) and GPU (AWS instances)
+# Local Development Requirements (CPU-only) - SAFE VERSION
+# For Windows PC with Python 3.10.11
+# Conservative versions that are guaranteed to work together
 
 # Web Framework
 fastapi==0.92.0
@@ -10,9 +11,8 @@ python-multipart==0.0.9
 # Core typing pin to satisfy TensorFlow
 typing-extensions==4.5.0
 
-# ML / DL - TensorFlow 2.18.0 (CPU + GPU compatible)
-# Note: Use requirements-local.txt for Windows PC (CPU-only)
-# Use requirements-gpu.txt for AWS GPU instances (with CUDA)
+# ML / DL - TensorFlow CPU-only (no CUDA)
+# TensorFlow 2.18.0 - same version as GPU instance
 tensorflow==2.18.0
 
 # Core ML dependencies (compatible with TensorFlow 2.18)
@@ -28,7 +28,6 @@ botocore==1.34.34
 
 # Supabase + HTTP
 supabase>=2.6.0
-# httpx >=0.26 so Client accepts `proxy` kwarg used by gotrue/supabase
 httpx>=0.27,<0.28
 requests==2.31.0
 python-dotenv==1.0.1
@@ -43,5 +42,4 @@ pydantic==1.10.13
 aiohttp>=3.8,<4
 
 # Optional: For better performance monitoring
-# psutil  # For system monitoring
-# nvidia-ml-py3  # For GPU monitoring (only on GPU instances)
+psutil  # For system monitoring
