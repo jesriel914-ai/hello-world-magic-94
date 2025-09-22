@@ -25,8 +25,7 @@ from models.signature_embedding_model import SignatureEmbeddingModel
 from utils.signature_preprocessing import SignaturePreprocessor, SignatureAugmentation
 # Removed unused Supabase imports - using S3 directly
 from utils.s3_storage import upload_model_file
-from utils.direct_s3_saving import save_signature_models_directly, DirectS3ModelSaver
-from utils.optimized_s3_saving import save_signature_models_optimized
+# Removed optional S3 saving helpers to avoid missing modules
 from utils.job_queue import job_queue
 from utils.training_callback import RealTimeMetricsCallback
 from utils.aws_gpu_training import gpu_training_manager
