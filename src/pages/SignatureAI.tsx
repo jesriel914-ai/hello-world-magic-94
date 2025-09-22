@@ -682,9 +682,13 @@ const SignatureAI = () => {
       const studentIds: string[] = [];
       
       studentCards.forEach(card => {
-        if (card.student && (card.genuineCount ?? card.genuineFiles.length) > 0) {
+        if (card.student && ((card.genuineCount ?? card.genuineFiles.length) > 0)) {
           studentIds.push(card.student.student_id);
-          allGenuineFiles.push(...card.genuineFiles.filter(f => !f.placeholder).map(f => f.file));
+          allGenuineFiles.push(
+            ...card.genuineFiles
+              .filter(f => !f.placeholder && f.file && (f.file.size || 0) > 0)
+              .map(f => f.file)
+          );
         }
       });
 

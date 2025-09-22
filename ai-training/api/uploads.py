@@ -140,7 +140,6 @@ async def students_with_images(summary: bool = False):
                         summarized.append({
                             "student_id": int(sid),
                             "genuine_count": int(c.get("genuine_count", 0)),
-                            "forged_count": int(c.get("forged_count", 0)),
                         })
             except Exception:
                 # Fallback to S3 counting only if DB aggregation fails
@@ -159,7 +158,6 @@ async def students_with_images(summary: bool = False):
                             summarized.append({
                                 "student_id": int(sid),
                                 "genuine_count": int(g),
-                                "forged_count": int(f),
                             })
                 except Exception:
                     summarized = []
