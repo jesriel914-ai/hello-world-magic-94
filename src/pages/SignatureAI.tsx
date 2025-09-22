@@ -692,6 +692,8 @@ const SignatureAI = () => {
         }
       });
 
+      // expose s3 flag globally for aiService to read for CPU path
+      ;(window as any).__USE_S3_UPLOAD__ = useS3Upload;
       const asyncResponse = useGPU
         ? await aiService.startGPUTraining(
             studentIds.join(','),

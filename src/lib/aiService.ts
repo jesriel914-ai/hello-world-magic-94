@@ -388,6 +388,11 @@ export class AIService {
           formData.append('genuine_files', file);
         }
       }
+      // Pass through use_s3_upload from UI option if available
+      const s3Flag = (window as any).__USE_S3_UPLOAD__ === true;
+      if (s3Flag) {
+        formData.append('use_s3_upload', 'true');
+      }
       // Do not send forged_files at all; owner identification only
 
       const response = await fetch(`${this.baseUrl}/api/training/start-async`, {

@@ -857,7 +857,8 @@ async def start_gpu_training(
 async def start_async_training(
     student_id: str = Form(...),
     genuine_files: List[UploadFile] | None = File(None),
-    forged_files: List[UploadFile] | None = File(None)
+    forged_files: List[UploadFile] | None = File(None),
+    use_s3_upload: bool = Form(False)
 ):
     check_database_available()
     try:
@@ -928,8 +929,6 @@ async def start_async_training(
                 # Forged samples not required since forgery detection is disabled - focus on owner identification only
                 genuine_data = [await f.read() for f in genuine_files]
                 # Skip forged files - owner identification only
-            # Default: do not force S3 upload in CPU async path unless explicitly enabled via env
-            use_s3_upload = os.getenv('USE_S3_UPLOAD', 'false').lower() == 'true'
             asyncio.create_task(run_global_async_training(job, student_ids, genuine_data, use_s3_upload))
             return {"success": True, "job_id": job.job_id, "message": "Global training job started", "stream_url": f"/api/progress/stream/{job.job_id}"}
             
@@ -1204,6 +1203,7 @@ async def run_global_gpu_training(job, student_ids, genuine_data, use_s3_upload=
 
         # Validate minimum totals across all selected students
         total_genuine = sum(len(v["genuine_images"]) for v in per_student.values())
+        total_forged = 0  # Forgery detection disabled
         if total_genuine < settings.MIN_GENUINE_SAMPLES:
             raise Exception("Insufficient stored signatures across selected students to train global model")
 
@@ -1240,9 +1240,9 @@ async def run_global_gpu_training(job, student_ids, genuine_data, use_s3_upload=
                 "s3_key": f"global_models/{job.job_id}",
                 "model_uuid": job.job_id,
                 "status": "completed",
-                "sample_count": int(total_genuine + total_forged),
+                "sample_count": int(total_genuine),
                 "genuine_count": int(total_genuine),
-                "forged_count": int(total_forged),
+                "forged_count": 0,
                 "student_count": len(students),
                 "training_date": datetime.utcnow().isoformat(),
                 "accuracy": accuracy,  # Store actual GPU training accuracy
@@ -1265,7 +1265,7 @@ async def run_global_gpu_training(job, student_ids, genuine_data, use_s3_upload=
                 "model_uuid": job.job_id,
                 "s3_url": gpu_result['model_urls'].get('classification', ''),
                 "student_count": len(students),
-                "training_samples": int(total_genuine + total_forged),
+                "training_samples": int(total_genuine),
                 "training_method": "aws_gpu_global",
                 "model_urls": gpu_result['model_urls']
             }
