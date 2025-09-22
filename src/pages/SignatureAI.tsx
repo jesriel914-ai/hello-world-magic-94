@@ -1894,8 +1894,7 @@ const SignatureAI = () => {
                           if (
                             prev.length === 1 &&
                             prev[0].student === null &&
-                            prev[0].genuineFiles.length === 0 &&
-                            
+                            prev[0].genuineFiles.length === 0
                           ) {
                             base = [];
                           }
