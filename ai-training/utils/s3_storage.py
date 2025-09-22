@@ -205,9 +205,9 @@ def count_objects_with_prefix(prefix: str) -> int:
 
 
 def count_student_signatures(student_id: int | str) -> tuple[int, int]:
-    """Return (genuine_count, forged_count) from S3 by listing prefixes."""
+    """Return (genuine_count, forged_count) from S3 by listing prefixes. Forged count is deprecated (always 0)."""
     sid = str(student_id)
     genuine = count_objects_with_prefix(f"{sid}/genuine/")
-    forged = count_objects_with_prefix(f"{sid}/forged/")
+    forged = 0
     return genuine, forged
 

@@ -1036,7 +1036,7 @@ async def train_global_model():
             "status": "completed",
             "sample_count": sum(len(data['genuine_images']) + len(data['forged_images']) for data in data_by_student.values()),
             "genuine_count": sum(len(data['genuine_images']) for data in data_by_student.values()),
-            "forged_count": sum(len(data['forged_images']) for data in data_by_student.values()),
+            "forged_count": 0,
             "student_count": len(data_by_student),
             "training_date": datetime.utcnow().isoformat(),
             "accuracy": float(history.history.get('accuracy', [0])[-1]) if history.history.get('accuracy') else None,
@@ -1131,7 +1131,7 @@ async def run_gpu_training(job, student, genuine_data, use_s3_upload=False):
                 "status": "completed",
                 "sample_count": len(genuine_images) + len(forged_images),
                 "genuine_count": len(genuine_images),
-                "forged_count": len(forged_images),
+                "forged_count": 0,
                 "training_date": datetime.utcnow().isoformat(),
                 "accuracy": accuracy,  # Store GPU training accuracy
                 "training_metrics": {
@@ -1150,7 +1150,7 @@ async def run_gpu_training(job, student, genuine_data, use_s3_upload=False):
                 "model_uuid": job.job_id,
                 "training_samples": len(genuine_images) + len(forged_images),
                 "genuine_count": len(genuine_images),
-                "forged_count": len(forged_images),
+                "forged_count": 0,
                 "ai_architecture": "signature_embedding_network",
                 "training_method": "aws_gpu",
                 "model_urls": gpu_result['model_urls']
@@ -1356,9 +1356,9 @@ async def run_global_async_training(job, student_ids, genuine_data, use_s3_uploa
             "s3_key": s3_key,
             "model_uuid": model_uuid,
             "status": "completed",
-            "sample_count": int(total_genuine + total_forged),
+            "sample_count": int(total_genuine),
             "genuine_count": int(total_genuine),
-            "forged_count": int(total_forged),
+            "forged_count": 0,
             "student_count": len(students),
             "training_date": datetime.utcnow().isoformat(),
             "accuracy": float(history.history.get('accuracy', [0])[-1]) if history.history.get('accuracy') else None,
@@ -1391,7 +1391,7 @@ async def run_global_async_training(job, student_ids, genuine_data, use_s3_uploa
             "model_uuid": model_uuid,
             "s3_url": s3_url,
             "student_count": len(students),
-            "training_samples": int(total_genuine + total_forged)
+            "training_samples": int(total_genuine)
         }
         
         # Hybrid: also train and store individual models from the already preprocessed arrays (before completing job)
