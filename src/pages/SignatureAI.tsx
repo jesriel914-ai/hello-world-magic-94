@@ -150,6 +150,8 @@ const SignatureAI = () => {
   const [isStudentFormDialogOpen, setIsStudentFormDialogOpen] = useState(false);
   const [currentFormCardId, setCurrentFormCardId] = useState<string | null>(null);
   // Removed trainingImagesSet - only genuine images for owner identification
+  // Active image set for training preview (owner identification only)
+  const [trainingImagesSet, setTrainingImagesSet] = useState<'genuine'>('genuine');
   
   // Toggle between Student Cards and Trained Models view
   const [isViewingModels, setIsViewingModels] = useState(false);
@@ -1515,8 +1517,7 @@ const SignatureAI = () => {
                 )}
                 
                 <div className="text-center text-sm text-muted-foreground">
-                  {studentCards.filter(c => c.student).length} students • {getTotalTrainingData().genuine + getTotalTrainingData().forged} samples ready
-                  {/* Hybrid behavior is implicit; no extra label */}
+                  {studentCards.filter(c => c.student).length} students • {getTotalTrainingData().genuine} samples ready
                 </div>
               </div>
             </div>
