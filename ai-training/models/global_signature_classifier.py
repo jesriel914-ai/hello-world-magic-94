@@ -185,10 +185,14 @@ class GlobalSignatureClassifier:
         self.create_global_model()
         
         # Compile model
+        # Use standard TopKCategoricalAccuracy metric for top-3
         self.global_model.compile(
             optimizer=keras.optimizers.Adam(learning_rate=self.learning_rate),
             loss='categorical_crossentropy',
-            metrics=['accuracy', 'top_3_accuracy']
+            metrics=[
+                'accuracy',
+                keras.metrics.TopKCategoricalAccuracy(k=3, name='top3_accuracy')
+            ]
         )
         
         # Callbacks
@@ -245,7 +249,10 @@ class GlobalSignatureClassifier:
         self.global_model.compile(
             optimizer=keras.optimizers.Adam(learning_rate=self.learning_rate * 0.1),  # Lower LR for fine-tuning
             loss='categorical_crossentropy',
-            metrics=['accuracy', 'top_3_accuracy']
+            metrics=[
+                'accuracy',
+                keras.metrics.TopKCategoricalAccuracy(k=3, name='top3_accuracy')
+            ]
         )
         
         # Fine-tune on new data
