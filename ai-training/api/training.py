@@ -901,8 +901,9 @@ async def train_global_model():
             resp.raise_for_status()
             image = Image.open(io.BytesIO(resp.content))
             image = preprocess_image(image)
-            bucket = data_by_student.setdefault(sid, {"genuine_images": [], "forged_images": []})
-            (bucket["genuine_images"] if label == "genuine" else bucket["forged_images"]).append(image)
+            bucket = data_by_student.setdefault(sid, {"genuine_images": []})
+            if label == "genuine":
+                bucket["genuine_images"].append(image)
 
         gsm = GlobalSignatureClassifier()
         # Train global classifier with tf.data and validation metrics
@@ -1326,7 +1327,7 @@ async def run_global_async_training(job, student_ids, genuine_data, use_s3_uploa
         
         # Hybrid: also train and store individual models from the already preprocessed arrays (before completing job)
         individual_count = 0
-        logger.info(f"Starting individual training for {len(students)} students")
+        # Individual training disabled
         # GLOBAL TRAINING ONLY - No individual training
         if job:
             job_queue.update_job_progress(job.job_id, 100.0, "Global training completed successfully!")
