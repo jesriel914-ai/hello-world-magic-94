@@ -43,7 +43,8 @@ def _resolve_public_base_url() -> str:
 
 def make_key(student_id: int | str, label: str, filename: str) -> str:
     ext = filename.rsplit(".", 1)[-1].lower() if "." in filename else "png"
-    safe_label = "genuine" if str(label).lower() == "genuine" else "forged"
+    # Force only genuine path usage; forged is deprecated
+    safe_label = "genuine"
     return f"{student_id}/{safe_label}/{uuid.uuid4().hex}.{ext}"
 
 

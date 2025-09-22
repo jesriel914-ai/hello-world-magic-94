@@ -135,25 +135,26 @@ export class AIService {
   async uploadSignature(studentId: number, label: 'genuine'|'forged', file: File) {
     const form = new FormData();
     form.append('student_id', String(studentId));
-    form.append('label', label);
+    // Force genuine only
+    form.append('label', 'genuine');
     form.append('file', file);
     const res = await fetch(`${this.baseUrl}/api/uploads/signature`, { method: 'POST', body: form });
     const data = await res.json();
     if (!res.ok) throw new Error(data.detail || 'Upload failed');
-    return data.record as { id:number; student_id:number; label:'genuine'|'forged'; s3_url:string; s3_key:string };
+    return data.record as { id:number; student_id:number; label:'genuine'; s3_url:string; s3_key:string };
   }
 
   async listSignatures(studentId: number) {
     const res = await fetch(`${this.baseUrl}/api/uploads/list?student_id=${studentId}`);
     const data = await res.json();
     if (!res.ok) throw new Error(data.detail || 'List failed');
-    return data.signatures as Array<{ id:number; student_id:number; label:'genuine'|'forged'; s3_url:string; s3_key:string }>;
+    return data.signatures as Array<{ id:number; student_id:number; label:'genuine'; s3_url:string; s3_key:string }>;
   }
 
   async presignSignature(studentId: number, label: 'genuine'|'forged', file: File) {
     const form = new FormData();
     form.append('student_id', String(studentId));
-    form.append('label', label);
+    form.append('label', 'genuine');
     form.append('filename', file.name);
     form.append('content_type', file.type || 'application/octet-stream');
     const ps = await fetch(`${this.baseUrl}/api/uploads/presign`, { method: 'POST', body: form });

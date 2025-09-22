@@ -5,7 +5,7 @@
 CREATE TABLE IF NOT EXISTS public.student_signatures (
     id BIGSERIAL PRIMARY KEY,
     student_id BIGINT NOT NULL REFERENCES public.students(id) ON DELETE CASCADE,
-    label TEXT NOT NULL CHECK (label IN ('genuine', 'forged')),
+    label TEXT NOT NULL CHECK (label IN ('genuine')),
     s3_key TEXT NOT NULL,
     s3_url TEXT NOT NULL,
     content_hash TEXT, -- For duplicate detection

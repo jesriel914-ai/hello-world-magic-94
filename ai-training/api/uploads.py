@@ -25,16 +25,13 @@ def _derive_s3_key_from_url(url: str) -> str | None:
 @router.post("/signature")
 async def upload_signature(
     student_id: int = Form(...),
-    label: str = Form(...),  # 'genuine' | 'forged'
     file: UploadFile = File(...),
 ):
-    if label not in ("genuine", "forged"):
-        raise HTTPException(status_code=400, detail="label must be 'genuine' or 'forged'")
     data = await file.read()
     try:
-        key, url = upload_bytes(student_id, label, file.filename or "signature.png", data, file.content_type)
+        key, url = upload_bytes(student_id, "genuine", file.filename or "signature.png", data, file.content_type)
         # Always store the signature - no duplicate prevention
-        record = await db_manager.add_student_signature(student_id, label, key, url)
+        record = await db_manager.add_student_signature(student_id, "genuine", key, url)
         return {"success": True, "record": record}
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"Upload failed: {str(e)}")
@@ -59,14 +56,11 @@ async def list_signatures(student_id: int):
 @router.post("/presign")
 async def presign_upload(
     student_id: int = Form(...),
-    label: str = Form(...),
     filename: str = Form(...),
     content_type: Optional[str] = Form(None),
 ):
-    if label not in ("genuine", "forged"):
-        raise HTTPException(status_code=400, detail="label must be 'genuine' or 'forged'")
     try:
-        post = create_presigned_post(student_id, label, filename, content_type)
+        post = create_presigned_post(student_id, "genuine", filename, content_type)
         return {"success": True, **post}
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"Presign failed: {str(e)}")

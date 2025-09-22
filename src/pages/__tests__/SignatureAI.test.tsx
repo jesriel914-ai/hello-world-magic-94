@@ -69,12 +69,12 @@ const mockStudentsWithImages = [
   {
     student_id: 1,
     genuine_count: 5,
-    forged_count: 2
+    // forged_count removed
   },
   {
     student_id: 2,
     genuine_count: 3,
-    forged_count: 1
+    // forged_count removed
   }
 ];
 
@@ -89,7 +89,7 @@ const mockSignatures = [
   {
     id: 2,
     student_id: 1,
-    label: 'forged' as const,
+    label: 'genuine' as const,
     s3_url: 'https://s3.amazonaws.com/bucket/signature2.jpg',
     s3_key: 'signatures/1/forged/signature2.jpg'
   }

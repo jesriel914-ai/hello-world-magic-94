@@ -9,7 +9,7 @@ CREATE TABLE IF NOT EXISTS public.global_trained_models (
     status text NOT NULL DEFAULT 'training'::text,
     sample_count integer NOT NULL DEFAULT 0,
     genuine_count integer NOT NULL DEFAULT 0,
-    forged_count integer NOT NULL DEFAULT 0,
+    -- forged_count removed; owner identification only
     student_count integer NOT NULL DEFAULT 0,
     training_date timestamp with time zone DEFAULT now(),
     accuracy numeric(5, 4),

@@ -922,7 +922,7 @@ const SignatureAI = () => {
   }, [isTraining]);
 
   // Modal Functions
-  type ModalContext = { kind: 'training', setType: 'genuine' | 'forged', cardId: string } | { kind: 'verification' } | null;
+  type ModalContext = { kind: 'training', setType: 'genuine', cardId: string } | { kind: 'verification' } | null;
   const [modalContext, setModalContext] = useState<ModalContext>(null);
   
   const getModalFilename = (): string => {
