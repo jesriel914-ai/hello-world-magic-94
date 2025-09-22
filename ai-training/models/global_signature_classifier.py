@@ -90,13 +90,13 @@ class GlobalSignatureClassifier:
         inputs = keras.Input(shape=(self.embedding_dim,), name='features')
         
         # Classification layers
-        x = layers.Dense(256, activation='relu')(inputs)
+        x = layers.Dense(256, activation='relu', kernel_regularizer=keras.regularizers.l2(1e-4))(inputs)
+        x = layers.BatchNormalization()(x)
+        x = layers.Dropout(0.4)(x)
+        
+        x = layers.Dense(128, activation='relu', kernel_regularizer=keras.regularizers.l2(1e-4))(x)
         x = layers.BatchNormalization()(x)
         x = layers.Dropout(0.3)(x)
-        
-        x = layers.Dense(128, activation='relu')(x)
-        x = layers.BatchNormalization()(x)
-        x = layers.Dropout(0.2)(x)
         
         # Output layer (one class per student)
         outputs = layers.Dense(num_classes, activation='softmax', name='predictions')(x)
@@ -219,20 +219,38 @@ class GlobalSignatureClassifier:
 
         # Augmentation model (signature-centric)
         aug_layers = keras.Sequential([
-            layers.RandomRotation(0.05),
-            layers.RandomTranslation(0.05, 0.05),
-            layers.RandomZoom(0.1, 0.1),
-            layers.RandomContrast(0.1),
-            layers.GaussianNoise(0.01),
+            layers.Rescaling(1./255),
+            layers.RandomRotation(0.08),
+            layers.RandomTranslation(0.1, 0.1),
+            layers.RandomZoom(0.15, 0.15),
+            layers.RandomContrast(0.2),
+            layers.GaussianNoise(0.02),
         ], name='augmentation')
 
         def aug_fn(img, label):
             img = aug_layers(img)
             return img, label
 
-        batch_size = 32
-        ds_train = tf.data.Dataset.from_tensor_slices((X_train, y_train)).shuffle(len(X_train)).map(aug_fn, num_parallel_calls=tf.data.AUTOTUNE).batch(batch_size).prefetch(tf.data.AUTOTUNE)
-        ds_val = tf.data.Dataset.from_tensor_slices((X_val, y_val)).batch(batch_size).prefetch(tf.data.AUTOTUNE)
+        batch_size = 16
+        ds_train = (
+            tf.data.Dataset
+            .from_tensor_slices((X_train, y_train))
+            .shuffle(len(X_train))
+            .map(aug_fn, num_parallel_calls=tf.data.AUTOTUNE)
+            .batch(batch_size)
+            .prefetch(tf.data.AUTOTUNE)
+        )
+        # Normalize validation to [0,1] to match training inputs
+        def norm_fn(img, label):
+            img = tf.cast(img, tf.float32) / 255.0
+            return img, label
+        ds_val = (
+            tf.data.Dataset
+            .from_tensor_slices((X_val, y_val))
+            .map(norm_fn, num_parallel_calls=tf.data.AUTOTUNE)
+            .batch(batch_size)
+            .prefetch(tf.data.AUTOTUNE)
+        )
 
         history = self.global_model.fit(
             ds_train,
