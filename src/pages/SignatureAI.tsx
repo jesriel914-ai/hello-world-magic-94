@@ -604,7 +604,9 @@ const SignatureAI = () => {
     setStudentCards(prev => prev.map(card => {
       if (card.id === cardId) {
         if (setType === 'genuine') {
-        return { ...card, genuineFiles: [...card.genuineFiles, ...uploaded] };
+          return { ...card, genuineFiles: [...card.genuineFiles, ...uploaded] };
+        }
+        return card;
       }
       return card;
     }));
