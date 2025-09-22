@@ -461,8 +461,9 @@ async def train_signature_model(student, genuine_data, job=None):
         
         # Save models - choose between S3 or local storage
         try:
-            # Check if local storage is enabled (override with parameter)
-            use_local_storage = not use_s3_upload and os.getenv('USE_LOCAL_STORAGE', 'false').lower() == 'true'
+            # Configure storage behavior
+            use_s3_upload = os.getenv('USE_S3_UPLOAD', 'false').lower() == 'true'
+            use_local_storage = (not use_s3_upload) and (os.getenv('USE_LOCAL_STORAGE', 'false').lower() == 'true')
             
             if use_local_storage:
                 # Use local storage (INSTANT - no S3 upload)
@@ -928,6 +929,8 @@ async def start_async_training(
                 # Forged samples not required since forgery detection is disabled - focus on owner identification only
                 genuine_data = [await f.read() for f in genuine_files]
                 # Skip forged files - owner identification only
+            # Default: do not force S3 upload in CPU async path unless explicitly enabled via env
+            use_s3_upload = os.getenv('USE_S3_UPLOAD', 'false').lower() == 'true'
             asyncio.create_task(run_global_async_training(job, student_ids, genuine_data, use_s3_upload))
             return {"success": True, "job_id": job.job_id, "message": "Global training job started", "stream_url": f"/api/progress/stream/{job.job_id}"}
             
