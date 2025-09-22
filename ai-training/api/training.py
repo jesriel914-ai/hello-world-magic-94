@@ -1207,15 +1207,12 @@ async def run_global_gpu_training(job, student_ids, genuine_data, use_s3_upload=
         if total_genuine < settings.MIN_GENUINE_SAMPLES:
             raise Exception("Insufficient stored signatures across selected students to train global model")
 
-        # Build training data structure for GPU service (owner identification only)
+        # Build training data: use unique student ID keys to avoid name collisions
         training_data = {}
         for s in students:
             sid = int(s["id"])  # type: ignore[index]
             bucket = per_student.get(sid, {"genuine_images": []})
-            # Use student name for consistent mapping
-            student_name = f"{s.get('firstname', '')} {s.get('surname', '')}".strip() or f"Student_{sid}"
-            # GlobalSignatureClassifier expects {student_name: [images]} format
-            training_data[student_name] = bucket["genuine_images"]  # Only genuine images for owner identification
+            training_data[str(sid)] = bucket["genuine_images"]  # Only genuine images for owner identification
 
         if job:
             job_queue.update_job_progress(job.job_id, 25.0, "Starting global GPU training...")
@@ -1323,10 +1320,8 @@ async def run_global_async_training(job, student_ids, genuine_data, use_s3_uploa
         for s in students:
             sid = int(s["id"])  # type: ignore[index]
             bucket = per_student.get(sid, {"genuine_images": []})
-            # Use student name for consistent mapping with GlobalSignatureClassifier
-            student_name = f"{s.get('firstname', '')} {s.get('surname', '')}".strip() or f"Student_{sid}"
-            # GlobalSignatureClassifier expects {student_name: [images]} format
-            training_data[student_name] = bucket['genuine_images']  # Only genuine images for owner identification
+            # Use unique student ID keys to avoid name collisions
+            training_data[str(sid)] = bucket['genuine_images']  # Only genuine images for owner identification
 
         if job:
             job_queue.update_job_progress(job.job_id, 80.0, "Training global model...")
