@@ -652,66 +652,8 @@ async def start_training(
     student_id: str = Form(...),
     genuine_files: List[UploadFile] | None = File(None)
 ):
-    try:
-        student = await db_manager.get_student_by_school_id(student_id)
-        if not student:
-            try:
-                numeric_id = int(student_id)
-                student = await db_manager.get_student(numeric_id)
-            except Exception:
-                student = None
-        if not student:
-            raise HTTPException(status_code=404, detail="Student not found")
-
-        genuine_data: List[bytes] = []
-        if genuine_files:  # Only need genuine files for owner identification
-            # Use uploaded files
-            if len(genuine_files) < settings.MIN_GENUINE_SAMPLES:
-                raise HTTPException(status_code=400, detail=f"Minimum {settings.MIN_GENUINE_SAMPLES} genuine samples required")
-            genuine_data = [await f.read() for f in genuine_files]
-        else:
-            # Auto-fetch stored signatures from DB/S3
-            rows = await db_manager.list_student_signatures(int(student["id"]))
-            if not rows:
-                raise HTTPException(status_code=400, detail="No stored signatures available for this student")
-            import requests
-            for r in rows:
-                url = r.get("s3_url")
-                label = (r.get("label") or "").lower()
-                key = r.get("s3_key") or _derive_s3_key_from_url(url)
-                # Prefer S3 download by key
-                data: bytes | None = None
-                if key:
-                    try:
-                        data = download_bytes(key)
-                    except Exception:
-                        data = None
-                if data is None:
-                    if settings.S3_USE_PRESIGNED_GET and key:
-                        try:
-                            url = create_presigned_get(key)
-                        except Exception:
-                            pass
-                    try:
-                        resp = requests.get(url, timeout=8)
-                        resp.raise_for_status()
-                        data = resp.content
-                    except Exception as e:
-                        logger.warning(f"HTTP fetch failed for student {student['id']} key={key}: {e}")
-                        continue
-                if label == "genuine":
-                    genuine_data.append(data)
-                # Skip forged data - owner identification only
-            if len(genuine_data) < settings.MIN_GENUINE_SAMPLES:
-                raise HTTPException(status_code=400, detail="Insufficient stored signatures to train (need more genuine samples)")
-
-        result = await train_signature_model(student, genuine_data)
-        return result
-    except HTTPException:
-        raise
-    except Exception as e:
-        logger.error(f"Unexpected error in training: {e}")
-        raise HTTPException(status_code=500, detail=f"Internal server error: {str(e)}")
+    # Individual training is disabled – global model only
+    raise HTTPException(status_code=400, detail="Individual training is disabled. Use global training with selected students.")
 
 @router.post("/start-gpu-training")
 async def start_gpu_training(
