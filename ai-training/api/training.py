@@ -1065,33 +1065,15 @@ async def run_gpu_training(job, student, genuine_data, use_s3_upload=False):
             else:
                 accuracy = None
                 
-            model_record = await db_manager.create_trained_model({
-                "student_id": int(student["id"]),
-                "model_path": gpu_result['model_urls'].get('classification', ''),
-                "embedding_model_path": gpu_result['model_urls'].get('embedding', ''),
-                "status": "completed",
-                "sample_count": len(genuine_images) + len(forged_images),
-                "genuine_count": len(genuine_images),
-                "forged_count": 0,
-                "training_date": datetime.utcnow().isoformat(),
-                "accuracy": accuracy,  # Store GPU training accuracy
-                "training_metrics": {
-                    'model_type': 'ai_signature_verification_gpu',
-                    'architecture': 'signature_embedding_network',
-                    'training_method': 'aws_gpu_instance',
-                    'instance_type': 'g4dn.xlarge',
-                    'gpu_acceleration': True,
-                    'gpu_accuracy': gpu_accuracy
-                }
-            })
+            # Skip per-student writes; global-only system
+            model_record = None
 
             result = {
                 "success": True,
-                "model_id": model_record.get("id") if isinstance(model_record, dict) else None,
+                "model_id": None,
                 "model_uuid": job.job_id,
-                "training_samples": len(genuine_images) + len(forged_images),
+                "training_samples": len(genuine_images),
                 "genuine_count": len(genuine_images),
-                "forged_count": 0,
                 "ai_architecture": "signature_embedding_network",
                 "training_method": "aws_gpu",
                 "model_urls": gpu_result['model_urls']
