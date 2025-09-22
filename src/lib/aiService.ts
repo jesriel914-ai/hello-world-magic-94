@@ -383,15 +383,12 @@ export class AIService {
     try {
       const formData = new FormData();
       formData.append('student_id', studentId);
-      for (const file of genuineFiles || []) {
-        formData.append('genuine_files', file);
+      if (genuineFiles && genuineFiles.length > 0) {
+        for (const file of genuineFiles) {
+          formData.append('genuine_files', file);
+        }
       }
-      for (const file of (forgedFiles || [])) {
-        formData.append('forged_files', file);
-      }
-      if (trainingMode) {
-        formData.append('training_mode', trainingMode);
-      }
+      // Do not send forged_files at all; owner identification only
 
       const response = await fetch(`${this.baseUrl}/api/training/start-async`, {
         method: 'POST',
