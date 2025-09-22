@@ -383,10 +383,10 @@ export class AIService {
     try {
       const formData = new FormData();
       formData.append('student_id', studentId);
-      for (const file of genuineFiles) {
+      for (const file of genuineFiles || []) {
         formData.append('genuine_files', file);
       }
-      for (const file of forgedFiles) {
+      for (const file of (forgedFiles || [])) {
         formData.append('forged_files', file);
       }
       if (trainingMode) {
@@ -405,7 +405,11 @@ export class AIService {
           statusText: response.statusText,
           data: data
         });
-        throw new Error(data.detail || data.message || `Training failed with status ${response.status}`);
+        const detail = data?.detail;
+        const msg = Array.isArray(detail)
+          ? detail.map((d: any) => (d?.msg || d?.loc?.join('.') || 'validation error')).join('; ')
+          : (typeof detail === 'object' ? JSON.stringify(detail) : detail);
+        throw new Error(msg || data.message || `Training failed with status ${response.status}`);
       }
       return data;
     } catch (error) {

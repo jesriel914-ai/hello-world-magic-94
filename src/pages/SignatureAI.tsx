@@ -399,7 +399,7 @@ const SignatureAI = () => {
 
   const getTotalTrainingData = () => {
     return studentCards.reduce((acc, card) => ({
-      genuine: acc.genuine + card.genuineFiles.length
+      genuine: acc.genuine + (card.genuineFiles?.length || 0)
     }), { genuine: 0 });
   };
 
@@ -688,14 +688,14 @@ const SignatureAI = () => {
         ? await aiService.startGPUTraining(
             studentIds.join(','),
             allGenuineFiles,
-            allForgedFiles,
+            [],
             true,
             useS3Upload
           )
         : await aiService.startAsyncTraining(
             studentIds.join(','),
             allGenuineFiles,
-            allForgedFiles,
+            [],
             'hybrid'
           );
       
