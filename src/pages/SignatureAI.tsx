@@ -501,7 +501,7 @@ const SignatureAI = () => {
         updateStudentCard(currentCardId, {
           student,
           genuineFiles: [],
-          // Removed forgedFiles - owner identification only
+          
         });
         toast({
           title: "Student Changed",
@@ -513,7 +513,7 @@ const SignatureAI = () => {
         (async () => {
           try {
             const persisted = await aiService.listSignatures(student.id);
-            const toPreview = (rec: { id:number; s3_url:string; s3_key:string; label:'genuine'|'forged' }) => ({ file: new File([], rec.s3_url), preview: rec.s3_url, id: rec.id, s3Key: rec.s3_key, label: rec.label } as TrainingFile);
+            const toPreview = (rec: { id:number; s3_url:string; s3_key:string; label:'genuine' }) => ({ file: new File([], rec.s3_url), preview: rec.s3_url, id: rec.id, s3Key: rec.s3_key, label: rec.label } as TrainingFile);
             updateStudentCard(currentCardId, {
               genuineFiles: persisted.filter(x => x.label === 'genuine').map(x => toPreview(x)),
               // Removed forgedFiles - owner identification only
@@ -643,7 +643,7 @@ const SignatureAI = () => {
       if (card.id === cardId) {
         // Revoke all object URLs to prevent memory leaks
         card.genuineFiles.forEach(file => URL.revokeObjectURL(file.preview));
-        // Skip forged files cleanup - owner identification only
+        
         return { ...card, genuineFiles: [] };
       }
       return card;
@@ -1110,7 +1110,7 @@ const SignatureAI = () => {
                                 id: `${Date.now()}-${x.student.id}`, 
                                 student: x.student, 
                                 genuineFiles: [], 
-                                // Removed forgedFiles - owner identification only 
+          
                                 isExpanded: true, 
                                 genuineCount: x.genuine_count,
                                 // Add placeholder files to show loading state
@@ -1120,7 +1120,7 @@ const SignatureAI = () => {
                                   placeholder: true,
                                   label: 'genuine' as const
                                 })),
-                                // Removed forgedFiles - owner identification only
+            
                               }));
                             addedIds = newCards.map(c => (c.student as any).id);
                             const merged = [...prev, ...newCards];
@@ -1146,7 +1146,7 @@ const SignatureAI = () => {
                                   s3Key: s.s3_key,
                                   label: s.label as 'genuine'
                                 }));
-                              // Removed forgedFiles - owner identification only
+                                
                               
                               // Update the card with actual images
                               setStudentCards(prev => prev.map(card => 
@@ -1166,9 +1166,9 @@ const SignatureAI = () => {
                                   ? { 
                                       ...card, 
                                       genuineFiles: [],
-                                      // Removed forgedFiles - owner identification only
+                                      
                                       genuineCount: 0,
-                                      // Removed forgedCount - owner identification only
+                                      
                                     }
                                   : card
                               ));
@@ -1895,7 +1895,7 @@ const SignatureAI = () => {
                             prev.length === 1 &&
                             prev[0].student === null &&
                             prev[0].genuineFiles.length === 0 &&
-                            prev[0].forgedFiles.length === 0
+                            
                           ) {
                             base = [];
                           }
@@ -1990,7 +1990,7 @@ const SignatureAI = () => {
                           title="Forgery detection is disabled - focus on owner identification only"
                         >
                           <Upload className="w-4 h-4" />
-                          Forged (Disabled)
+                          
                         </Button>
                         <Button
                           variant="default"

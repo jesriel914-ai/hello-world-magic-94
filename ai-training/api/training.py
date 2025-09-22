@@ -795,7 +795,6 @@ async def start_gpu_training(
 async def start_async_training(
     student_id: str = Form(...),
     genuine_files: List[UploadFile] | None = File(None),
-    forged_files: List[UploadFile] | None = File(None),
     use_s3_upload: bool = Form(False)
 ):
     check_database_available()

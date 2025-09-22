@@ -132,11 +132,10 @@ export class AIService {
   }
 
   // S3-backed student signatures -------------------------------------
-  async uploadSignature(studentId: number, label: 'genuine'|'forged', file: File) {
+  async uploadSignature(studentId: number, file: File) {
     const form = new FormData();
     form.append('student_id', String(studentId));
-    // Force genuine only
-    form.append('label', 'genuine');
+    // Backend assumes genuine-only
     form.append('file', file);
     const res = await fetch(`${this.baseUrl}/api/uploads/signature`, { method: 'POST', body: form });
     const data = await res.json();
@@ -151,10 +150,9 @@ export class AIService {
     return data.signatures as Array<{ id:number; student_id:number; label:'genuine'; s3_url:string; s3_key:string }>;
   }
 
-  async presignSignature(studentId: number, label: 'genuine'|'forged', file: File) {
+  async presignSignature(studentId: number, file: File) {
     const form = new FormData();
     form.append('student_id', String(studentId));
-    form.append('label', 'genuine');
     form.append('filename', file.name);
     form.append('content_type', file.type || 'application/octet-stream');
     const ps = await fetch(`${this.baseUrl}/api/uploads/presign`, { method: 'POST', body: form });
