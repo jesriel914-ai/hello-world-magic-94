@@ -1351,6 +1351,13 @@ async def run_global_async_training(job, student_ids, genuine_data, use_s3_uploa
             ckey, curl = None, None
 
         # Store global model record in dedicated global table
+        # Convert history (dict) into final metrics safely
+        h = history or {}
+        final_acc = float(h.get('accuracy', [0])[-1]) if h.get('accuracy') else None
+        final_val_acc = float(h.get('val_accuracy', [0])[-1]) if h.get('val_accuracy') else None
+        final_loss = float(h.get('loss', [0])[-1]) if h.get('loss') else None
+        final_val_loss = float(h.get('val_loss', [0])[-1]) if h.get('val_loss') else None
+
         payload = {
             "model_path": s3_url,
             "s3_key": s3_key,
@@ -1361,14 +1368,14 @@ async def run_global_async_training(job, student_ids, genuine_data, use_s3_uploa
             "forged_count": 0,
             "student_count": len(students),
             "training_date": datetime.utcnow().isoformat(),
-            "accuracy": float(history.history.get('accuracy', [0])[-1]) if history.history.get('accuracy') else None,
+            "accuracy": final_acc,
             "training_metrics": {
                 'model_type': 'global_multi_student',
-                'final_accuracy': float(history.history.get('accuracy', [0])[-1]) if history.history.get('accuracy') else None,
-                'final_loss': float(history.history.get('loss', [0])[-1]) if history.history.get('loss') else None,
-                'epochs_trained': len(history.history.get('accuracy', [])),
-                'val_accuracy': float(history.history.get('val_accuracy', [0])[-1]) if history.history.get('val_accuracy') else None,
-                'val_loss': float(history.history.get('val_loss', [0])[-1]) if history.history.get('val_loss') else None
+                'final_accuracy': final_acc,
+                'final_loss': final_loss,
+                'epochs_trained': len(h.get('accuracy', [])),
+                'val_accuracy': final_val_acc,
+                'val_loss': final_val_loss
             }
         }
         if curl:
