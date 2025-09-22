@@ -169,7 +169,7 @@ class GlobalSignatureClassifier:
         logger.info(f"Prepared {len(all_images)} images across {self.num_classes} classes")
         return X, y
     
-    def train_global_model(self, training_data: Dict, epochs: int = 50, validation_split: float = 0.2) -> Dict:
+    def train_global_model(self, training_data: Dict, epochs: int = 15, validation_split: float = 0.2) -> Dict:
         """
         Train the global model on all student data
         """
@@ -184,8 +184,7 @@ class GlobalSignatureClassifier:
         # Create/update global model
         self.create_global_model()
         
-        # Compile model
-        # Use standard TopKCategoricalAccuracy metric for top-3
+        # Compile model (head-focused training)
         self.global_model.compile(
             optimizer=keras.optimizers.Adam(learning_rate=self.learning_rate),
             loss='categorical_crossentropy',
@@ -197,8 +196,8 @@ class GlobalSignatureClassifier:
         
         # Callbacks
         callbacks = [
-            keras.callbacks.EarlyStopping(patience=10, restore_best_weights=True),
-            keras.callbacks.ReduceLROnPlateau(factor=0.5, patience=5),
+            keras.callbacks.EarlyStopping(monitor='val_accuracy', patience=5, restore_best_weights=True),
+            keras.callbacks.ReduceLROnPlateau(monitor='val_loss', factor=0.5, patience=3),
             keras.callbacks.ModelCheckpoint(
                 'best_global_model.keras',
                 save_best_only=True,
@@ -206,12 +205,39 @@ class GlobalSignatureClassifier:
             )
         ]
         
-        # Train model
+        # Build tf.data with strong augmentation for few-shot learning
+        num_samples = X.shape[0]
+        val_size = max(1, int(num_samples * validation_split))
+        train_size = num_samples - val_size
+        
+        # Deterministic split
+        idx = np.arange(num_samples)
+        np.random.shuffle(idx)
+        train_idx, val_idx = idx[:train_size], idx[train_size:]
+        X_train, y_train = X[train_idx], y[train_idx]
+        X_val, y_val = X[val_idx], y[val_idx]
+
+        # Augmentation model (signature-centric)
+        aug_layers = keras.Sequential([
+            layers.RandomRotation(0.05),
+            layers.RandomTranslation(0.05, 0.05),
+            layers.RandomZoom(0.1, 0.1),
+            layers.RandomContrast(0.1),
+            layers.GaussianNoise(0.01),
+        ], name='augmentation')
+
+        def aug_fn(img, label):
+            img = aug_layers(img)
+            return img, label
+
+        batch_size = 32
+        ds_train = tf.data.Dataset.from_tensor_slices((X_train, y_train)).shuffle(len(X_train)).map(aug_fn, num_parallel_calls=tf.data.AUTOTUNE).batch(batch_size).prefetch(tf.data.AUTOTUNE)
+        ds_val = tf.data.Dataset.from_tensor_slices((X_val, y_val)).batch(batch_size).prefetch(tf.data.AUTOTUNE)
+
         history = self.global_model.fit(
-            X, y,
+            ds_train,
             epochs=epochs,
-            validation_split=validation_split,
-            batch_size=32,
+            validation_data=ds_val,
             callbacks=callbacks,
             verbose=1
         )
