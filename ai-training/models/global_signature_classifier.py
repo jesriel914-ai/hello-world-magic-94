@@ -241,6 +241,51 @@ class GlobalSignatureClassifier:
             callbacks=callbacks,
             verbose=1
         )
+        # Optional short fine-tune: unfreeze last 10 layers of backbone for a few epochs
+        try:
+            if self.feature_extractor is not None:
+                # Unfreeze last 10 layers of the base model inside feature extractor if present
+                base = None
+                for layer in self.feature_extractor.layers:
+                    # Heuristic: find inner backbone by common names
+                    if hasattr(layer, 'name') and ('MobileNetV2' in layer.name or 'mobilenetv2' in layer.name or 'Conv' in layer.name):
+                        base = self.feature_extractor
+                        break
+                if base is None:
+                    base = self.feature_extractor
+                # Unfreeze last 10 layers
+                trainable_layers = [l for l in base.layers if hasattr(l, 'trainable')]
+                for l in trainable_layers[-10:]:
+                    l.trainable = True
+                # Recompile with lower LR
+                self.global_model.compile(
+                    optimizer=keras.optimizers.Adam(learning_rate=self.learning_rate * 0.5),
+                    loss='categorical_crossentropy',
+                    metrics=[
+                        'accuracy',
+                        keras.metrics.TopKCategoricalAccuracy(k=3, name='top3_accuracy')
+                    ]
+                )
+                fine_tune_epochs = 5
+                ft_callbacks = [
+                    keras.callbacks.EarlyStopping(monitor='val_accuracy', patience=3, restore_best_weights=True),
+                    keras.callbacks.ReduceLROnPlateau(monitor='val_loss', factor=0.5, patience=2)
+                ]
+                ft_hist = self.global_model.fit(
+                    ds_train,
+                    epochs=fine_tune_epochs,
+                    validation_data=ds_val,
+                    callbacks=ft_callbacks,
+                    verbose=1
+                )
+                # Merge histories
+                for k, v in ft_hist.history.items():
+                    if k in history.history:
+                        history.history[k].extend(v)
+                    else:
+                        history.history[k] = v
+        except Exception as e:
+            logger.warning(f"Fine-tune phase skipped due to: {e}")
         
         self.training_history = history.history
         logger.info("Global model training completed")
