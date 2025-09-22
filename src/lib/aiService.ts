@@ -183,8 +183,8 @@ export class AIService {
     const res = await fetch(url.toString());
     const data = await res.json();
     if (!res.ok) throw new Error(data.detail || 'List failed');
-    // Support summarized counts: { student_id, genuine_count, forged_count }
-    return data.items as Array<{ student_id:number; genuine_count?: number; forged_count?: number; signatures?: Array<{ label:'genuine'|'forged'; s3_url:string }> }>;
+    // Support summarized counts: { student_id, genuine_count }
+    return data.items as Array<{ student_id:number; genuine_count?: number; signatures?: Array<{ label:'genuine'; s3_url:string }> }>;
   }
 
   /**
@@ -226,7 +226,7 @@ export class AIService {
       const formData = new FormData();
       formData.append('student_id', String(studentSchoolId));
       for (const f of genuineFiles) formData.append('genuine_files', f);
-      for (const f of forgedFiles) formData.append('forged_files', f);
+      
 
       const response = await fetch(`${this.baseUrl}/api/training/start`, {
         method: 'POST',
@@ -394,7 +394,7 @@ export class AIService {
       if (s3Flag) {
         formData.append('use_s3_upload', 'true');
       }
-      // Do not send forged_files at all; owner identification only
+      
 
       const response = await fetch(`${this.baseUrl}/api/training/start-async`, {
         method: 'POST',
@@ -491,9 +491,7 @@ export class AIService {
       for (const file of genuineFiles) {
         formData.append('genuine_files', file);
       }
-      for (const file of forgedFiles) {
-        formData.append('forged_files', file);
-      }
+      
       // Force hybrid mode
       formData.append('training_mode', 'hybrid');
 

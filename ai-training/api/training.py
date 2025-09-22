@@ -707,7 +707,7 @@ async def start_gpu_training(
                     raise HTTPException(status_code=400, detail="No stored signatures available for this student")
                 import requests
                 genuine_data = []
-                # Skip forged data - owner identification only
+                
                 for r in rows:
                     url = r.get("s3_url"); label = (r.get("label") or "").lower()
                     key = r.get("s3_key") or _derive_s3_key_from_url(url)
@@ -725,15 +725,13 @@ async def start_gpu_training(
                     if not content:
                         continue
                     if label == "genuine": genuine_data.append(content)
-                    # Skip forged data - owner identification only
+                    
                 if len(genuine_data) < settings.MIN_GENUINE_SAMPLES:
                     raise HTTPException(status_code=400, detail="Insufficient stored signatures to train (need more genuine samples)")
             else:
                 if len(genuine_files) < settings.MIN_GENUINE_SAMPLES:
                     raise HTTPException(status_code=400, detail=f"Minimum {settings.MIN_GENUINE_SAMPLES} genuine samples required")
-                # Forged samples not required since forgery detection is disabled - focus on owner identification only
                 genuine_data = [await f.read() for f in genuine_files]
-                # Skip forged files - owner identification only
             
             if use_gpu and gpu_training_manager.is_available():
                 # Use GPU training
@@ -762,13 +760,11 @@ async def start_gpu_training(
             # For global GPU, allow auto-fetch when files are not provided
             if not genuine_files or len(genuine_files) == 0:  # Only need genuine files for owner identification
                 genuine_data = []
-                # Skip forged data - owner identification only
+                
             else:
                 if len(genuine_files) < settings.MIN_GENUINE_SAMPLES:
                     raise HTTPException(status_code=400, detail=f"Minimum {settings.MIN_GENUINE_SAMPLES} genuine samples required")
-                # Forged samples not required since forgery detection is disabled - focus on owner identification only
                 genuine_data = [await f.read() for f in genuine_files]
-                # Skip forged files - owner identification only
             
             if use_gpu and gpu_training_manager.is_available():
                 asyncio.create_task(run_global_gpu_training(job, student_ids, genuine_data, use_s3_upload))
@@ -827,7 +823,7 @@ async def start_async_training(
                     raise HTTPException(status_code=400, detail="No stored signatures available for this student")
                 import requests
                 genuine_data = []
-                # Skip forged data - owner identification only
+                
                 for r in rows:
                     url = r.get("s3_url"); label = (r.get("label") or "").lower()
                     key = r.get("s3_key") or _derive_s3_key_from_url(url)
@@ -845,15 +841,13 @@ async def start_async_training(
                     if not content:
                         continue
                     if label == "genuine": genuine_data.append(content)
-                    # Skip forged data - owner identification only
+                    
                 if len(genuine_data) < settings.MIN_GENUINE_SAMPLES:
                     raise HTTPException(status_code=400, detail="Insufficient stored signatures to train (need more genuine samples)")
             else:
                 if len(genuine_files) < settings.MIN_GENUINE_SAMPLES:
                     raise HTTPException(status_code=400, detail=f"Minimum {settings.MIN_GENUINE_SAMPLES} genuine samples required")
-                # Forged samples not required since forgery detection is disabled - focus on owner identification only
                 genuine_data = [await f.read() for f in genuine_files]
-                # Skip forged files - owner identification only
             asyncio.create_task(run_async_training(job, student, genuine_data))
             return {"success": True, "job_id": job.job_id, "message": "Training job started", "stream_url": f"/api/progress/stream/{job.job_id}"}
         
@@ -864,13 +858,11 @@ async def start_async_training(
             # Support auto-fetch when files omitted (defer per-student fetch to run_global_async_training)
             if not genuine_files or len(genuine_files) == 0:  # Only need genuine files for owner identification
                 genuine_data = []
-                # Skip forged data - owner identification only
+                
             else:
                 if len(genuine_files) < settings.MIN_GENUINE_SAMPLES:
                     raise HTTPException(status_code=400, detail=f"Minimum {settings.MIN_GENUINE_SAMPLES} genuine samples required")
-                # Forged samples not required since forgery detection is disabled - focus on owner identification only
                 genuine_data = [await f.read() for f in genuine_files]
-                # Skip forged files - owner identification only
             asyncio.create_task(run_global_async_training(job, student_ids, genuine_data, use_s3_upload))
             return {"success": True, "job_id": job.job_id, "message": "Global training job started", "stream_url": f"/api/progress/stream/{job.job_id}"}
             
@@ -1027,7 +1019,7 @@ async def run_gpu_training(job, student, genuine_data, use_s3_upload=False):
         
         # Process images
         genuine_images = []
-        forged_images = []
+        
         
         for i, data in enumerate(genuine_data):
             image = Image.open(io.BytesIO(data))
@@ -1036,8 +1028,7 @@ async def run_gpu_training(job, student, genuine_data, use_s3_upload=False):
                 progress = 5.0 + (i + 1) / len(genuine_data) * 10.0
                 job_queue.update_job_progress(job.job_id, progress, f"Processing genuine images... {i+1}/{len(genuine_data)}")
 
-        # Skip forged signature processing - not used for owner identification training
-        # (Forgery detection is disabled system-wide - focus on owner identification only)
+        
 
         # Prepare training data
         training_data = {
@@ -1127,7 +1118,7 @@ async def run_global_gpu_training(job, student_ids, genuine_data, use_s3_upload=
 
         # Validate minimum totals across all selected students
         total_genuine = sum(len(v["genuine_images"]) for v in per_student.values())
-        total_forged = 0  # Forgery detection disabled
+        
         if total_genuine < settings.MIN_GENUINE_SAMPLES:
             raise Exception("Insufficient stored signatures across selected students to train global model")
 

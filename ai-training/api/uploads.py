@@ -125,7 +125,7 @@ async def students_with_images(summary: bool = False):
                     bucket = counts.setdefault(int(sid), {"genuine_count": 0})
                     if lab == "genuine":
                         bucket["genuine_count"] += 1
-                    # ignore forged entirely
+                    
                 # Build summarized list (only include students with any images)
                 for sid, c in counts.items():
                     total = int(c.get("genuine_count", 0))

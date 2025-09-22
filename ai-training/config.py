@@ -50,7 +50,6 @@ class Settings:
     
     # Training Configuration
     MIN_GENUINE_SAMPLES: int = int(os.getenv("MIN_GENUINE_SAMPLES", 3))  # Reduced for minimal requirements like Teachable Machine
-    # Forged samples removed system-wide
     MIN_FORGED_SAMPLES: int = 0
     MAX_TRAINING_TIME: int = int(os.getenv("MAX_TRAINING_TIME", 3600))
 
