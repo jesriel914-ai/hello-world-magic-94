@@ -1335,22 +1335,16 @@ async def run_global_async_training(job, student_ids, genuine_data, use_s3_uploa
         gsm = GlobalSignatureClassifier()
         history = gsm.train_global_model(training_data)
         
-        # Save global model directly to S3 (no local files)
+        # Save global model locally → upload → cleanup
         model_uuid = str(uuid.uuid4())
-        try:
-            from utils.direct_s3_saving import save_global_model_directly
-            s3_key, s3_url = save_global_model_directly(gsm, "global", model_uuid)
-            logger.info(f"✅ Global model {model_uuid} saved directly to S3")
-        except Exception as e:
-            logger.error(f"❌ Failed to save global model directly to S3: {e}")
-            # Fallback to local save → upload → cleanup
-            base_path = os.path.join(settings.LOCAL_MODELS_DIR, f"global_model_{model_uuid}")
-            os.makedirs(settings.LOCAL_MODELS_DIR, exist_ok=True)
-            gsm.save_model(f"{base_path}.keras")
-            with open(f"{base_path}.keras", 'rb') as f:
-                model_data = f.read()
-            s3_key, s3_url = upload_model_file(model_data, "global", f"global_{model_uuid}", "keras")
-            cleanup_local_file(f"{base_path}.keras")
+        base_path = os.path.join(settings.LOCAL_MODELS_DIR, f"global_model_{model_uuid}")
+        os.makedirs(settings.LOCAL_MODELS_DIR, exist_ok=True)
+        # gsm.save_model already appends .keras internally
+        gsm.save_model(base_path)
+        with open(f"{base_path}.keras", 'rb') as f:
+            model_data = f.read()
+        s3_key, s3_url = upload_model_file(model_data, "global", f"global_{model_uuid}", "keras")
+        cleanup_local_file(f"{base_path}.keras")
         
         # Compute and cache centroids for verification speed
         try:
