@@ -1080,14 +1080,12 @@ const SignatureAI = () => {
                             if (item.student_id && byId.has(item.student_id)) {
                               const student = byId.get(item.student_id);
                               const genuineCount = item.genuine_count || 0;
-                              const forgedCount = item.forged_count || 0;
-                              
                               // Only include students with actual images (not just DB records)
-                              if (student && (genuineCount > 0 || forgedCount > 0)) {
+                              if (student && genuineCount > 0) {
                                 validItems.push({
                                   student: student,
                                   genuine_count: genuineCount,
-                                  forged_count: forgedCount
+                                  // forged_count removed
                                 });
                               }
                             }
@@ -1114,8 +1112,7 @@ const SignatureAI = () => {
                                 genuineFiles: [], 
                                 // Removed forgedFiles - owner identification only 
                                 isExpanded: true, 
-                                genuineCount: x.genuine_count, 
-                                forgedCount: x.forged_count,
+                                genuineCount: x.genuine_count,
                                 // Add placeholder files to show loading state
                                 genuineFiles: Array(x.genuine_count).fill(null).map((_, i) => ({
                                   file: new File([], `placeholder-${i}`),

@@ -50,7 +50,8 @@ class Settings:
     
     # Training Configuration
     MIN_GENUINE_SAMPLES: int = int(os.getenv("MIN_GENUINE_SAMPLES", 3))  # Reduced for minimal requirements like Teachable Machine
-    MIN_FORGED_SAMPLES: int = int(os.getenv("MIN_FORGED_SAMPLES", 0))   # Disabled - no forgery detection needed
+    # Forged samples removed system-wide
+    MIN_FORGED_SAMPLES: int = 0
     MAX_TRAINING_TIME: int = int(os.getenv("MAX_TRAINING_TIME", 3600))
 
     # Verification Settings
@@ -59,15 +60,15 @@ class Settings:
     
     # Confidence Thresholds for Owner Detection
     CONFIDENCE_THRESHOLD: float = 0.6  # Minimum confidence for positive match
-    ENABLE_FORGERY_DETECTION: bool = False  # Disabled for owner detection focus
+    ENABLE_FORGERY_DETECTION: bool = False
     
     # Anti-Spoofing (disabled to prioritize identification flow)
     ENABLE_ANTISPOOFING: bool = False
     SPOOFING_THRESHOLD: float = 0.6
     
     # Training Configuration - Focus on Owner Identification Only
-    MIN_FORGED_SAMPLES = 0  # Disabled - no forgery detection needed
-    ENABLE_FORGERY_TRAINING: bool = False  # Disabled system-wide
+    MIN_FORGED_SAMPLES = 0
+    ENABLE_FORGERY_TRAINING: bool = False
     
     # Model Versioning
     ENABLE_MODEL_VERSIONING: bool = True
