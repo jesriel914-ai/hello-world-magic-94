@@ -1166,7 +1166,6 @@ async def run_global_gpu_training(job, student_ids, genuine_data, use_s3_upload=
                 "status": "completed",
                 "sample_count": int(total_genuine),
                 "genuine_count": int(total_genuine),
-                "forged_count": 0,
                 "student_count": len(students),
                 "training_date": datetime.utcnow().isoformat(),
                 "accuracy": accuracy,  # Store actual GPU training accuracy
