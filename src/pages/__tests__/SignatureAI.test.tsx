@@ -91,7 +91,7 @@ const mockSignatures = [
     student_id: 1,
     label: 'genuine' as const,
     s3_url: 'https://s3.amazonaws.com/bucket/signature2.jpg',
-    s3_key: 'signatures/1/forged/signature2.jpg'
+    s3_key: 'signatures/1/genuine/signature2.jpg'
   }
 ];
 

@@ -19,10 +19,10 @@ const mockCard: StudentTrainingCardType = {
   id: 'card-1',
   student: mockStudent,
   genuineFiles: [],
-  forgedFiles: [],
+  // forgedFiles removed
   isExpanded: true,
   genuineCount: 5,
-  forgedCount: 2
+  // forgedCount removed
 };
 
 const mockCardWithPlaceholders: StudentTrainingCardType = {
@@ -42,17 +42,10 @@ const mockCardWithPlaceholders: StudentTrainingCardType = {
       label: 'genuine'
     }
   ],
-  forgedFiles: [
-    {
-      file: new File(['test'], 'placeholder3.jpg'),
-      preview: '',
-      placeholder: true,
-      label: 'forged'
-    }
-  ],
+  // forgedFiles removed
   isExpanded: true,
   genuineCount: 2,
-  forgedCount: 1
+  // forgedCount removed
 };
 
 const mockCardWithImages: StudentTrainingCardType = {
@@ -67,18 +60,10 @@ const mockCardWithImages: StudentTrainingCardType = {
       label: 'genuine'
     }
   ],
-  forgedFiles: [
-    {
-      file: new File(['test'], 'forged1.jpg'),
-      preview: 'https://s3.amazonaws.com/bucket/forged1.jpg',
-      id: 2,
-      s3Key: 'signatures/1/forged/forged1.jpg',
-      label: 'forged'
-    }
-  ],
+  // forgedFiles removed
   isExpanded: true,
   genuineCount: 1,
-  forgedCount: 1
+  // forgedCount removed
 };
 
 const defaultProps = {
@@ -105,7 +90,7 @@ describe('StudentTrainingCard', () => {
 
     expect(screen.getByText('John Doe')).toBeInTheDocument();
     expect(screen.getByText('5')).toBeInTheDocument(); // genuine count
-    expect(screen.getByText('2')).toBeInTheDocument(); // forged count
+    // forged count removed
   });
 
   it('should render "No student selected" when no student is assigned', () => {
@@ -261,36 +246,34 @@ describe('StudentTrainingCard', () => {
     expect(defaultProps.onCardClick).not.toHaveBeenCalled();
   });
 
-  it('should display correct counts for genuine and forged files', () => {
+  it('should display correct counts for genuine files', () => {
     const cardWithCounts = {
       ...mockCard,
       genuineCount: 10,
-      forgedCount: 5
+      // forgedCount removed
     };
 
     render(<StudentTrainingCard {...defaultProps} card={cardWithCounts} />);
 
     expect(screen.getByText('10')).toBeInTheDocument(); // genuine count
-    expect(screen.getByText('5')).toBeInTheDocument(); // forged count
+    // forged count removed
   });
 
-  it('should fall back to file array length when counts are not provided', () => {
+  it('should fall back to genuine file array length when counts are not provided', () => {
     const cardWithoutCounts = {
       ...mockCard,
       genuineCount: undefined,
-      forgedCount: undefined,
+      // forgedCount removed,
       genuineFiles: [
         { file: new File(['test'], 'genuine1.jpg'), preview: 'url1', label: 'genuine' as const },
         { file: new File(['test'], 'genuine2.jpg'), preview: 'url2', label: 'genuine' as const }
       ],
-      forgedFiles: [
-        { file: new File(['test'], 'forged1.jpg'), preview: 'url3', label: 'forged' as const }
-      ]
+      // forgedFiles removed
     };
 
     render(<StudentTrainingCard {...defaultProps} card={cardWithoutCounts} />);
 
     expect(screen.getByText('2')).toBeInTheDocument(); // genuine files length
-    expect(screen.getByText('1')).toBeInTheDocument(); // forged files length
+    // forged files length removed
   });
 });
