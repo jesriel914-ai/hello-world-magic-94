@@ -16,27 +16,33 @@ export const augmentImage = (canvas: HTMLCanvasElement): HTMLCanvasElement => {
   
   // Apply comprehensive augmentations for all real-world mobile scanning challenges
   // Using a weighted distribution to favor more common scenarios
+  // Weights must cover all switch cases (0..14)
   const augmentationWeights = [
-    0.15, // 0: Distance simulation (common)
-    0.15, // 1: Angle variation (common)
-    0.12, // 2: Paper background (common)
-    0.1,  // 3: Motion blur
-    0.1,  // 4: Lighting variation
-    0.08, // 5: Pen characteristics
-    0.08, // 6: Perspective distortion
-    0.08, // 7: Partial signature
-    0.05, // 8: Document context
-    0.05, // 9: Camera artifacts (enhanced)
-    0.02, // 10: Hand shake (less common)
-    0.02  // 11: Lens distortion (less common)
+    0.14, // 0: Distance + focus
+    0.14, // 1: Angle variation
+    0.12, // 2: Paper background
+    0.10, // 3: Motion blur
+    0.10, // 4: Lighting variation
+    0.07, // 5: Pen characteristics
+    0.07, // 6: Perspective distortion
+    0.07, // 7: Partial signature
+    0.06, // 8: Document context
+    0.05, // 9: Camera artifacts
+    0.03, // 10: Hand shake + shadows
+    0.02, // 11: Lens distortion + perspective
+    0.02, // 12: Resolution/quality degradation (new)
+    0.01, // 13: Variable focus/depth of field
+    0.02  // 14: Video compression artifacts
   ];
-  
-  // Select augmentation based on weights
+
+  // Normalize and select augmentation based on weights
+  const totalWeight = augmentationWeights.reduce((a, b) => a + b, 0);
+  const normalized = augmentationWeights.map(w => w / totalWeight);
   const rand = Math.random();
   let sum = 0;
-  let augmentationType = 0;
-  for (let i = 0; i < augmentationWeights.length; i++) {
-    sum += augmentationWeights[i];
+  let augmentationType = normalized.length - 1;
+  for (let i = 0; i < normalized.length; i++) {
+    sum += normalized[i];
     if (rand <= sum) {
       augmentationType = i;
       break;
@@ -532,6 +538,54 @@ export const augmentImage = (canvas: HTMLCanvasElement): HTMLCanvasElement => {
       break;
     }
       
+    case 12: { // Resolution and quality degradation (CRITICAL for low-end cameras)
+      // Downscale then upscale to simulate low resolution and compression
+      const scaleFactor = 0.3 + Math.random() * 0.4; // 0.3 - 0.7
+      const w = Math.max(8, Math.floor(augmentedCanvas.width * scaleFactor));
+      const h = Math.max(8, Math.floor(augmentedCanvas.height * scaleFactor));
+
+      const tmp = document.createElement('canvas');
+      tmp.width = w;
+      tmp.height = h;
+      const tctx = tmp.getContext('2d');
+      if (!tctx) { ctx.drawImage(canvas, 0, 0); break; }
+
+      // Draw downscaled
+      tctx.imageSmoothingEnabled = true;
+      tctx.drawImage(canvas, 0, 0, w, h);
+
+      // Optionally add light noise
+      if (Math.random() > 0.5) {
+        const id = tctx.getImageData(0, 0, w, h);
+        const d = id.data;
+        const noiseAmp = 8 + Math.random() * 12; // 8-20
+        for (let i = 0; i < d.length; i += 4) {
+          const n = (Math.random() - 0.5) * noiseAmp;
+          d[i] = Math.max(0, Math.min(255, d[i] + n));
+          d[i+1] = Math.max(0, Math.min(255, d[i+1] + n));
+          d[i+2] = Math.max(0, Math.min(255, d[i+2] + n));
+        }
+        tctx.putImageData(id, 0, 0);
+      }
+
+      // Upscale back with pixelation
+      ctx.imageSmoothingEnabled = false;
+      ctx.drawImage(tmp, 0, 0, w, h, 0, 0, augmentedCanvas.width, augmentedCanvas.height);
+
+      // Simulate JPEG compression by drawing toDataURL with low quality then back
+      if (Math.random() > 0.5) {
+        const q = 0.4 + Math.random() * 0.3; // 0.4 - 0.7
+        const jpeg = augmentedCanvas.toDataURL('image/jpeg', q);
+        const img = new Image();
+        img.onload = () => {
+          ctx.clearRect(0, 0, augmentedCanvas.width, augmentedCanvas.height);
+          ctx.drawImage(img, 0, 0);
+        };
+        img.src = jpeg;
+      }
+      break;
+    }
+
     case 13: { // Variable focus/depth of field (IMPORTANT for mobile cameras)
       // Simulate parts of signature being in/out of focus
       

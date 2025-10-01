@@ -121,6 +121,13 @@ export const ModelTraining: React.FC<ModelTrainingProps> = ({
   const showMorePredictions = () => {
     setVisiblePredictions(prev => Math.min(prev + 1, predictions.length));
   };
+
+  const logMemory = (label: string) => {
+    try {
+      const mem = tf.memory();
+      console.log(`${label} tf.memory():`, mem);
+    } catch {}
+  };
   
   // Handle local model selection
   const handleLocalModelSelect = () => {
@@ -168,49 +175,27 @@ export const ModelTraining: React.FC<ModelTrainingProps> = ({
         getTotalClasses: () => importedModel.metadata.labels.length,
         getClassLabels: () => importedModel.metadata.labels,
         predict: async (image: HTMLCanvasElement | HTMLVideoElement, flipped?: boolean) => {
-          // Preprocess the image
-          const img = tf.browser.fromPixels(image)
-            .resizeNearestNeighbor([224, 224])
-            .toFloat()
-            .div(255.0)
-            .expandDims();
-          
-          // If flipped, reverse the image horizontally
-          const processedImg = flipped ? img.reverse(1) : img;
-          
-          // Get features from MobileNet
-          const features = importedModel.featureExtractor.predict(processedImg) as tf.Tensor;
-          
-          // Get predictions from classifier
-          const predictions = importedModel.classifier.predict(features) as tf.Tensor;
-          
-          // Convert predictions to array
-          const predictionArray = await predictions.data();
-          
-          // Clean up tensors
-          img.dispose();
-          if (flipped && processedImg !== img) {
-            processedImg.dispose();
-          }
-          features.dispose();
-          predictions.dispose();
-          
-          // Create prediction results
-          const labels = importedModel.metadata.labels;
-          const results: PredictionResult[] = [];
-          
-          for (let i = 0; i < predictionArray.length; i++) {
-            if (i < labels.length) {
-              results.push({
-                className: labels[i],
-                confidence: predictionArray[i]
-              });
+          const { results } = await tf.tidy(async () => {
+            const img = tf.browser.fromPixels(image)
+              .resizeNearestNeighbor([224, 224])
+              .toFloat()
+              .div(255.0)
+              .expandDims();
+            const processedImg = flipped ? img.reverse(1) : img;
+            const features = importedModel.featureExtractor.predict(processedImg) as tf.Tensor;
+            const predictions = importedModel.classifier.predict(features) as tf.Tensor;
+            const predictionArray = await predictions.data();
+            const labels = importedModel.metadata.labels;
+            const results: PredictionResult[] = [];
+            for (let i = 0; i < predictionArray.length; i++) {
+              if (i < labels.length) {
+                results.push({ className: labels[i], confidence: predictionArray[i] });
+              }
             }
-          }
-          
-          // Sort by confidence (highest first)
+            return { results };
+          });
+          await tf.nextFrame();
           results.sort((a, b) => b.confidence - a.confidence);
-          
           return results;
         }
       };
@@ -486,8 +471,16 @@ export const ModelTraining: React.FC<ModelTrainingProps> = ({
   useEffect(() => {
     const initTF = async () => {
       await tf.ready();
+      try {
+        if (tf.getBackend() !== 'webgl') {
+          await tf.setBackend('webgl');
+        }
+      } catch (e) {
+        console.warn('Failed to set webgl backend, continuing with default:', e);
+      }
       console.log('TensorFlow.js is ready');
       console.log('Backend:', tf.getBackend());
+      console.log('Initial tf.memory():', tf.memory());
     };
     initTF();
   }, []);
@@ -527,10 +520,12 @@ export const ModelTraining: React.FC<ModelTrainingProps> = ({
               screenShareService.sharePredictingStatus(true);
               
               try {
+                logMemory('Before mobile predict');
                 const predictions = await model.predict(canvas, true);
                 const sortedPredictions = predictions.sort((a, b) => b.confidence - a.confidence);
                 console.log('🎯 Mobile image predictions completed:', sortedPredictions);
                 setPredictions(sortedPredictions);
+                logMemory('After mobile predict');
                 
                 // Share prediction results with mobile
                 screenShareService.sharePredictionResults(sortedPredictions);
@@ -643,10 +638,12 @@ export const ModelTraining: React.FC<ModelTrainingProps> = ({
               screenShareService.sharePredictingStatus(true);
               
               try {
+                logMemory('Before file predict');
                 const predictions = await model.predict(canvas, true);
                 const sortedPredictions = predictions.sort((a, b) => b.confidence - a.confidence);
                 console.log('🎯 Predictions completed:', sortedPredictions);
                 setPredictions(sortedPredictions);
+                logMemory('After file predict');
                 
                 // Share prediction results with other devices
                 screenShareService.sharePredictionResults(sortedPredictions);
@@ -823,23 +820,20 @@ export const ModelTraining: React.FC<ModelTrainingProps> = ({
         getTotalClasses: () => validClasses.length,
         getClassLabels: () => validClasses.map(cls => cls.student ? formatStudentDisplay(cls.student) : 'Unassigned'),
         predict: async (image: HTMLCanvasElement | HTMLVideoElement, flipped?: boolean) => {
-          // Get features using the correct method
-          const processedImage = tf.browser.fromPixels(image)
-            .resizeNearestNeighbor([224, 224])
-            .toFloat()
-            .expandDims();
-          
-          const features = mobileNet.predict(processedImage) as tf.Tensor;
-          // MobileNet already returns 2D features, so no need to flatten
-          const predictions = classifier.predict(features) as tf.Tensor;
-          const predictionValues = await predictions.data();
-          predictions.dispose();
-          features.dispose();
-          processedImage.dispose();
-          
+          const { values } = await tf.tidy(async () => {
+            const processedImage = tf.browser.fromPixels(image)
+              .resizeNearestNeighbor([224, 224])
+              .toFloat()
+              .expandDims();
+            const features = mobileNet.predict(processedImage) as tf.Tensor;
+            const predictions = classifier.predict(features) as tf.Tensor;
+            const vals = await predictions.data();
+            return { values: vals };
+          });
+          await tf.nextFrame();
           return validClasses.map((cls, index) => ({
             className: cls.student ? formatStudentDisplay(cls.student) : 'Unassigned',
-            confidence: predictionValues[index]
+            confidence: values[index]
           }));
         }
       };
@@ -876,21 +870,20 @@ export const ModelTraining: React.FC<ModelTrainingProps> = ({
                 if (ctx) {
                   ctx.drawImage(img, 0, 0, 224, 224);
                   
-                  // Original image
-                  const processedImage = tf.browser.fromPixels(canvas)
-                    .resizeNearestNeighbor([224, 224])
-                    .toFloat()
-                    .expandDims();
-                  
-                  const features = mobileNet.predict(processedImage) as tf.Tensor;
-                  const flattenedFeatures = features.flatten();
-                  trainingInputs.push(flattenedFeatures);
+                  // Original image (use tidy to scope intermediates)
+                  const flat = await tf.tidy(async () => {
+                    const processedImage = tf.browser.fromPixels(canvas)
+                      .resizeNearestNeighbor([224, 224])
+                      .toFloat()
+                      .expandDims();
+                    const features = mobileNet.predict(processedImage) as tf.Tensor;
+                    const flattened = features.flatten();
+                    return flattened;
+                  });
+                  trainingInputs.push(flat as tf.Tensor);
                   trainingLabels.push(classIndex);
                   console.log(`Added original sample ${sampleIndex + 1} to ${cls.student ? formatStudentDisplay(cls.student) : 'Unassigned'}`);
-                  
-                  // Dispose the original features
-                  features.dispose();
-                  processedImage.dispose();
+                  console.log('tf.memory after sample:', tf.memory());
                   
                   // Create augmented versions (back to 3 since we simplified the function)
                   const numAugmentations = 3; // 3 augmentations per sample for better training
@@ -898,23 +891,21 @@ export const ModelTraining: React.FC<ModelTrainingProps> = ({
                     try {
                       const augmentedCanvas = augmentImage(canvas);
                       
-                      const augmentedImage = tf.browser.fromPixels(augmentedCanvas)
-                        .resizeNearestNeighbor([224, 224])
-                        .toFloat()
-                        .expandDims();
-                      
-                      const augFeatures = mobileNet.predict(augmentedImage) as tf.Tensor;
-                      const augFlattenedFeatures = augFeatures.flatten();
-                      trainingInputs.push(augFlattenedFeatures);
+                      const augFlat = await tf.tidy(async () => {
+                        const augmentedImage = tf.browser.fromPixels(augmentedCanvas)
+                          .resizeNearestNeighbor([224, 224])
+                          .toFloat()
+                          .expandDims();
+                        const augFeatures = mobileNet.predict(augmentedImage) as tf.Tensor;
+                        const flattened = augFeatures.flatten();
+                        return flattened;
+                      });
+                      trainingInputs.push(augFlat as tf.Tensor);
                       trainingLabels.push(classIndex);
                       console.log(`Added augmented sample ${sampleIndex + 1}-${aug + 1} to ${cls.student ? formatStudentDisplay(cls.student) : 'Unassigned'}`);
                       
-                      // Dispose augmented features immediately to free memory
-                      augFeatures.dispose();
-                      augmentedImage.dispose();
-                      
-                      // Add small delay to prevent WebGL context overload
-                      await new Promise(resolve => setTimeout(resolve, 10));
+                      // Yield to browser/GPU to prevent WebGL overload
+                      await tf.nextFrame();
                     } catch (error) {
                       console.warn(`Augmentation ${aug + 1} failed, skipping:`, error);
                     }
@@ -937,6 +928,7 @@ export const ModelTraining: React.FC<ModelTrainingProps> = ({
       if (trainingInputs.length > 0) {
         const xs = tf.stack(trainingInputs);
         const ys = tf.oneHot(tf.tensor1d(trainingLabels, 'int32'), validClasses.length);
+        console.log('tf.memory before fit:', tf.memory());
         
         let finalAccuracy = 0;
         await classifier.fit(xs, ys, {
@@ -944,10 +936,15 @@ export const ModelTraining: React.FC<ModelTrainingProps> = ({
           batchSize: Math.min(4, trainingInputs.length),
           shuffle: true,
           callbacks: {
-            onEpochEnd: (epoch, logs) => {
-              const currentAccuracy = logs?.acc || 0;
+            onBatchEnd: async () => {
+              await tf.nextFrame();
+            },
+            onEpochEnd: async (epoch, logs) => {
+              const currentAccuracy = (logs && (logs.acc as number)) || 0;
               finalAccuracy = currentAccuracy; // Capture the final accuracy
               console.log(`Epoch ${epoch + 1}: loss = ${logs?.loss?.toFixed(4)}, accuracy = ${currentAccuracy.toFixed(4)}`);
+              console.log('tf.memory at epoch end:', tf.memory());
+              await tf.nextFrame();
             }
           }
         });
@@ -955,6 +952,7 @@ export const ModelTraining: React.FC<ModelTrainingProps> = ({
         // Store the final training accuracy
         setTrainingAccuracy(finalAccuracy);
         console.log(`Final training accuracy: ${finalAccuracy.toFixed(4)}`);
+        console.log('tf.memory after fit:', tf.memory());
         
         // Clean up
         xs.dispose();
@@ -1095,12 +1093,35 @@ export const ModelTraining: React.FC<ModelTrainingProps> = ({
 
   // Reset model
   const resetModel = () => {
+    if (model) {
+      try {
+        if (model.featureExtractor) model.featureExtractor.dispose();
+        if (model.classifier) model.classifier.dispose();
+      } catch (e) {
+        console.warn('Error disposing model on reset:', e);
+      }
+    }
     setModel(null);
     setIsModelLoaded(false);
     setPredictions([]);
     setTrainingProgress(0);
     setTrainingAccuracy(null);
   };
+
+  // Dispose models on unmount
+  useEffect(() => {
+    return () => {
+      if (model) {
+        try {
+          if (model.featureExtractor) model.featureExtractor.dispose();
+          if (model.classifier) model.classifier.dispose();
+        } catch (e) {
+          console.warn('Error disposing model on unmount:', e);
+        }
+      }
+      console.log('Final tf.memory at unmount:', tf.memory());
+    };
+  }, [model]);
 
   // Export model
   const exportModelHandler = async () => {
