@@ -512,15 +512,65 @@ export class MobileWebcam {
   }
   
   /**
-   * REMOVED: Tap-to-focus functionality
-   * 
-   * Issue: The focus API causes images to become blurrier, not sharper.
-   * Root cause: Most mobile browsers don't support pointsOfInterest API,
-   * and setting focusMode: 'manual' disables the working autofocus.
-   * 
-   * Solution: Rely on continuous autofocus (configured in camera constraints).
-   * Tap is now used ONLY for detection guidance (ROI), not for focus control.
+   * Trigger camera to refocus (single-shot focus)
+   * This works on most mobile devices by triggering a one-time focus,
+   * then returning to continuous autofocus
    */
+  public async triggerFocus(): Promise<boolean> {
+    if (!this.stream) {
+      console.warn('⚠️ No active stream to trigger focus');
+      return false;
+    }
+    
+    const videoTrack = this.stream.getVideoTracks()[0];
+    if (!videoTrack) {
+      console.warn('⚠️ No video track available');
+      return false;
+    }
+    
+    try {
+      const capabilities = videoTrack.getCapabilities();
+      console.log('📷 Focus capabilities:', capabilities);
+      
+      // Try single-shot focus (works on most mobile devices)
+      // @ts-ignore - Advanced camera API
+      if (capabilities.focusMode && Array.isArray(capabilities.focusMode) && 
+          capabilities.focusMode.includes('single-shot')) {
+        
+        await videoTrack.applyConstraints({
+          advanced: [{
+            // @ts-ignore
+            focusMode: 'single-shot'
+          }]
+        });
+        
+        console.log('✅ Single-shot focus triggered');
+        
+        // Return to continuous autofocus after 1.5 seconds
+        setTimeout(async () => {
+          try {
+            await videoTrack.applyConstraints({
+              advanced: [{
+                // @ts-ignore
+                focusMode: 'continuous'
+              }]
+            });
+            console.log('🔄 Returned to continuous autofocus');
+          } catch (err) {
+            console.log('ℹ️ Could not return to continuous mode');
+          }
+        }, 1500);
+        
+        return true;
+      } else {
+        console.log('ℹ️ Single-shot focus not supported, staying with continuous');
+        return false;
+      }
+    } catch (error) {
+      console.warn('⚠️ Could not trigger focus:', error);
+      return false;
+    }
+  }
   
   /**
    * Toggle torch/flash (if available)

@@ -381,6 +381,14 @@ export const Preview: React.FC<PreviewProps> = ({
     setFocusPoint({ x, y });
     setTimeout(() => setFocusPoint(null), 1000);
     
+    // Trigger camera to refocus
+    try {
+      await mobileWebcam.current.triggerFocus();
+      console.log('✅ Focus triggered');
+    } catch (error) {
+      console.log('ℹ️ Focus trigger not available');
+    }
+    
     // Guide detection to this region
     const videoWidth = videoElement.videoWidth || 1280;
     const videoHeight = videoElement.videoHeight || 720;
@@ -823,20 +831,20 @@ export const Preview: React.FC<PreviewProps> = ({
         onTouchStart={handleCameraClick}
       />
       
-      {/* Focus point indicator */}
+      {/* Focus point indicator - THIN border */}
       {focusPoint && activeMode === 'webcam' && (
         <div 
           className="absolute z-30 pointer-events-none"
           style={{
             left: focusPoint.x,
             top: focusPoint.y,
-            width: '80px',
-            height: '80px',
-            border: '3px solid #FFD700',
+            width: '60px',
+            height: '60px',
+            border: '1px solid #FFD700',
             borderRadius: '50%',
             transform: 'translate(-50%, -50%)',
             animation: 'focusPulse 0.5s ease-out',
-            boxShadow: '0 0 0 2px rgba(0, 0, 0, 0.3), 0 0 20px rgba(255, 215, 0, 0.5)'
+            boxShadow: '0 0 0 1px rgba(0, 0, 0, 0.5), 0 0 10px rgba(255, 215, 0, 0.4)'
           }}
         >
           <style>{`
@@ -857,13 +865,13 @@ export const Preview: React.FC<PreviewProps> = ({
         </div>
       )}
       
-      {/* Bounding boxes overlay - using actual video dimensions */}
+      {/* Bounding boxes overlay - THIN borders */}
       {activeMode === 'webcam' && detectedBoxes.length > 0 && (
         <div className="absolute inset-[2px] pointer-events-none z-10">
           {detectedBoxes.map((box, index) => (
             <div
               key={index}
-              className={`absolute ${box.isActive ? 'border-2 border-yellow-400 shadow-lg' : 'border border-gray-300'} rounded pointer-events-auto cursor-pointer transition-all`}
+              className={`absolute ${box.isActive ? 'border border-yellow-400 shadow-lg' : 'border border-gray-300'} rounded pointer-events-auto cursor-pointer transition-all`}
               style={{
                 left: `${(box.x / videoDimensions.width) * 100}%`,
                 top: `${(box.y / videoDimensions.height) * 100}%`,
