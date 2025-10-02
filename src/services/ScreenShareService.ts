@@ -105,6 +105,9 @@ export class ScreenShareService {
   private networkValidationService: NetworkValidationService;
   private isNetworkValidated: boolean = false;
 
+  private lastSentTime: number = 0;
+  private throttleInterval: number = 300; // Send every 300ms max
+
   private constructor() {
     this.networkValidationService = NetworkValidationService.getInstance();
   }
@@ -449,13 +452,24 @@ export class ScreenShareService {
 
   // Share preview image (works from both desktop and mobile)
   sharePreviewImage(imageData: string): void {
+    const now = Date.now();
+    
+    // Throttle: only send if 300ms have passed since last send
+    if (now - this.lastSentTime < this.throttleInterval) {
+      console.log('⏸️ Throttled - skipping frame');
+      return;
+    }
+    
+    this.lastSentTime = now;
+    console.log('📤 Sending frame to', this.isDesktop ? 'mobile' : 'desktop');
+    
     const message: WebSocketMessage = {
       type: 'preview-update',
       data: {
         imageData,
         source: this.isDesktop ? 'desktop' : 'mobile'
       },
-      timestamp: Date.now(),
+      timestamp: now,
       source: this.isDesktop ? 'desktop' : 'mobile'
     };
     

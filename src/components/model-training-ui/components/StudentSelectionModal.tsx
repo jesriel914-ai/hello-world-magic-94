@@ -54,7 +54,7 @@ interface StudentSelectionModalProps {
     const [filteredStudents, setFilteredStudents] = useState<Student[]>([]);
     const [isLoading, setIsLoading] = useState(true);
     const [searchTerm, setSearchTerm] = useState('');
-    const [selectedMultiple, setSelectedMultiple] = useState<Student[]>(selectedStudents || []);
+    const [selectedMultiple, setSelectedMultiple] = useState<Student[]>([]);
     const [displayedCount, setDisplayedCount] = useState(25);
     const [showSelected, setShowSelected] = useState(false);
 
@@ -62,38 +62,58 @@ interface StudentSelectionModalProps {
     const open = isControlled ? isOpen : internalOpen;
     const setOpen = isControlled ? onOpenChange : setInternalOpen;
 
+    // Memoize the excludeStudentIds to prevent unnecessary recalculations
+    const excludeStudentIds = React.useMemo(() => 
+      (excludeStudents || []).map(student => student.student_id),
+      [JSON.stringify(excludeStudents)] // Use JSON.stringify to handle array reference changes
+    );
+
+    // Initialize selectedMultiple with selectedStudents when the component mounts
+    React.useEffect(() => {
+      if (selectedStudents) {
+        setSelectedMultiple(selectedStudents);
+      }
+    }, [JSON.stringify(selectedStudents)]); // Use JSON.stringify to handle array reference changes
+
     const loadStudents = useCallback(async () => {
-    try {
-      setIsLoading(true);
-      const studentsData = await fetchStudents();
-      setStudents(studentsData);
-      
-      // Filter out excluded students
-      const excludeStudentIds = excludeStudents.map(student => student.student_id);
-      const availableStudents = studentsData.filter(student => !excludeStudentIds.includes(student.student_id));
-      setFilteredStudents(availableStudents);
-    } catch (error) {
-      console.error('Error loading students:', error);
-    } finally {
-      setIsLoading(false);
-    }
-  }, [excludeStudents]);
+      try {
+        setIsLoading(true);
+        const studentsData = await fetchStudents();
+        setStudents(studentsData);
+        
+        // Filter out excluded students using the memoized excludeStudentIds
+        const availableStudents = studentsData.filter(
+          student => !excludeStudentIds.includes(student.student_id)
+        );
+        setFilteredStudents(availableStudents);
+      } catch (error) {
+        console.error('Error loading students:', error);
+      } finally {
+        setIsLoading(false);
+      }
+    }, [excludeStudentIds]); // Only depend on the memoized excludeStudentIds
+  // Load students when the modal opens
   useEffect(() => {
-    loadStudents();
-  }, [loadStudents]);
+    if (open) {
+      loadStudents();
+    }
+  }, [open, loadStudents]); // Only run when modal opens or loadStudents changes
 
   useEffect(() => {
     // Reset showSelected when modal opens
     setShowSelected(false);
   }, [open]);
 
+  // Filter and search students
   useEffect(() => {
-    // Filter out excluded students
-    const excludeStudentIds = excludeStudents.map(student => student.student_id);
-    const availableStudents = students.filter(student => !excludeStudentIds.includes(student.student_id));
+    if (isLoading) return;
     
-    // Removed showSelected logic - students are only filtered by excludeStudents
+    // Filter out excluded students using the memoized excludeStudentIds
+    const availableStudents = students.filter(
+      student => !excludeStudentIds.includes(student.student_id)
+    );
     
+    // Apply search filter if there's a search term
     if (!searchTerm.trim()) {
       setFilteredStudents(availableStudents);
       return;
@@ -107,7 +127,7 @@ interface StudentSelectionModalProps {
     });
 
     setFilteredStudents(filtered);
-  }, [searchTerm, students, excludeStudents, effectiveMode, selectedMultiple, showSelected]);
+  }, [searchTerm, students, excludeStudentIds, isLoading]); // Only depend on what's actually needed
 
   const handleStudentSelect = (student: Student) => {
     onStudentSelect(student);

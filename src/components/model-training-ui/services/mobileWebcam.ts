@@ -1,3 +1,7 @@
+import { SignatureDetector, type BoundingBox } from '@/utils/signatureDetection';
+import { PerspectiveCorrector } from '@/utils/perspectiveCorrection';
+export type { BoundingBox } from '@/utils/signatureDetection';
+
 export interface MobileWebcamConfig {
   width?: number;
   height?: number;
@@ -12,6 +16,9 @@ export class MobileWebcam {
   private config: MobileWebcamConfig;
   private isActive: boolean = false;
   private startTimeout: NodeJS.Timeout | null = null;
+  private signatureDetector: SignatureDetector | null = null;
+  private perspectiveCorrector: PerspectiveCorrector | null = null;
+  private detectedBoxes: BoundingBox[] = [];
 
   constructor(config: MobileWebcamConfig = {}) {
     this.config = {
@@ -321,4 +328,168 @@ export class MobileWebcam {
   public getFacingMode(): 'user' | 'environment' | undefined {
     return this.config.facingMode;
   }
+
+    /**
+   * Initialize signature detection
+   */
+    public async initializeDetection(): Promise<void> {
+      this.signatureDetector = new SignatureDetector();
+      this.perspectiveCorrector = new PerspectiveCorrector();
+      console.log('✅ Signature detection initialized');
+    }
+    
+    /**
+     * Detect signatures in current frame
+     */
+    public async detectSignatures(): Promise<BoundingBox[]> {
+      if (!this.video || !this.signatureDetector) {
+        return [];
+      }
+      
+      try {
+        this.detectedBoxes = await this.signatureDetector.detectSignatures(this.video);
+        return this.detectedBoxes;
+      } catch (error) {
+        console.error('Error detecting signatures:', error);
+        return [];
+      }
+    }
+    
+    /**
+     * Get currently detected boxes
+     */
+    public getDetectedBoxes(): BoundingBox[] {
+      return this.detectedBoxes;
+    }
+    
+    /**
+     * Set active box (yellow box)
+     */
+    public setActiveBox(index: number): void {
+      this.detectedBoxes.forEach((box, i) => {
+        box.isActive = i === index;
+      });
+    }
+    
+    /**
+     * Get the active (yellow) box
+     */
+    public getActiveBox(): BoundingBox | null {
+      return this.detectedBoxes.find(box => box.isActive) || null;
+    }
+    
+    /**
+     * Crop active signature with perspective correction
+     */
+    public async cropActiveSignature(): Promise<HTMLCanvasElement | null> {
+      const activeBox = this.getActiveBox();
+      if (!activeBox || !this.video || !this.perspectiveCorrector) {
+        return null;
+      }
+      
+      try {
+        // Create temp canvas with the cropped region
+        const tempCanvas = document.createElement('canvas');
+        tempCanvas.width = activeBox.width;
+        tempCanvas.height = activeBox.height;
+        const ctx = tempCanvas.getContext('2d');
+        
+        if (!ctx) return null;
+        
+        // Draw the cropped region
+        ctx.drawImage(
+          this.video,
+          activeBox.x, activeBox.y, activeBox.width, activeBox.height,
+          0, 0, tempCanvas.width, tempCanvas.height
+        );
+        
+        // Apply perspective correction and resize to 224x224
+        const correctedCanvas = await this.perspectiveCorrector.correctPerspective(
+          tempCanvas,
+          activeBox
+        );
+        
+        return correctedCanvas;
+      } catch (error) {
+        console.error('Error cropping signature:', error);
+        return null;
+      }
+    }
+    
+    /**
+     * Check if current frame is too blurry
+     */
+    public isFrameBlurry(threshold: number = 100): boolean {
+      if (!this.video) return true;
+      
+      const canvas = this.captureFrame();
+      if (!canvas) return true;
+      
+      const ctx = canvas.getContext('2d');
+      if (!ctx) return true;
+      
+      const imageData = ctx.getImageData(0, 0, canvas.width, canvas.height);
+      const variance = this.calculateLaplacianVariance(imageData);
+      
+      return variance < threshold;
+    }
+    
+    /**
+     * Calculate blur metric (Laplacian variance)
+     */
+    private calculateLaplacianVariance(imageData: ImageData): number {
+      const data = imageData.data;
+      const width = imageData.width;
+      const height = imageData.height;
+      
+      let sum = 0;
+      let count = 0;
+      
+      // Simple edge detection approximation
+      for (let y = 1; y < height - 1; y++) {
+        for (let x = 1; x < width - 1; x++) {
+          const idx = (y * width + x) * 4;
+          const gray = (data[idx] + data[idx + 1] + data[idx + 2]) / 3;
+          
+          const topIdx = ((y - 1) * width + x) * 4;
+          const topGray = (data[topIdx] + data[topIdx + 1] + data[topIdx + 2]) / 3;
+          
+          const leftIdx = (y * width + (x - 1)) * 4;
+          const leftGray = (data[leftIdx] + data[leftIdx + 1] + data[leftIdx + 2]) / 3;
+          
+          const edgeStrength = Math.abs(gray - topGray) + Math.abs(gray - leftGray);
+          sum += edgeStrength * edgeStrength;
+          count++;
+        }
+      }
+      
+      return count > 0 ? sum / count : 0;
+    }
+    
+    /**
+     * Check if lighting is adequate
+     */
+    public hasGoodLighting(): boolean {
+      if (!this.video) return false;
+      
+      const canvas = this.captureFrame();
+      if (!canvas) return false;
+      
+      const ctx = canvas.getContext('2d');
+      if (!ctx) return false;
+      
+      const imageData = ctx.getImageData(0, 0, canvas.width, canvas.height);
+      const data = imageData.data;
+      
+      let sum = 0;
+      for (let i = 0; i < data.length; i += 4) {
+        sum += (data[i] + data[i + 1] + data[i + 2]) / 3;
+      }
+      
+      const avgBrightness = sum / (data.length / 4);
+      
+      // Good range: 50-200 (not too dark, not overexposed)
+      return avgBrightness > 50 && avgBrightness < 200;
+    }
+  
 }
