@@ -266,7 +266,6 @@ export class ScreenShareService {
               console.log('💡 If connection still fails, make sure both devices are on the same WiFi network');
             } else {
               console.log('💡 Certificate error detected - please accept the self-signed certificate');
-              console.log(`🔗 Visit https://${hostname}:5173/cert-accept.html to accept the WebSocket server certificate`);
               console.log(`💡 Also try visiting https://${hostname}:5173/ to test if the server is accessible`);
             }
           } else {

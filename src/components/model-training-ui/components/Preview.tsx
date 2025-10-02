@@ -14,11 +14,10 @@ import useMobileDetection from '@/hooks/use-mobile-detection';
 import type { TrainedModel } from '../../ModelTraining';
 import type { PredictionResult } from '../../ModelTraining';
 import type { CustomModel } from '../../ModelTraining';
-import { MobileWebcam, type BoundingBox } from '../services/mobileWebcam';
+import { MobileWebcam } from '../services/mobileWebcam';
 import { ConnectionDropdown } from './ConnectionDropdown';
 import { ScreenShareService } from '../../../services/ScreenShareService';
 import { toast } from '@/hooks/use-toast';
-import { isCameraLevel } from '@/utils/perspectiveCorrection';
 
 // Helper functions
 const getInitialVisibleCount = (preds: PredictionResult[]): number => {
@@ -143,18 +142,15 @@ export const Preview: React.FC<PreviewProps> = ({
   const [isCameraStarting, setIsCameraStarting] = useState(false);
   const [cameraError, setCameraError] = useState<string | null>(null);
   
-  // Detection state
-  const [detectedBoxes, setDetectedBoxes] = useState<BoundingBox[]>([]);
-  const [isStabilized, setIsStabilized] = useState(false);
-  const [frameQuality, setFrameQuality] = useState<{
-    isBlurry: boolean;
-    hasGoodLighting: boolean;
-  }>({ isBlurry: false, hasGoodLighting: true });
-  const detectionIntervalRef = useRef<NodeJS.Timeout | null>(null);
-  
   // Screen sharing state
   const screenShareIntervalRef = useRef<NodeJS.Timeout | null>(null);
-  const screenShareCanvasRef = useRef<HTMLCanvasElement | null>(null);
+  
+  // Camera prediction state
+  const cameraPredictionIntervalRef = useRef<NodeJS.Timeout | null>(null);
+  const [isPredicting, setIsPredicting] = useState(false);
+
+  // Focus point state for tap-to-focus visual feedback
+  const [focusPoint, setFocusPoint] = useState<{x: number; y: number} | null>(null);
 
   // Initialize mobile client if on mobile
   useEffect(() => {
@@ -208,9 +204,6 @@ export const Preview: React.FC<PreviewProps> = ({
     initMobileClient();
     
     return () => {
-      if (isMobileClient) {
-        // ScreenShareService doesn't need explicit shutdown
-      }
       if (mobilePreviewImage) {
         URL.revokeObjectURL(mobilePreviewImage);
       }
@@ -265,101 +258,70 @@ export const Preview: React.FC<PreviewProps> = ({
     initDesktopClient();
   }, [isMobile, screenShareService]);
 
-  // NOTE: Detection initialization moved to startCamera() to ensure proper order
-  // Detection must be initialized AFTER camera starts and BEFORE detection loop begins
-
-  // Detection loop
+  // Camera prediction loop - runs ML predictions on live camera feed
   useEffect(() => {
-    if (!isMobile || activeMode !== 'webcam' || !mobileWebcam.current) {
-      if (detectionIntervalRef.current) {
-        clearInterval(detectionIntervalRef.current);
-        detectionIntervalRef.current = null;
+    if (!isMobile || activeMode !== 'webcam' || !mobileWebcam.current || !model) {
+      if (cameraPredictionIntervalRef.current) {
+        clearInterval(cameraPredictionIntervalRef.current);
+        cameraPredictionIntervalRef.current = null;
       }
-      setDetectedBoxes([]);
+      setIsPredicting(false);
       return;
     }
     
-    const runDetection = async () => {
-      if (!mobileWebcam.current) return;
+    const runCameraPrediction = async () => {
+      if (!mobileWebcam.current || !model) return;
       
       try {
-        // Detect signatures
-        const boxes = await mobileWebcam.current.detectSignatures();
-        setDetectedBoxes(boxes);
+        // Capture current frame
+        const canvas = mobileWebcam.current.captureFrame();
+        if (!canvas) return;
         
-        // Check frame quality
-        const isBlurry = mobileWebcam.current.isFrameBlurry();
-        const hasGoodLighting = mobileWebcam.current.hasGoodLighting();
-        setFrameQuality({ isBlurry, hasGoodLighting });
+        // Make prediction on current frame
+        setIsPredicting(true);
+        const predictions = await model.predict(canvas, false);
+        const sortedPredictions = predictions.sort((a, b) => b.confidence - a.confidence);
+        setPredictions(sortedPredictions);
         
-        // Check if camera is level (simplified)
-        setIsStabilized(!isBlurry);
-        
-        // Send cropped signature to PC (only if quality is good and signature detected)
-        if (boxes.length > 0 && !isBlurry && hasGoodLighting && isConnected) {
-          const croppedCanvas = await mobileWebcam.current.cropActiveSignature();
-          if (croppedCanvas) {
-            const imageData = croppedCanvas.toDataURL('image/jpeg', 0.8);
-            screenShareService.sharePreviewImage(imageData);
-          }
+        // Share predictions with desktop if connected
+        if (isConnected) {
+          screenShareService.sharePredictionResults(sortedPredictions);
         }
       } catch (error) {
-        console.error('Detection error:', error);
+        console.error('Camera prediction error:', error);
+      } finally {
+        setIsPredicting(false);
       }
     };
     
-    // Run detection every 300ms
-    detectionIntervalRef.current = setInterval(runDetection, 300);
+    // Run predictions every 500ms (2 FPS) to avoid overwhelming the system
+    cameraPredictionIntervalRef.current = setInterval(runCameraPrediction, 500);
     
     return () => {
-      if (detectionIntervalRef.current) {
-        clearInterval(detectionIntervalRef.current);
-        detectionIntervalRef.current = null;
+      if (cameraPredictionIntervalRef.current) {
+        clearInterval(cameraPredictionIntervalRef.current);
+        cameraPredictionIntervalRef.current = null;
       }
     };
-  }, [isMobile, activeMode, mobileWebcam.current, isConnected, screenShareService]);
+  }, [isMobile, activeMode, model, isConnected, screenShareService]);
 
-  // Focus point state for visual feedback
-  const [focusPoint, setFocusPoint] = useState<{x: number; y: number} | null>(null);
-  
-  // Track actual video dimensions for accurate box positioning
-  const [videoDimensions, setVideoDimensions] = useState<{width: number; height: number}>({ 
-    width: 1280, 
-    height: 720 
-  });
-
-  // Handle box click
-  const handleBoxClick = (index: number) => {
-    if (!mobileWebcam.current) return;
-    
-    mobileWebcam.current.setActiveBox(index);
-    
-    const newBoxes = [...detectedBoxes];
-    newBoxes.forEach((box, i) => {
-      box.isActive = i === index;
-    });
-    setDetectedBoxes(newBoxes);
-  };
-
-  // Handle camera click/tap for detection guidance only (no focus control)
+  // Handle camera tap for focus
   const handleCameraClick = async (event: React.MouseEvent<HTMLDivElement> | React.TouchEvent<HTMLDivElement>) => {
     if (!mobileWebcam.current) return;
     
     const videoElement = mobileWebcam.current.getVideo();
     if (!videoElement) return;
     
-    // Get video element's actual bounding box
+    // Get video element's bounding box
     const videoRect = videoElement.getBoundingClientRect();
     
     let clientX: number, clientY: number;
     
     if ('touches' in event) {
-      // Touch event
       if (event.touches.length === 0) return;
       clientX = event.touches[0].clientX;
       clientY = event.touches[0].clientY;
     } else {
-      // Mouse event
       clientX = event.clientX;
       clientY = event.clientY;
     }
@@ -369,53 +331,23 @@ export const Preview: React.FC<PreviewProps> = ({
       clientX < videoRect.left || clientX > videoRect.right ||
       clientY < videoRect.top || clientY > videoRect.bottom
     ) {
-      console.log('ℹ️ Click outside video preview, ignoring');
-      return; // Click outside video, ignore
+      return;
     }
     
     // Calculate position relative to video element
     const x = clientX - videoRect.left;
     const y = clientY - videoRect.top;
     
-    // Show visual feedback (positioned relative to video)
+    // Show visual feedback
     setFocusPoint({ x, y });
     setTimeout(() => setFocusPoint(null), 1000);
     
     // Trigger camera to refocus
     try {
       await mobileWebcam.current.triggerFocus();
-      console.log('✅ Focus triggered');
+      console.log('✅ Focus triggered at', x, y);
     } catch (error) {
       console.log('ℹ️ Focus trigger not available');
-    }
-    
-    // Guide detection to this region
-    const videoWidth = videoElement.videoWidth || 1280;
-    const videoHeight = videoElement.videoHeight || 720;
-    
-    // Update video dimensions state if changed
-    if (videoDimensions.width !== videoWidth || videoDimensions.height !== videoHeight) {
-      setVideoDimensions({ width: videoWidth, height: videoHeight });
-    }
-    
-    // Convert screen coordinates to video coordinates
-    const videoX = (x / videoRect.width) * videoWidth;
-    const videoY = (y / videoRect.height) * videoHeight;
-    
-    // Get the signature detector and set ROI
-    const detector = (mobileWebcam.current as any).signatureDetector;
-    if (detector && typeof detector.setRegionOfInterest === 'function') {
-      detector.setRegionOfInterest(videoX, videoY, 150);
-      console.log(`📍 Detection ROI set to (${videoX.toFixed(0)}, ${videoY.toFixed(0)})`);
-      
-      // Clear ROI after 3 seconds
-      setTimeout(() => {
-        if (detector && typeof detector.clearRegionOfInterest === 'function') {
-          detector.clearRegionOfInterest();
-        }
-      }, 3000);
-    } else {
-      console.warn('⚠️ Signature detector not initialized');
     }
   };
 
@@ -468,15 +400,10 @@ export const Preview: React.FC<PreviewProps> = ({
     if (isConnected && isMobileClient) {
       for (let i = 0; i < files.length; i++) {
         const file = files[i];
-        if (!file) continue;
-        
-        if (!file.type.startsWith('image/')) {
-          console.warn(`Skipping non-image file: ${file.name}`);
-          continue;
-        }
+        if (!file || !file.type.startsWith('image/')) continue;
         
         try {
-          console.log(`📱 Sending image ${i + 1}/${files.length} to desktop for prediction: ${file.name}`);
+          console.log(`📱 Sending image ${i + 1}/${files.length} to desktop: ${file.name}`);
           
           const imageUrl = URL.createObjectURL(file);
           const img = new Image();
@@ -498,11 +425,10 @@ export const Preview: React.FC<PreviewProps> = ({
                     URL.revokeObjectURL(mobilePreviewImage);
                   }
                   setMobilePreviewImage(previewUrl);
-                  console.log(`📱 Preview image set: ${file.name}`);
                 }
                 
                 screenShareService.sharePreviewImage(imageData);
-                console.log(`✅ Original quality image sent to desktop for prediction: ${file.name}`);
+                console.log(`✅ Image sent to desktop: ${file.name}`);
               }
             } catch (error) {
               console.error('Error sending image to desktop:', error);
@@ -518,7 +444,7 @@ export const Preview: React.FC<PreviewProps> = ({
           
           img.src = imageUrl;
         } catch (error) {
-          console.error(`Error processing file for desktop prediction: ${file.name}`, error);
+          console.error(`Error processing file: ${file.name}`, error);
         }
       }
     } else {
@@ -526,16 +452,9 @@ export const Preview: React.FC<PreviewProps> = ({
       
       for (let i = 0; i < files.length; i++) {
         const file = files[i];
-        if (!file) continue;
-        
-        if (!file.type.startsWith('image/')) {
-          console.warn(`Skipping non-image file: ${file.name}`);
-          continue;
-        }
+        if (!file || !file.type.startsWith('image/')) continue;
         
         try {
-          console.log(`🖥️ Processing image ${i + 1}/${files.length} for local prediction: ${file.name}`);
-          
           const imageUrl = URL.createObjectURL(file);
           const img = new Image();
           
@@ -546,21 +465,12 @@ export const Preview: React.FC<PreviewProps> = ({
                   URL.revokeObjectURL(mobilePreviewImage);
                 }
                 setMobilePreviewImage(imageUrl);
-                console.log(`🖥️ Preview image set: ${file.name}`);
               }
               
               if (model) {
-                console.log('🤖 Making prediction with local model on desktop');
-                try {
-                  const predictions = await model.predict(img as any);
-                  console.log('✅ Desktop local prediction completed:', predictions);
-                } catch (predictionError) {
-                  console.error('❌ Error making desktop local prediction:', predictionError);
-                }
-              } else {
-                console.log('⚠️ No model loaded for desktop local prediction');
+                const predictions = await model.predict(img as any);
+                console.log('✅ Desktop local prediction completed:', predictions);
               }
-              
             } catch (error) {
               console.error('❌ Error processing desktop image:', error);
               if (i !== 0) {
@@ -576,14 +486,14 @@ export const Preview: React.FC<PreviewProps> = ({
           
           img.src = imageUrl;
         } catch (error) {
-          console.error(`Error processing file for desktop local prediction: ${file.name}`, error);
+          console.error(`Error processing file: ${file.name}`, error);
         }
       }
     }
   }, [isConnected, isMobileClient, screenShareService, mobilePreviewImage, model]);
 
   const startCamera = useCallback(async () => {
-    console.log('📷 startCamera called - isMobile:', isMobile, 'webcamRef.current:', !!webcamRef.current);
+    console.log('📷 startCamera called - isMobile:', isMobile);
     if (!isMobile || !webcamRef.current) {
       console.log('❌ startCamera blocked');
       return;
@@ -598,72 +508,46 @@ export const Preview: React.FC<PreviewProps> = ({
       console.log('📋 Camera permission status:', permissions.state);
       
       if (permissions.state === 'denied') {
-        throw new Error('Camera permission denied. Please enable camera permissions in your browser settings and try again.');
+        throw new Error('Camera permission denied. Please enable camera permissions in your browser settings.');
       }
       
       if (mobileWebcam.current) {
-        console.log('🔄 Stopping existing camera instance');
         mobileWebcam.current.stop();
         mobileWebcam.current = null;
       }
       
-      webcamRef.current.innerHTML = '';
+      webcamRef.current.innerHTML = '<div class="flex flex-col items-center justify-center h-full text-gray-500"><div class="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-500 mb-2"></div><div class="text-sm">Starting camera...</div></div>';
       
-      webcamRef.current.innerHTML = `
-        <div class="flex flex-col items-center justify-center h-full text-gray-500">
-          <div class="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-500 mb-2"></div>
-          <div class="text-sm">Starting camera...</div>
-          <div class="text-xs mt-1">Please allow camera access when prompted</div>
-        </div>
-      `;
-      
+      // Create mobile webcam with zoom configuration
       mobileWebcam.current = new MobileWebcam({
         width: 300,
         height: 300,
         facingMode: 'environment',
-        timeout: 20000
+        timeout: 20000,
+        zoom: 2.0 // 2x zoom to better frame signatures
       });
       
-      console.log('📷 Initializing camera...');
+      console.log('📷 Initializing camera with 2x zoom...');
       const videoElement = await mobileWebcam.current.start();
       
       webcamRef.current.innerHTML = '';
       webcamRef.current.appendChild(videoElement);
       
-      // CRITICAL: Initialize detection BEFORE starting detection loop
-      console.log('🔧 Initializing signature detection...');
-      await mobileWebcam.current.initializeDetection();
-      console.log('✅ Signature detection initialized');
-      
-      // Update video dimensions once video is loaded
-      if (videoElement.videoWidth > 0 && videoElement.videoHeight > 0) {
-        setVideoDimensions({
-          width: videoElement.videoWidth,
-          height: videoElement.videoHeight
-        });
-        console.log(`📐 Video dimensions: ${videoElement.videoWidth}x${videoElement.videoHeight}`);
-      }
-      
-      // Start screen sharing after camera is successfully started
+      // Start screen sharing
       console.log('📡 Starting screen sharing...');
       startScreenSharing();
-      console.log('📡 Screen sharing function called');
       
-      console.log('✅ Camera started successfully');
+      console.log('✅ Camera started successfully with zoom');
     } catch (error) {
       console.error('❌ Error starting camera:', error);
       
       let userErrorMessage = 'Failed to start camera';
       
       if (error instanceof Error) {
-        if (error.message.includes('permission denied') || error.message.includes('Permission denied')) {
-          userErrorMessage = 'Camera permission denied. Please check your browser settings and allow camera access.';
+        if (error.message.includes('permission denied')) {
+          userErrorMessage = 'Camera permission denied. Please allow camera access.';
         } else if (error.message.includes('timeout')) {
-          userErrorMessage = 'Camera startup timed out. Please check if another app is using the camera and try again.';
-        } else if (error.message.includes('not supported')) {
-          userErrorMessage = 'Camera not supported on this device or browser.';
-        } else if (error.message.includes('in use') || error.message.includes('already in use')) {
-          userErrorMessage = 'Camera is already in use by another application. Please close other apps using the camera.';
+          userErrorMessage = 'Camera startup timed out. Please try again.';
         } else {
           userErrorMessage = error.message;
         }
@@ -672,17 +556,7 @@ export const Preview: React.FC<PreviewProps> = ({
       setCameraError(userErrorMessage);
       
       if (webcamRef.current) {
-        webcamRef.current.innerHTML = `
-          <div class="flex flex-col items-center justify-center h-full text-red-500 p-4 text-center">
-            <div class="text-lg mb-2">❌ Camera Error</div>
-            <div class="text-sm mb-3">${userErrorMessage}</div>
-            <div class="text-xs text-gray-500">Troubleshooting tips:</div>
-            <div class="text-xs text-gray-500 mt-1">• Check camera permissions</div>
-            <div class="text-xs text-gray-500">• Close other camera apps</div>
-            <div class="text-xs text-gray-500">• Try refreshing the page</div>
-            <div class="text-xs text-gray-500">• Ensure HTTPS connection</div>
-          </div>
-        `;
+        webcamRef.current.innerHTML = `<div class="flex flex-col items-center justify-center h-full text-red-500 p-4 text-center"><div class="text-lg mb-2">❌ Camera Error</div><div class="text-sm">${userErrorMessage}</div></div>`;
       }
       
       if (mobileWebcam.current) {
@@ -695,44 +569,35 @@ export const Preview: React.FC<PreviewProps> = ({
   }, [isMobile]);
 
   const startScreenSharing = useCallback(() => {
-    if (!isMobile || !mobileWebcam.current) {
-      console.log('❌ Screen sharing blocked - isMobile:', isMobile, 'mobileWebcam.current:', !!mobileWebcam.current);
-      return;
-    }
+    if (!isMobile || !mobileWebcam.current) return;
     
     console.log('📤 Starting continuous screen sharing...');
     
-    // Clear any existing interval
     if (screenShareIntervalRef.current) {
       clearInterval(screenShareIntervalRef.current);
     }
     
-    // Start capturing and sharing frames every 100ms (10 FPS)
     screenShareIntervalRef.current = setInterval(() => {
       try {
         const videoElement = mobileWebcam.current?.getVideo();
         
         if (videoElement && videoElement.readyState === 4) {
-          // Capture frame using MobileWebcam's built-in method
-          const canvas = mobileWebcam.current?.captureFrame();
+          // Use capturePreviewFrame for higher quality screen sharing
+          // This captures the ZOOMED portion that the user actually sees (4:3 aspect ratio)
+          const canvas = mobileWebcam.current?.capturePreviewFrame(640, 480);
           
           if (canvas) {
-            // Get image data URL
             const imageDataUrl = canvas.toDataURL('image/jpeg', 0.8);
-            
-            // Share via ScreenShareService (this is the LIVE FEED, separate from detection)
             screenShareService.sharePreviewImage(imageDataUrl);
-            
-            // Also update local preview
             setMobilePreviewImage(imageDataUrl);
           }
         }
       } catch (error) {
-        console.error('❌ Error capturing frame for screen sharing:', error);
+        console.error('❌ Error capturing frame:', error);
       }
-    }, 100); // 10 FPS for smooth live feed
+    }, 100);
     
-    console.log('✅ Screen sharing interval started');
+    console.log('✅ Screen sharing interval started (with zoom-aware capture)');
   }, [isMobile, screenShareService]);
 
   const stopScreenSharing = useCallback(() => {
@@ -754,53 +619,31 @@ export const Preview: React.FC<PreviewProps> = ({
     }
     
     if (webcamRef.current) {
-      webcamRef.current.innerHTML = `
-        <div class="flex flex-col items-center justify-center h-full text-gray-400">
-          <div class="text-lg mb-2">📷</div>
-          <div class="text-sm">Camera stopped</div>
-          <div class="text-xs mt-1">Click to start camera</div>
-        </div>
-      `;
+      webcamRef.current.innerHTML = '<div class="flex flex-col items-center justify-center h-full text-gray-400"><div class="text-lg mb-2">📷</div><div class="text-sm">Camera stopped</div></div>';
     }
     
     console.log('✅ Camera stopped successfully');
   }, [stopScreenSharing]);
 
   useEffect(() => {
-    console.log('🔄 Webcam mode changed to:', activeMode, 'isMobile:', isMobile);
+    console.log('🔄 Mode changed to:', activeMode);
     
     if (activeMode === 'webcam' && isMobile) {
-      console.log('📱 Starting camera on mobile device');
       startCamera().catch((error) => {
-        console.error('❌ Failed to start camera on mode change:', error);
+        console.error('❌ Failed to start camera:', error);
       });
     } else if (activeMode === 'webcam' && !isMobile) {
-      console.log('💻 Desktop detected - camera not available');
       if (webcamRef.current) {
-        webcamRef.current.innerHTML = `
-          <div class="flex flex-col items-center justify-center h-full text-gray-400 p-4 text-center">
-            <div class="text-lg mb-2">💻</div>
-            <div class="text-sm mb-2">Desktop Mode</div>
-            <div class="text-xs">Camera is only available on mobile devices</div>
-            <div class="text-xs mt-2">Please use a mobile device or upload an image</div>
-          </div>
-        `;
+        webcamRef.current.innerHTML = '<div class="flex flex-col items-center justify-center h-full text-gray-400 p-4 text-center"><div class="text-lg mb-2">💻</div><div class="text-sm">Desktop Mode</div><div class="text-xs">Camera is only available on mobile</div></div>';
       }
     } else {
       stopCamera();
       if (webcamRef.current) {
-        webcamRef.current.innerHTML = `
-          <div class="flex flex-col items-center justify-center h-full text-gray-400">
-            <div class="text-lg mb-2">📁</div>
-            <div class="text-sm">Upload Mode</div>
-            <div class="text-xs mt-1">Select an image to analyze</div>
-          </div>
-        `;
+        webcamRef.current.innerHTML = '<div class="flex flex-col items-center justify-center h-full text-gray-400"><div class="text-lg mb-2">📁</div><div class="text-sm">Upload Mode</div></div>';
       }
     }
 
     return () => {
-      console.log('🧹 Cleaning up camera on unmount');
       stopCamera();
     };
   }, [activeMode, isMobile, startCamera, stopCamera]);
@@ -815,12 +658,11 @@ export const Preview: React.FC<PreviewProps> = ({
 
   useEffect(() => {
     if (predictions.length > 0 && isUsingRemoteModel) {
-      console.log('🔄 Local predictions updated, switching from remote to local predictions');
       setIsUsingRemoteModel(false);
     }
   }, [predictions, isUsingRemoteModel]);
 
-  // Camera display with overlays - UPDATED JSX
+  // Camera display with tap-to-focus
   const renderCameraDisplay = () => (
     <div className="relative border-2 border-dashed border-gray-300 rounded-lg min-h-[250px] flex items-center justify-center bg-gray-50">
       {/* Video feed container with tap-to-focus */}
@@ -829,22 +671,25 @@ export const Preview: React.FC<PreviewProps> = ({
         className={`absolute inset-[2px] flex items-center justify-center ${activeMode === 'webcam' ? '' : 'hidden'} z-0 rounded-lg overflow-hidden cursor-pointer`}
         onClick={handleCameraClick}
         onTouchStart={handleCameraClick}
+        style={{
+          WebkitTapHighlightColor: 'transparent'
+        }}
       />
       
-      {/* Focus point indicator - THIN border */}
+      {/* Focus point indicator */}
       {focusPoint && activeMode === 'webcam' && (
         <div 
           className="absolute z-30 pointer-events-none"
           style={{
             left: focusPoint.x,
             top: focusPoint.y,
-            width: '60px',
-            height: '60px',
-            border: '1px solid #FFD700',
+            width: '80px',
+            height: '80px',
+            border: '2px solid #FFD700',
             borderRadius: '50%',
             transform: 'translate(-50%, -50%)',
-            animation: 'focusPulse 0.5s ease-out',
-            boxShadow: '0 0 0 1px rgba(0, 0, 0, 0.5), 0 0 10px rgba(255, 215, 0, 0.4)'
+            animation: 'focusPulse 0.6s ease-out',
+            boxShadow: '0 0 0 2px rgba(0, 0, 0, 0.3), 0 0 20px rgba(255, 215, 0, 0.5)'
           }}
         >
           <style>{`
@@ -858,97 +703,31 @@ export const Preview: React.FC<PreviewProps> = ({
               }
               100% {
                 transform: translate(-50%, -50%) scale(1);
-                opacity: 0.8;
+                opacity: 0.9;
               }
             }
           `}</style>
         </div>
       )}
       
-      {/* Bounding boxes overlay - THIN borders */}
-      {activeMode === 'webcam' && detectedBoxes.length > 0 && (
-        <div className="absolute inset-[2px] pointer-events-none z-10">
-          {detectedBoxes.map((box, index) => (
-            <div
-              key={index}
-              className={`absolute ${box.isActive ? 'border border-yellow-400 shadow-lg' : 'border border-gray-300'} rounded pointer-events-auto cursor-pointer transition-all`}
-              style={{
-                left: `${(box.x / videoDimensions.width) * 100}%`,
-                top: `${(box.y / videoDimensions.height) * 100}%`,
-                width: `${(box.width / videoDimensions.width) * 100}%`,
-                height: `${(box.height / videoDimensions.height) * 100}%`,
-                boxShadow: box.isActive ? '0 0 15px rgba(255, 215, 0, 0.6)' : 'none'
-              }}
-              onClick={(e) => {
-                e.stopPropagation(); // Prevent triggering camera click
-                handleBoxClick(index);
-              }}
-            />
-          ))}
+      {/* Prediction indicator */}
+      {activeMode === 'webcam' && isPredicting && (
+        <div className="absolute top-2 left-2 bg-blue-500 text-white px-3 py-1.5 rounded text-xs font-medium z-20 flex items-center gap-2">
+          <div className="w-2 h-2 bg-white rounded-full animate-pulse"></div>
+          Analyzing...
         </div>
-      )}
-      
-      {/* Stabilizer cross overlay - MUCH THINNER */}
-      {activeMode === 'webcam' && (
-        <div className="absolute inset-0 flex items-center justify-center pointer-events-none z-10">
-          {/* Horizontal line - thin */}
-          <div 
-            className={`absolute ${isStabilized ? 'bg-yellow-400' : 'bg-white/50'} transition-colors`}
-            style={{
-              width: '40px',
-              height: '1px',
-              left: '50%',
-              top: '50%',
-              transform: 'translate(-50%, -50%)'
-            }}
-          />
-          {/* Vertical line - thin */}
-          <div 
-            className={`absolute ${isStabilized ? 'bg-yellow-400' : 'bg-white/50'} transition-colors`}
-            style={{
-              width: '1px',
-              height: '40px',
-              left: '50%',
-              top: '50%',
-              transform: 'translate(-50%, -50%)'
-            }}
-          />
-        </div>
-      )}
-      
-      {/* Quality warnings */}
-      {activeMode === 'webcam' && (
-        <>
-          {frameQuality.isBlurry && (
-            <div className="absolute top-2 left-2 bg-red-500 text-white px-3 py-1.5 rounded text-xs font-medium z-20">
-              Too blurry - hold steady
-            </div>
-          )}
-          
-          {!frameQuality.hasGoodLighting && (
-            <div className="absolute top-10 left-2 bg-orange-500 text-white px-3 py-1.5 rounded text-xs font-medium z-20">
-              Poor lighting
-            </div>
-          )}
-          
-          {detectedBoxes.length === 0 && !frameQuality.isBlurry && (
-            <div className="absolute top-2 left-2 bg-blue-500 text-white px-3 py-1.5 rounded text-xs font-medium z-20">
-              Scanning...
-            </div>
-          )}
-        </>
       )}
       
       {/* Loading state */}
       {isCameraStarting && (
-        <div className="absolute inset-[2px] flex items-center justify-center bg-gray-50 bg-opacity-75 z-20 rounded-lg overflow-hidden">
+        <div className="absolute inset-[2px] flex items-center justify-center bg-gray-50 bg-opacity-75 z-20 rounded-lg">
           <Loader2 className="w-8 h-8 animate-spin text-blue-600" />
         </div>
       )}
       
       {/* Error state */}
       {cameraError && (
-        <div className="absolute inset-[2px] flex items-center justify-center bg-red-50 z-20 rounded-lg overflow-hidden">
+        <div className="absolute inset-[2px] flex items-center justify-center bg-red-50 z-20 rounded-lg">
           <div className="text-center p-4">
             <div className="text-red-600 font-medium mb-2">Camera Error</div>
             <div className="text-red-500 text-sm">{cameraError}</div>
