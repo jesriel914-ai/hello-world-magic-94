@@ -265,14 +265,8 @@ export const Preview: React.FC<PreviewProps> = ({
     initDesktopClient();
   }, [isMobile, screenShareService]);
 
-  // Initialize detection when camera starts
-  useEffect(() => {
-    if (mobileWebcam.current && activeMode === 'webcam') {
-      mobileWebcam.current.initializeDetection().catch(err => {
-        console.error('Failed to initialize detection:', err);
-      });
-    }
-  }, [mobileWebcam.current, activeMode]);
+  // NOTE: Detection initialization moved to startCamera() to ensure proper order
+  // Detection must be initialized AFTER camera starts and BEFORE detection loop begins
 
   // Detection loop
   useEffect(() => {
@@ -327,6 +321,12 @@ export const Preview: React.FC<PreviewProps> = ({
 
   // Focus point state for visual feedback
   const [focusPoint, setFocusPoint] = useState<{x: number; y: number} | null>(null);
+  
+  // Track actual video dimensions for accurate box positioning
+  const [videoDimensions, setVideoDimensions] = useState<{width: number; height: number}>({ 
+    width: 1280, 
+    height: 720 
+  });
 
   // Handle box click
   const handleBoxClick = (index: number) => {
@@ -341,11 +341,16 @@ export const Preview: React.FC<PreviewProps> = ({
     setDetectedBoxes(newBoxes);
   };
 
-  // Handle camera click/tap for focus and detection guidance
+  // Handle camera click/tap for detection guidance only (no focus control)
   const handleCameraClick = async (event: React.MouseEvent<HTMLDivElement> | React.TouchEvent<HTMLDivElement>) => {
     if (!mobileWebcam.current) return;
     
-    const rect = event.currentTarget.getBoundingClientRect();
+    const videoElement = mobileWebcam.current.getVideo();
+    if (!videoElement) return;
+    
+    // Get video element's actual bounding box
+    const videoRect = videoElement.getBoundingClientRect();
+    
     let clientX: number, clientY: number;
     
     if ('touches' in event) {
@@ -359,48 +364,50 @@ export const Preview: React.FC<PreviewProps> = ({
       clientY = event.clientY;
     }
     
-    const x = clientX - rect.left;
-    const y = clientY - rect.top;
+    // Check if click is within video bounds
+    if (
+      clientX < videoRect.left || clientX > videoRect.right ||
+      clientY < videoRect.top || clientY > videoRect.bottom
+    ) {
+      console.log('ℹ️ Click outside video preview, ignoring');
+      return; // Click outside video, ignore
+    }
     
-    // Convert to normalized coordinates (0-1)
-    const normalizedX = x / rect.width;
-    const normalizedY = y / rect.height;
+    // Calculate position relative to video element
+    const x = clientX - videoRect.left;
+    const y = clientY - videoRect.top;
     
-    // Show visual feedback
+    // Show visual feedback (positioned relative to video)
     setFocusPoint({ x, y });
     setTimeout(() => setFocusPoint(null), 1000);
     
-    // 1. Apply focus at clicked point
-    try {
-      await mobileWebcam.current.applyFocusPoint(normalizedX, normalizedY);
-      console.log('✅ Focus applied');
-    } catch (error) {
-      console.log('ℹ️ Focus not available on this device');
+    // Guide detection to this region
+    const videoWidth = videoElement.videoWidth || 1280;
+    const videoHeight = videoElement.videoHeight || 720;
+    
+    // Update video dimensions state if changed
+    if (videoDimensions.width !== videoWidth || videoDimensions.height !== videoHeight) {
+      setVideoDimensions({ width: videoWidth, height: videoHeight });
     }
     
-    // 2. Guide detection to this region
-    const videoElement = mobileWebcam.current.getVideo();
-    if (videoElement) {
-      const videoWidth = videoElement.videoWidth || 1280;
-      const videoHeight = videoElement.videoHeight || 720;
+    // Convert screen coordinates to video coordinates
+    const videoX = (x / videoRect.width) * videoWidth;
+    const videoY = (y / videoRect.height) * videoHeight;
+    
+    // Get the signature detector and set ROI
+    const detector = (mobileWebcam.current as any).signatureDetector;
+    if (detector && typeof detector.setRegionOfInterest === 'function') {
+      detector.setRegionOfInterest(videoX, videoY, 150);
+      console.log(`📍 Detection ROI set to (${videoX.toFixed(0)}, ${videoY.toFixed(0)})`);
       
-      // Convert screen coordinates to video coordinates
-      const videoX = (x / rect.width) * videoWidth;
-      const videoY = (y / rect.height) * videoHeight;
-      
-      // Get the signature detector and set ROI
-      const detector = (mobileWebcam.current as any).signatureDetector;
-      if (detector && typeof detector.setRegionOfInterest === 'function') {
-        detector.setRegionOfInterest(videoX, videoY, 150);
-        console.log(`📍 Detection ROI set to (${videoX.toFixed(0)}, ${videoY.toFixed(0)})`);
-        
-        // Clear ROI after 3 seconds
-        setTimeout(() => {
-          if (detector && typeof detector.clearRegionOfInterest === 'function') {
-            detector.clearRegionOfInterest();
-          }
-        }, 3000);
-      }
+      // Clear ROI after 3 seconds
+      setTimeout(() => {
+        if (detector && typeof detector.clearRegionOfInterest === 'function') {
+          detector.clearRegionOfInterest();
+        }
+      }, 3000);
+    } else {
+      console.warn('⚠️ Signature detector not initialized');
     }
   };
 
@@ -614,6 +621,20 @@ export const Preview: React.FC<PreviewProps> = ({
       
       webcamRef.current.innerHTML = '';
       webcamRef.current.appendChild(videoElement);
+      
+      // CRITICAL: Initialize detection BEFORE starting detection loop
+      console.log('🔧 Initializing signature detection...');
+      await mobileWebcam.current.initializeDetection();
+      console.log('✅ Signature detection initialized');
+      
+      // Update video dimensions once video is loaded
+      if (videoElement.videoWidth > 0 && videoElement.videoHeight > 0) {
+        setVideoDimensions({
+          width: videoElement.videoWidth,
+          height: videoElement.videoHeight
+        });
+        console.log(`📐 Video dimensions: ${videoElement.videoWidth}x${videoElement.videoHeight}`);
+      }
       
       // Start screen sharing after camera is successfully started
       console.log('📡 Starting screen sharing...');
@@ -836,7 +857,7 @@ export const Preview: React.FC<PreviewProps> = ({
         </div>
       )}
       
-      {/* Bounding boxes overlay - THINNER BORDERS */}
+      {/* Bounding boxes overlay - using actual video dimensions */}
       {activeMode === 'webcam' && detectedBoxes.length > 0 && (
         <div className="absolute inset-[2px] pointer-events-none z-10">
           {detectedBoxes.map((box, index) => (
@@ -844,10 +865,10 @@ export const Preview: React.FC<PreviewProps> = ({
               key={index}
               className={`absolute ${box.isActive ? 'border-2 border-yellow-400 shadow-lg' : 'border border-gray-300'} rounded pointer-events-auto cursor-pointer transition-all`}
               style={{
-                left: `${(box.x / 300) * 100}%`,
-                top: `${(box.y / 300) * 100}%`,
-                width: `${(box.width / 300) * 100}%`,
-                height: `${(box.height / 300) * 100}%`,
+                left: `${(box.x / videoDimensions.width) * 100}%`,
+                top: `${(box.y / videoDimensions.height) * 100}%`,
+                width: `${(box.width / videoDimensions.width) * 100}%`,
+                height: `${(box.height / videoDimensions.height) * 100}%`,
                 boxShadow: box.isActive ? '0 0 15px rgba(255, 215, 0, 0.6)' : 'none'
               }}
               onClick={(e) => {

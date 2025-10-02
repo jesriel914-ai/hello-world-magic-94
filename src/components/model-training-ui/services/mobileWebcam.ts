@@ -512,64 +512,15 @@ export class MobileWebcam {
   }
   
   /**
-   * Apply tap-to-focus at normalized coordinates (0-1 range)
-   * This is called when user taps on the video preview
+   * REMOVED: Tap-to-focus functionality
+   * 
+   * Issue: The focus API causes images to become blurrier, not sharper.
+   * Root cause: Most mobile browsers don't support pointsOfInterest API,
+   * and setting focusMode: 'manual' disables the working autofocus.
+   * 
+   * Solution: Rely on continuous autofocus (configured in camera constraints).
+   * Tap is now used ONLY for detection guidance (ROI), not for focus control.
    */
-  public async applyFocusPoint(normalizedX: number, normalizedY: number): Promise<boolean> {
-    if (!this.stream) {
-      console.warn('⚠️ No active stream to apply focus');
-      return false;
-    }
-    
-    const videoTrack = this.stream.getVideoTracks()[0];
-    if (!videoTrack) {
-      console.warn('⚠️ No video track available');
-      return false;
-    }
-    
-    try {
-      const capabilities = videoTrack.getCapabilities();
-      console.log('📷 Camera capabilities:', capabilities);
-      
-      // Check if manual focus with points of interest is supported
-      // @ts-ignore - Advanced camera API
-      if (capabilities.focusMode && Array.isArray(capabilities.focusMode)) {
-        // Try to set manual focus with point of interest
-        await videoTrack.applyConstraints({
-          advanced: [{
-            // @ts-ignore
-            focusMode: 'manual',
-            pointsOfInterest: [{ x: normalizedX, y: normalizedY }]
-          }]
-        });
-        
-        console.log(`✅ Focus point set to (${normalizedX.toFixed(2)}, ${normalizedY.toFixed(2)})`);
-        
-        // After a short delay, return to continuous autofocus
-        setTimeout(async () => {
-          try {
-            await videoTrack.applyConstraints({
-              advanced: [{
-                // @ts-ignore
-                focusMode: 'continuous'
-              }]
-            });
-            console.log('🔄 Returned to continuous autofocus');
-          } catch (err) {
-            console.log('Note: Could not return to continuous autofocus');
-          }
-        }, 2000);
-        
-        return true;
-      } else {
-        console.log('ℹ️ Manual focus not supported, using continuous autofocus');
-        return false;
-      }
-    } catch (error) {
-      console.warn('⚠️ Could not apply focus point:', error);
-      return false;
-    }
-  }
   
   /**
    * Toggle torch/flash (if available)
