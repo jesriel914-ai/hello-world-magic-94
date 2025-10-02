@@ -325,6 +325,9 @@ export const Preview: React.FC<PreviewProps> = ({
     };
   }, [isMobile, activeMode, mobileWebcam.current, isConnected, screenShareService]);
 
+  // Focus point state for visual feedback
+  const [focusPoint, setFocusPoint] = useState<{x: number; y: number} | null>(null);
+
   // Handle box click
   const handleBoxClick = (index: number) => {
     if (!mobileWebcam.current) return;
@@ -336,6 +339,69 @@ export const Preview: React.FC<PreviewProps> = ({
       box.isActive = i === index;
     });
     setDetectedBoxes(newBoxes);
+  };
+
+  // Handle camera click/tap for focus and detection guidance
+  const handleCameraClick = async (event: React.MouseEvent<HTMLDivElement> | React.TouchEvent<HTMLDivElement>) => {
+    if (!mobileWebcam.current) return;
+    
+    const rect = event.currentTarget.getBoundingClientRect();
+    let clientX: number, clientY: number;
+    
+    if ('touches' in event) {
+      // Touch event
+      if (event.touches.length === 0) return;
+      clientX = event.touches[0].clientX;
+      clientY = event.touches[0].clientY;
+    } else {
+      // Mouse event
+      clientX = event.clientX;
+      clientY = event.clientY;
+    }
+    
+    const x = clientX - rect.left;
+    const y = clientY - rect.top;
+    
+    // Convert to normalized coordinates (0-1)
+    const normalizedX = x / rect.width;
+    const normalizedY = y / rect.height;
+    
+    // Show visual feedback
+    setFocusPoint({ x, y });
+    setTimeout(() => setFocusPoint(null), 1000);
+    
+    // 1. Apply focus at clicked point
+    try {
+      await mobileWebcam.current.applyFocusPoint(normalizedX, normalizedY);
+      console.log('✅ Focus applied');
+    } catch (error) {
+      console.log('ℹ️ Focus not available on this device');
+    }
+    
+    // 2. Guide detection to this region
+    const videoElement = mobileWebcam.current.getVideo();
+    if (videoElement) {
+      const videoWidth = videoElement.videoWidth || 1280;
+      const videoHeight = videoElement.videoHeight || 720;
+      
+      // Convert screen coordinates to video coordinates
+      const videoX = (x / rect.width) * videoWidth;
+      const videoY = (y / rect.height) * videoHeight;
+      
+      // Get the signature detector and set ROI
+      const detector = (mobileWebcam.current as any).signatureDetector;
+      if (detector && typeof detector.setRegionOfInterest === 'function') {
+        detector.setRegionOfInterest(videoX, videoY, 150);
+        console.log(`📍 Detection ROI set to (${videoX.toFixed(0)}, ${videoY.toFixed(0)})`);
+        
+        // Clear ROI after 3 seconds
+        setTimeout(() => {
+          if (detector && typeof detector.clearRegionOfInterest === 'function') {
+            detector.clearRegionOfInterest();
+          }
+        }, 3000);
+      }
+    }
   };
 
   const handleWebcamClick = () => {
@@ -728,8 +794,47 @@ export const Preview: React.FC<PreviewProps> = ({
   // Camera display with overlays - UPDATED JSX
   const renderCameraDisplay = () => (
     <div className="relative border-2 border-dashed border-gray-300 rounded-lg min-h-[250px] flex items-center justify-center bg-gray-50">
-      {/* Video feed container */}
-      <div ref={webcamRef} className={`absolute inset-[2px] flex items-center justify-center ${activeMode === 'webcam' ? '' : 'hidden'} z-0 rounded-lg overflow-hidden`} />
+      {/* Video feed container with tap-to-focus */}
+      <div 
+        ref={webcamRef} 
+        className={`absolute inset-[2px] flex items-center justify-center ${activeMode === 'webcam' ? '' : 'hidden'} z-0 rounded-lg overflow-hidden cursor-pointer`}
+        onClick={handleCameraClick}
+        onTouchStart={handleCameraClick}
+      />
+      
+      {/* Focus point indicator */}
+      {focusPoint && activeMode === 'webcam' && (
+        <div 
+          className="absolute z-30 pointer-events-none"
+          style={{
+            left: focusPoint.x,
+            top: focusPoint.y,
+            width: '80px',
+            height: '80px',
+            border: '3px solid #FFD700',
+            borderRadius: '50%',
+            transform: 'translate(-50%, -50%)',
+            animation: 'focusPulse 0.5s ease-out',
+            boxShadow: '0 0 0 2px rgba(0, 0, 0, 0.3), 0 0 20px rgba(255, 215, 0, 0.5)'
+          }}
+        >
+          <style>{`
+            @keyframes focusPulse {
+              0% {
+                transform: translate(-50%, -50%) scale(1.5);
+                opacity: 0;
+              }
+              50% {
+                opacity: 1;
+              }
+              100% {
+                transform: translate(-50%, -50%) scale(1);
+                opacity: 0.8;
+              }
+            }
+          `}</style>
+        </div>
+      )}
       
       {/* Bounding boxes overlay - THINNER BORDERS */}
       {activeMode === 'webcam' && detectedBoxes.length > 0 && (
@@ -737,14 +842,18 @@ export const Preview: React.FC<PreviewProps> = ({
           {detectedBoxes.map((box, index) => (
             <div
               key={index}
-              className={`absolute ${box.isActive ? 'border-2 border-yellow-400' : 'border border-gray-300'} rounded pointer-events-auto cursor-pointer transition-all`}
+              className={`absolute ${box.isActive ? 'border-2 border-yellow-400 shadow-lg' : 'border border-gray-300'} rounded pointer-events-auto cursor-pointer transition-all`}
               style={{
                 left: `${(box.x / 300) * 100}%`,
                 top: `${(box.y / 300) * 100}%`,
                 width: `${(box.width / 300) * 100}%`,
-                height: `${(box.height / 300) * 100}%`
+                height: `${(box.height / 300) * 100}%`,
+                boxShadow: box.isActive ? '0 0 15px rgba(255, 215, 0, 0.6)' : 'none'
               }}
-              onClick={() => handleBoxClick(index)}
+              onClick={(e) => {
+                e.stopPropagation(); // Prevent triggering camera click
+                handleBoxClick(index);
+              }}
             />
           ))}
         </div>

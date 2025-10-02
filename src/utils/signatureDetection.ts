@@ -13,10 +13,29 @@ export class SignatureDetector {
   private lastDetectionTime: number = 0;
   private detectionInterval: number = 300; // Detect every 300ms
   private lastValidBoxes: BoundingBox[] = []; // Cache last valid detection
+  private boxHistory: BoundingBox[][] = []; // History for temporal smoothing
+  private readonly HISTORY_SIZE = 5;
+  private roi: { x: number; y: number; radius: number } | null = null; // Region of interest for user guidance
   
   constructor() {
     this.canvas = document.createElement('canvas');
     this.ctx = this.canvas.getContext('2d')!;
+  }
+  
+  /**
+   * Set region of interest when user taps on screen
+   * This guides detection to prioritize the tapped area
+   */
+  public setRegionOfInterest(x: number, y: number, radius: number = 150): void {
+    this.roi = { x, y, radius };
+    console.log(`📍 ROI set at (${x}, ${y}) with radius ${radius}`);
+  }
+  
+  /**
+   * Clear region of interest
+   */
+  public clearRegionOfInterest(): void {
+    this.roi = null;
   }
   
   /**
@@ -41,25 +60,60 @@ export class SignatureDetector {
     
     // Apply edge detection to find ink strokes
     const edges = this.detectEdges(imageData);
-    const boxes = this.findSignatureRegions(edges, this.canvas.width, this.canvas.height);
+    
+    // Also detect ink-specific regions (blue/black ink)
+    const inkMask = this.detectInkRegions(imageData);
+    
+    // Combine edge and ink detection for better accuracy
+    const combinedMask = this.combineDetectionMasks(edges, inkMask);
+    
+    const boxes = this.findSignatureRegions(combinedMask, this.canvas.width, this.canvas.height);
     const mergedBoxes = this.mergeNearbyBoxes(boxes);
     
-    // Filter out noise (boxes that are too small or too large)
+    // Filter out noise and apply signature-specific validation
     const validBoxes = mergedBoxes.filter(box => {
       const area = box.width * box.height;
       const minArea = 2000; // ~45x45 pixels minimum
       const maxArea = (this.canvas.width * this.canvas.height) * 0.8; // Max 80% of frame
-      return area > minArea && area < maxArea;
+      
+      if (area <= minArea || area >= maxArea) return false;
+      
+      // Apply signature-specific heuristics
+      return this.isLikelySignature(box, combinedMask);
     });
     
+    // Apply ROI-based confidence boost if user tapped
+    if (this.roi && validBoxes.length > 0) {
+      validBoxes.forEach(box => {
+        const centerX = box.x + box.width / 2;
+        const centerY = box.y + box.height / 2;
+        const distance = Math.sqrt(
+          Math.pow(centerX - this.roi!.x, 2) + 
+          Math.pow(centerY - this.roi!.y, 2)
+        );
+        
+        if (distance < this.roi.radius) {
+          box.confidence *= 1.5; // Boost confidence for boxes near tap
+        }
+      });
+      
+      // Sort by confidence
+      validBoxes.sort((a, b) => b.confidence - a.confidence);
+    }
+    
     // Add margin and mark first as active
-    const finalBoxes = validBoxes.map((box, index) => ({
+    let finalBoxes = validBoxes.map((box, index) => ({
       ...this.addMargin(box, 0.08),
       isActive: index === 0
     }));
     
+    // Apply temporal smoothing to reduce jitter
+    finalBoxes = this.smoothBoxes(finalBoxes);
+    
     // Cache result
-    this.lastValidBoxes = finalBoxes;
+    if (finalBoxes.length > 0) {
+      this.lastValidBoxes = finalBoxes;
+    }
     
     return finalBoxes;
   }
@@ -278,5 +332,145 @@ export class SignatureDetector {
       width: box.width + (marginX * 2),
       height: box.height + (marginY * 2)
     };
+  }
+  
+  /**
+   * Detect ink regions specifically (blue/black ink detection)
+   */
+  private detectInkRegions(imageData: ImageData): Uint8ClampedArray {
+    const data = imageData.data;
+    const width = imageData.width;
+    const height = imageData.height;
+    const inkMask = new Uint8ClampedArray(width * height);
+    
+    for (let i = 0; i < data.length; i += 4) {
+      const r = data[i];
+      const g = data[i + 1];
+      const b = data[i + 2];
+      
+      // Detect blue ink (blue > red and blue > green, moderately saturated)
+      const isBlueInk = b > r + 20 && b > g + 10 && b > 80 && b < 200;
+      
+      // Detect black ink (low RGB values across all channels)
+      const isBlackInk = r < 80 && g < 80 && b < 80;
+      
+      // Detect dark blue/navy ink (common in professional signatures)
+      const isDarkBlueInk = b > r && b > g && r < 100 && g < 100 && b < 150;
+      
+      if (isBlueInk || isBlackInk || isDarkBlueInk) {
+        inkMask[i / 4] = 255;
+      }
+    }
+    
+    return inkMask;
+  }
+  
+  /**
+   * Combine edge detection and ink detection for better accuracy
+   */
+  private combineDetectionMasks(edges: Uint8ClampedArray, inkMask: Uint8ClampedArray): Uint8ClampedArray {
+    const combined = new Uint8ClampedArray(edges.length);
+    
+    for (let i = 0; i < edges.length; i++) {
+      // A pixel is considered part of signature if:
+      // 1. It has strong edges (likely ink stroke border)
+      // 2. OR it's ink-colored (likely ink fill)
+      // Combining both gives us better detection
+      combined[i] = Math.max(edges[i], inkMask[i]);
+    }
+    
+    return combined;
+  }
+  
+  /**
+   * Check if a detected box is likely a signature using heuristics
+   */
+  private isLikelySignature(box: BoundingBox, mask: Uint8ClampedArray): boolean {
+    // Heuristic 1: Aspect ratio check
+    // Signatures are typically wider than tall (ratio between 1.5 and 6)
+    const aspectRatio = box.width / box.height;
+    if (aspectRatio < 1.2 || aspectRatio > 8) {
+      return false; // Too square or too elongated
+    }
+    
+    // Heuristic 2: Edge density check
+    // Signatures have moderate edge density (not too dense, not too sparse)
+    const edgeDensity = this.calculateEdgeDensityInBox(box, mask);
+    if (edgeDensity < 0.1 || edgeDensity > 0.7) {
+      return false; // Too sparse or too dense
+    }
+    
+    // Heuristic 3: Position check
+    // Signatures rarely appear at the very top of the frame
+    const relativeY = box.y / this.canvas.height;
+    if (relativeY < 0.1) {
+      return false; // Unlikely to be signature at top 10% of frame
+    }
+    
+    // Heuristic 4: Size relative to frame
+    // Signatures typically take up 5-40% of the frame width
+    const relativeWidth = box.width / this.canvas.width;
+    if (relativeWidth < 0.05 || relativeWidth > 0.6) {
+      return false; // Too small or too large relative to frame
+    }
+    
+    return true;
+  }
+  
+  /**
+   * Calculate edge density within a bounding box
+   */
+  private calculateEdgeDensityInBox(box: BoundingBox, mask: Uint8ClampedArray): number {
+    let edgeCount = 0;
+    let totalPixels = 0;
+    
+    for (let y = Math.floor(box.y); y < Math.min(box.y + box.height, this.canvas.height); y++) {
+      for (let x = Math.floor(box.x); x < Math.min(box.x + box.width, this.canvas.width); x++) {
+        const idx = y * this.canvas.width + x;
+        if (mask[idx] > 0) edgeCount++;
+        totalPixels++;
+      }
+    }
+    
+    return totalPixels > 0 ? edgeCount / totalPixels : 0;
+  }
+  
+  /**
+   * Apply temporal smoothing to reduce box jitter
+   */
+  private smoothBoxes(currentBoxes: BoundingBox[]): BoundingBox[] {
+    if (currentBoxes.length === 0) return currentBoxes;
+    
+    this.boxHistory.push(currentBoxes);
+    if (this.boxHistory.length > this.HISTORY_SIZE) {
+      this.boxHistory.shift();
+    }
+    
+    // Need at least 3 frames for meaningful smoothing
+    if (this.boxHistory.length < 3) {
+      return currentBoxes;
+    }
+    
+    // Average box positions over time
+    return currentBoxes.map((box, index) => {
+      const historicalBoxes = this.boxHistory
+        .map(h => h[index])
+        .filter(Boolean);
+      
+      if (historicalBoxes.length === 0) return box;
+      
+      const avgX = historicalBoxes.reduce((sum, b) => sum + b.x, 0) / historicalBoxes.length;
+      const avgY = historicalBoxes.reduce((sum, b) => sum + b.y, 0) / historicalBoxes.length;
+      const avgW = historicalBoxes.reduce((sum, b) => sum + b.width, 0) / historicalBoxes.length;
+      const avgH = historicalBoxes.reduce((sum, b) => sum + b.height, 0) / historicalBoxes.length;
+      
+      return {
+        ...box,
+        x: avgX,
+        y: avgY,
+        width: avgW,
+        height: avgH
+      };
+    });
   }
 }

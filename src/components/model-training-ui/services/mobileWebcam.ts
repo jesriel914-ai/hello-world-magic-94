@@ -108,29 +108,48 @@ export class MobileWebcam {
 
     // Define constraint sets in order of preference
     const constraintSets: MediaStreamConstraints[] = [
-      // Primary: Specific facing mode with ideal resolution
+      // Primary: High-quality back camera with continuous autofocus for document scanning
+      {
+        video: {
+          width: { ideal: 1280 }, // Higher res for better text/signature detection
+          height: { ideal: 720 },
+          facingMode: this.config.facingMode,
+          // @ts-ignore - Advanced constraints for better document scanning
+          focusMode: 'continuous',
+          focusDistance: { ideal: 0.3 }, // ~30cm optimal for documents
+          advanced: [{
+            focusMode: 'continuous',
+            torch: false
+          }]
+        }
+      },
+      // Fallback 1: Standard resolution with autofocus
       {
         video: {
           width: { ideal: this.config.width },
           height: { ideal: this.config.height },
-          facingMode: this.config.facingMode
+          facingMode: this.config.facingMode,
+          // @ts-ignore
+          focusMode: 'continuous'
         }
       },
-      // Fallback 1: Same facing mode, any resolution
+      // Fallback 2: Same facing mode, any resolution, basic autofocus
       {
         video: {
           facingMode: this.config.facingMode
         }
       },
-      // Fallback 2: Switch facing mode
+      // Fallback 3: Switch facing mode with focus
       {
         video: {
           width: { ideal: this.config.width },
           height: { ideal: this.config.height },
-          facingMode: this.config.facingMode === 'environment' ? 'user' : 'environment'
+          facingMode: this.config.facingMode === 'environment' ? 'user' : 'environment',
+          // @ts-ignore
+          focusMode: 'continuous'
         }
       },
-      // Fallback 3: Any camera, any resolution
+      // Fallback 4: Any camera, any resolution (last resort)
       {
         video: true
       }
@@ -466,30 +485,124 @@ export class MobileWebcam {
       return count > 0 ? sum / count : 0;
     }
     
-    /**
-     * Check if lighting is adequate
-     */
-    public hasGoodLighting(): boolean {
-      if (!this.video) return false;
-      
-      const canvas = this.captureFrame();
-      if (!canvas) return false;
-      
-      const ctx = canvas.getContext('2d');
-      if (!ctx) return false;
-      
-      const imageData = ctx.getImageData(0, 0, canvas.width, canvas.height);
-      const data = imageData.data;
-      
-      let sum = 0;
-      for (let i = 0; i < data.length; i += 4) {
-        sum += (data[i] + data[i + 1] + data[i + 2]) / 3;
-      }
-      
-      const avgBrightness = sum / (data.length / 4);
-      
-      // Good range: 50-200 (not too dark, not overexposed)
-      return avgBrightness > 50 && avgBrightness < 200;
+  /**
+   * Check if lighting is adequate
+   */
+  public hasGoodLighting(): boolean {
+    if (!this.video) return false;
+    
+    const canvas = this.captureFrame();
+    if (!canvas) return false;
+    
+    const ctx = canvas.getContext('2d');
+    if (!ctx) return false;
+    
+    const imageData = ctx.getImageData(0, 0, canvas.width, canvas.height);
+    const data = imageData.data;
+    
+    let sum = 0;
+    for (let i = 0; i < data.length; i += 4) {
+      sum += (data[i] + data[i + 1] + data[i + 2]) / 3;
     }
+    
+    const avgBrightness = sum / (data.length / 4);
+    
+    // Good range: 50-200 (not too dark, not overexposed)
+    return avgBrightness > 50 && avgBrightness < 200;
+  }
+  
+  /**
+   * Apply tap-to-focus at normalized coordinates (0-1 range)
+   * This is called when user taps on the video preview
+   */
+  public async applyFocusPoint(normalizedX: number, normalizedY: number): Promise<boolean> {
+    if (!this.stream) {
+      console.warn('⚠️ No active stream to apply focus');
+      return false;
+    }
+    
+    const videoTrack = this.stream.getVideoTracks()[0];
+    if (!videoTrack) {
+      console.warn('⚠️ No video track available');
+      return false;
+    }
+    
+    try {
+      const capabilities = videoTrack.getCapabilities();
+      console.log('📷 Camera capabilities:', capabilities);
+      
+      // Check if manual focus with points of interest is supported
+      // @ts-ignore - Advanced camera API
+      if (capabilities.focusMode && Array.isArray(capabilities.focusMode)) {
+        // Try to set manual focus with point of interest
+        await videoTrack.applyConstraints({
+          advanced: [{
+            // @ts-ignore
+            focusMode: 'manual',
+            pointsOfInterest: [{ x: normalizedX, y: normalizedY }]
+          }]
+        });
+        
+        console.log(`✅ Focus point set to (${normalizedX.toFixed(2)}, ${normalizedY.toFixed(2)})`);
+        
+        // After a short delay, return to continuous autofocus
+        setTimeout(async () => {
+          try {
+            await videoTrack.applyConstraints({
+              advanced: [{
+                // @ts-ignore
+                focusMode: 'continuous'
+              }]
+            });
+            console.log('🔄 Returned to continuous autofocus');
+          } catch (err) {
+            console.log('Note: Could not return to continuous autofocus');
+          }
+        }, 2000);
+        
+        return true;
+      } else {
+        console.log('ℹ️ Manual focus not supported, using continuous autofocus');
+        return false;
+      }
+    } catch (error) {
+      console.warn('⚠️ Could not apply focus point:', error);
+      return false;
+    }
+  }
+  
+  /**
+   * Toggle torch/flash (if available)
+   * Useful for low-light signature scanning
+   */
+  public async toggleTorch(enabled: boolean): Promise<boolean> {
+    if (!this.stream) {
+      console.warn('⚠️ No active stream to toggle torch');
+      return false;
+    }
+    
+    const videoTrack = this.stream.getVideoTracks()[0];
+    if (!videoTrack) return false;
+    
+    try {
+      const capabilities = videoTrack.getCapabilities();
+      
+      // @ts-ignore - Torch capability
+      if ('torch' in capabilities && capabilities.torch) {
+        await videoTrack.applyConstraints({
+          // @ts-ignore
+          advanced: [{ torch: enabled }]
+        });
+        console.log(`💡 Torch ${enabled ? 'enabled' : 'disabled'}`);
+        return true;
+      } else {
+        console.log('ℹ️ Torch not supported on this device');
+        return false;
+      }
+    } catch (error) {
+      console.warn('⚠️ Could not toggle torch:', error);
+      return false;
+    }
+  }
   
 }
