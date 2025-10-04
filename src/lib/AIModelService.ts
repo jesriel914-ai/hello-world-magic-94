@@ -18,7 +18,7 @@ declare global {
 // Function to get AI service URL with fallback for browser environment
 const getAIServiceUrl = () => {
   if (typeof window !== 'undefined') {
-    // FIXED: Use Vite environment variable correctly
+    // Use Vite environment variable correctly
     // Remove any trailing slashes and ensure we use the correct port
     const baseUrl = import.meta.env.VITE_AI_BASE_URL as string;
     
@@ -27,10 +27,10 @@ const getAIServiceUrl = () => {
       return baseUrl.replace(/\/$/, '');
     }
     
-    // Fallback to localhost:5173 if not set
-    return 'http://localhost:5173';
+    // Fallback to localhost:8000 (backend server) if not set
+    return 'http://localhost:8000';
   }
-  return 'http://localhost:5173';
+  return 'http://localhost:8000';
 };
 
 const AI_SERVICE_URL = getAIServiceUrl();
@@ -653,6 +653,12 @@ async uploadTrainedModelToS3(
     
     if (!response.ok) {
       const errorData = await response.json().catch(() => ({}));
+      
+      // Handle specific S3 configuration errors
+      if (errorData.error === 'S3_NOT_CONFIGURED') {
+        throw new Error(`S3 is not configured: ${errorData.message}. Please check your AWS credentials.`);
+      }
+      
       throw new Error(errorData.message || `Failed to upload to S3: ${response.status}`);
     }
     

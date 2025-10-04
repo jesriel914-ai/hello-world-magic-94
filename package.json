@@ -5,11 +5,12 @@
   "type": "module",
   "scripts": {
     "dev": "vite --port 5173 --host",
+    "dev:backend": "cd backend && npm start",
+    "dev:both": "node start-dev.js",
     "dev:old": "concurrently \"npm run dev:frontend\" \"npm run dev:backend\" \"npm run dev:websocket\"",
     "dev:http": "concurrently \"npm run dev:frontend:http\" \"npm run dev:backend\" \"npm run dev:websocket\"",
     "dev:frontend": "node https-server.js",
     "dev:frontend:http": "node http-server.js",
-    "dev:backend": "node server.js",
     "dev:websocket": "node server-websocket.js",
     "vite:dev": "vite --port 5173 --host",
     "build": "vite build",

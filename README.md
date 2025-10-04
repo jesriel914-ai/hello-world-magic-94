@@ -9,6 +9,8 @@ A comprehensive attendance tracking system built with React, TypeScript, and Sup
 - **Session Management**: Create and manage class/event sessions
 - **Attendance Tracking**: Mark and track student attendance
 - **Digital Signatures**: Capture and store student signatures
+- **AI Model Training**: Train signature recognition models using Teachable Machine MobileNet
+- **Model Export**: Export trained models to S3 or download locally
 - **Reports & Analytics**: Generate attendance reports and statistics
 
 ## Tech Stack
@@ -296,6 +298,38 @@ attendance-monitoring-system/
    ```
 
 4. Set up a reverse proxy (Nginx/Apache) to handle SSL termination and route traffic to the application.
+
+## Troubleshooting
+
+### S3 Export "Failed to fetch" Error
+
+If you're getting "Failed to fetch" errors when trying to export models to S3:
+
+1. **Quick Fix**: Run the automated setup:
+   ```bash
+   node setup-s3.js
+   ```
+
+2. **Manual Fix**: Copy `.env.example` to `.env` and add your AWS credentials:
+   ```env
+   NEXT_PUBLIC_AWS_ACCESS_KEY_ID=your_aws_access_key_here
+   NEXT_PUBLIC_AWS_SECRET_ACCESS_KEY=your_aws_secret_key_here
+   NEXT_PUBLIC_AWS_REGION=us-east-1
+   NEXT_PUBLIC_S3_BUCKET=signatureai-uploads
+   ```
+
+3. **Alternative**: Disable S3 exports and use local downloads:
+   ```env
+   VITE_ENABLE_S3_STORAGE=false
+   ```
+
+For detailed S3 setup instructions, see [S3_SETUP_GUIDE.md](./S3_SETUP_GUIDE.md).
+
+### Other Common Issues
+
+- **Module not found errors**: Run `npm install` to install dependencies
+- **Database connection issues**: Check your Supabase URL and API key
+- **Build errors**: Ensure you're using Node.js 18+ and the correct package manager
 
 ## Contributing
 
