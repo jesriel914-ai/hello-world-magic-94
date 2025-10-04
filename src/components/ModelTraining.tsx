@@ -6,7 +6,7 @@ import JSZip from 'jszip';
 import { Progress } from '@/components/ui/progress';
 import StudentSelectionModal from './model-training-ui/components/StudentSelectionModal';
 import { useStudents } from '@/hooks/use-students';
-import { AIModelServiceClass, ModelMetadata, TrainingMetrics } from '@/lib/AIModelService';
+import { getAIModelService, ModelMetadata, TrainingMetrics } from '@/lib/AIModelService';
 import TrainingSetup from './model-training-ui/components/TrainingSetup';
 import Preview from './model-training-ui/components/Preview';
 import TrainedModelsForm from './model-training-ui/components/TrainedModelsForm';
@@ -241,7 +241,7 @@ export const ModelTraining: React.FC<ModelTrainingProps> = ({
   const loadTrainedModels = async () => {
     setIsLoadingModels(true);
     try {
-      const aiModelService = new AIModelServiceClass();
+      const aiModelService = getAIModelService();
       const models = await aiModelService.getTrainedModels();
       setTrainedModels(models);
       setIsLoadingModels(false);
@@ -277,7 +277,7 @@ export const ModelTraining: React.FC<ModelTrainingProps> = ({
       }
       
       // Load the selected model using AIModelService
-      const aiModelService = new AIModelServiceClass();
+      const aiModelService = getAIModelService();
       const loadResult = await aiModelService.loadModel(selectedModel.id);
       
       if (!loadResult.success || !loadResult.model) {
@@ -1171,7 +1171,7 @@ const trainModel = async () => {
       };
       
       // Upload to S3 using AIModelService
-      const aiModelService = new AIModelServiceClass();
+      const aiModelService = getAIModelService();
       const uploadResult = await aiModelService.uploadTrainedModelToS3(
         tempModelId,
         model,

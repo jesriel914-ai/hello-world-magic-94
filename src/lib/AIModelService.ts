@@ -15,17 +15,27 @@ declare global {
 }
 
 // Function to get AI service URL with fallback for browser environment
+// Function to get AI service URL with fallback for browser environment
 const getAIServiceUrl = () => {
-  // Check if we're in a browser environment
   if (typeof window !== 'undefined') {
-    // In browser, use window.ENV or fallback to localhost
-    return window.ENV?.NEXT_PUBLIC_AI_SERVICE_URL || 'http://localhost:8001';
+    // FIXED: Use Vite environment variable correctly
+    // Remove any trailing slashes and ensure we use the correct port
+    const baseUrl = import.meta.env.VITE_AI_BASE_URL as string;
+    
+    if (baseUrl) {
+      // Clean up the URL - remove trailing slashes
+      return baseUrl.replace(/\/$/, '');
+    }
+    
+    // Fallback to localhost:5173 if not set
+    return 'http://localhost:5173';
   }
-  // In server environment, use process.env
-  return process.env.NEXT_PUBLIC_AI_SERVICE_URL || 'http://localhost:8001';
+  return 'http://localhost:5173';
 };
 
 const AI_SERVICE_URL = getAIServiceUrl();
+
+console.log('🔧 AI Service URL configured as:', AI_SERVICE_URL);
 
 // TypeScript interfaces for model topology
 interface ModelLayer {
@@ -203,6 +213,7 @@ class AIModelServiceClass {
   private publicBaseUrl: string;
 
   constructor() {
+    console.log('AIModelService initialized with baseUrl:', this.baseUrl);
     // Only initialize S3 client if process is available (not in browser)
     if (typeof process !== 'undefined' && process.env) {
       this.bucketName = process.env.NEXT_PUBLIC_S3_BUCKET || 'signatureai-uploads';
@@ -992,13 +1003,21 @@ async loadModel(modelId: string): Promise<{
   }
 }
 
-// Singleton instance with lazy initialization
-let serviceInstance: AIModelServiceClass | null = null;
-
-// Function to get or create the singleton instance
-export function getAIModelService(): AIModelServiceClass {
-  if (!serviceInstance) {
-    serviceInstance = new AIModelServiceClass();
-  }
-  return serviceInstance;
 }
+
+class AIModelServiceSingleton {
+  private static instance: AIModelServiceClass | null = null;
+  
+  static getInstance(): AIModelServiceClass {
+    if (!this.instance) {
+      this.instance = new AIModelServiceClass();
+    }
+    return this.instance;
+  }
+}
+
+export function getAIModelService(): AIModelServiceClass {
+  return AIModelServiceSingleton.getInstance();
+}
+
+export default getAIModelService;

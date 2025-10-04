@@ -1,7 +1,13 @@
 //filepath: src\components\model-training-ui\services\ModelExport.ts
 import * as tf from '@tensorflow/tfjs';
 import JSZip from 'jszip';
-import { AIModelServiceClass, ModelMetadata } from '@/lib/AIModelService';
+import { getAIModelService } from '@/lib/AIModelService';
+
+console.log('ModelExport.ts loaded');
+console.log('getAIModelService:', getAIModelService);
+
+const testService = getAIModelService();
+console.log('Test service baseUrl:', (testService as any).baseUrl);
 
 // TypeScript interfaces for model topology
 interface ModelLayer {
@@ -303,7 +309,7 @@ export const exportToS3 = async (params: {
     };
 
     // STEP 8: Upload to S3
-    const aiModelService = new AIModelServiceClass();
+    const aiModelService = getAIModelService();
     const modelId = `model_${studentId || 'global'}_${Date.now()}`;
     
     console.log('🚀 Uploading to S3...');
