@@ -1,3 +1,4 @@
+//filepath: src\components\model-training-ui\components\TrainingSetup.tsx
 import React, { useState } from 'react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
@@ -21,8 +22,17 @@ import {
   DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu';
 import StudentSelectionModal from '@/components/model-training-ui/components/StudentSelectionModal';
+import BatchUpload from './BatchUpload';
 import type { Student } from '@/types';
 import type { ClassData } from '../../ModelTraining';
+import { fetchStudents } from '@/lib/supabaseService';
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogHeader,
+  DialogTitle,
+} from '@/components/ui/dialog';
 
 interface TrainingSetupProps {
   classes: ClassData[];
@@ -36,7 +46,7 @@ interface TrainingSetupProps {
   hasDownloadedToPC: boolean;
   onRemoveClass: (index: number) => void;
   onUpdateClassName: (index: number, student: Student) => void;
-  onAddMultipleStudents: (students: Student[]) => void;
+  onAddMultipleStudents: (students: Student[], samplesMap?: Map<string, any[]>) => void;
   onTrainModel: () => void;
   onUploadModelToS3: () => void;
   onDownloadModelToLocal: () => void;
@@ -44,13 +54,8 @@ interface TrainingSetupProps {
   formatStudentDisplay: (student: Student) => string;
 }
 
-// Helper functions
 const formatStudentDisplay = (student: Student): string => {
   return `${student.student_id} - ${student.firstname} ${student.surname}`;
-};
-
-const getClassName = (cls: ClassData): string => {
-  return cls.student ? formatStudentDisplay(cls.student) : 'Select Student...';
 };
 
 const TrainingSetup: React.FC<TrainingSetupProps> = ({
@@ -72,6 +77,101 @@ const TrainingSetup: React.FC<TrainingSetupProps> = ({
   onDownloadModelToLocal,
   formatStudentDisplay
 }) => {
+  const [batchUploadOpen, setBatchUploadOpen] = useState(false);
+  const [allStudents, setAllStudents] = useState<Student[]>([]);
+  const [isProcessingUpload, setIsProcessingUpload] = useState(false);
+  const [uploadProgress, setUploadProgress] = useState(0);
+  const [currentProcessingStudent, setCurrentProcessingStudent] = useState('');
+  const [totalFiles, setTotalFiles] = useState(0);
+  const [processedFiles, setProcessedFiles] = useState(0);
+
+  const loadStudentsForBatchUpload = async () => {
+    try {
+      const students = await fetchStudents();
+      setAllStudents(students);
+      setBatchUploadOpen(true);
+    } catch (error) {
+      console.error('Error loading students:', error);
+      alert('Failed to load students for validation');
+    }
+  };
+
+  const handleBatchUploadConfirm = async (validFolders: any[]) => {
+    try {
+      setBatchUploadOpen(false);
+      setIsProcessingUpload(true);
+      setUploadProgress(0);
+      setProcessedFiles(0);
+      
+      // Calculate total files
+      const total = validFolders.reduce((sum, folder) => sum + folder.files.length, 0);
+      setTotalFiles(total);
+      
+      const samplesMap = new Map<string, any[]>();
+      let filesProcessed = 0;
+      
+      for (const folder of validFolders) {
+        const { matchedStudent, files } = folder;
+        const samples: any[] = [];
+        
+        setCurrentProcessingStudent(formatStudentDisplay(matchedStudent));
+        
+        for (const file of files) {
+          try {
+            const img = new Image();
+            await new Promise<void>((resolve, reject) => {
+              img.onload = async () => {
+                try {
+                  const canvas = document.createElement('canvas');
+                  canvas.width = 224;
+                  canvas.height = 224;
+                  const ctx = canvas.getContext('2d');
+                  
+                  if (ctx) {
+                    ctx.drawImage(img, 0, 0, 224, 224);
+                    const thumbnail = canvas.toDataURL('image/jpeg', 0.8);
+                    
+                    samples.push({
+                      thumbnail,
+                      timestamp: Date.now()
+                    });
+                  }
+                  
+                  filesProcessed++;
+                  setProcessedFiles(filesProcessed);
+                  setUploadProgress((filesProcessed / total) * 100);
+                  
+                  resolve();
+                } catch (error) {
+                  reject(error);
+                }
+              };
+              
+              img.onerror = () => reject(new Error(`Failed to load image: ${file.name}`));
+              img.src = URL.createObjectURL(file);
+            });
+          } catch (error) {
+            console.error('Error processing file:', error);
+          }
+        }
+        
+        samplesMap.set(matchedStudent.student_id, samples);
+      }
+      
+      const students = validFolders.map(folder => folder.matchedStudent);
+      onAddMultipleStudents(students, samplesMap);
+      
+      setIsProcessingUpload(false);
+      setUploadProgress(0);
+      setCurrentProcessingStudent('');
+      
+    } catch (error) {
+      console.error('Error processing batch upload:', error);
+      setIsProcessingUpload(false);
+      alert('Failed to process batch upload: ' + (error instanceof Error ? error.message : 'Unknown error'));
+    }
+  };
+
   return (
     <Card className="h-[605px] w-full lg:col-span-2 flex flex-col">
       <CardHeader className="pb-2">
@@ -80,11 +180,21 @@ const TrainingSetup: React.FC<TrainingSetupProps> = ({
             <Brain className="w-5 h-5" />
             Training Setup
           </div>
-          <div className="h-8 w-8"></div> {/* Spacer for alignment */}
+          <DropdownMenu>
+            <DropdownMenuTrigger asChild>
+              <Button variant="ghost" size="sm" className="h-8 w-8 p-0">
+                <MoreVertical className="w-4 h-4" />
+              </Button>
+            </DropdownMenuTrigger>
+            <DropdownMenuContent align="end">
+              <DropdownMenuItem onClick={loadStudentsForBatchUpload}>
+                Batch Upload
+              </DropdownMenuItem>
+            </DropdownMenuContent>
+          </DropdownMenu>
         </CardTitle>
       </CardHeader>
       <CardContent className="flex-1 overflow-hidden flex flex-col">
-        {/* Class Cards - 2 Column Layout */}
         <div className="flex-1 overflow-y-auto hide-scrollbar space-y-4 pb-4">
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
             {classes.map((cls, index) => (
@@ -173,8 +283,6 @@ const TrainingSetup: React.FC<TrainingSetupProps> = ({
                                   e.stopPropagation();
                                   const newClasses = [...classes];
                                   newClasses[index].samples.splice(sampleIndex, 1);
-                                  // This would need to be passed as a prop or handled differently
-                                  // For now, we'll keep the original logic
                                 }}
                                 title="Remove sample"
                               >
@@ -197,7 +305,6 @@ const TrainingSetup: React.FC<TrainingSetupProps> = ({
             ))}
           </div>
           
-          {/* Add New Class Button - Same width as class cards */}
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
             <StudentSelectionModal
               mode="multiple"
@@ -217,7 +324,6 @@ const TrainingSetup: React.FC<TrainingSetupProps> = ({
           </div>
         </div>
         
-        {/* Training Section */}
         <div className="border-t pt-6 mt-auto">
           <div className="text-sm mb-4">
             {isModelLoaded ? (
@@ -300,6 +406,41 @@ const TrainingSetup: React.FC<TrainingSetupProps> = ({
           
         </div>
       </CardContent>
+
+      <BatchUpload
+        open={batchUploadOpen}
+        onOpenChange={setBatchUploadOpen}
+        onConfirm={handleBatchUploadConfirm}
+        students={allStudents}
+      />
+
+      {/* Processing Upload Progress Dialog */}
+      <Dialog open={isProcessingUpload} onOpenChange={() => {}}>
+        <DialogContent className="sm:max-w-md" hideCloseButton>
+          <DialogHeader>
+            <DialogTitle>Processing Batch Upload</DialogTitle>
+            <DialogDescription>
+              Creating classes and uploading signatures...
+            </DialogDescription>
+          </DialogHeader>
+          <div className="space-y-4 py-4">
+            <div className="flex items-center justify-center">
+              <Loader2 className="w-8 h-8 animate-spin text-blue-600" />
+            </div>
+            {currentProcessingStudent && (
+              <p className="text-sm text-center text-gray-600">
+                Processing: {currentProcessingStudent}
+              </p>
+            )}
+            <div className="space-y-2">
+              <Progress value={uploadProgress} className="w-full" />
+              <p className="text-xs text-center text-gray-500">
+                {processedFiles} / {totalFiles} files ({uploadProgress.toFixed(0)}%)
+              </p>
+            </div>
+          </div>
+        </DialogContent>
+      </Dialog>
     </Card>
   );
 };

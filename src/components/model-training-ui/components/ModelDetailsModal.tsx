@@ -1,3 +1,4 @@
+//filepath: src\components\model-training-ui\components\ModelDetailsModal.tsx
 import React from 'react';
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { Badge } from '@/components/ui/badge';

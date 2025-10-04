@@ -13,6 +13,10 @@ export class MobileWebcam {
   private config: MobileWebcamConfig;
   private isActive: boolean = false;
   private startTimeout: NodeJS.Timeout | null = null;
+  
+  // Dynamic preview dimensions
+  private previewWidth: number = 640;   // Default fallback
+  private previewHeight: number = 360;  // Default fallback
 
   constructor(config: MobileWebcamConfig = {}) {
     this.config = {
@@ -86,6 +90,24 @@ export class MobileWebcam {
     }
 
     const constraintSets: MediaStreamConstraints[] = [
+      {
+        video: {
+          width: { ideal: 1920 },
+          height: { ideal: 1080 },
+          facingMode: this.config.facingMode,
+          // @ts-ignore
+          zoom: this.config.zoom,
+          focusMode: 'continuous',
+          focusDistance: { ideal: 0.15 },
+          // ADD THESE TWO LINES:
+          imageStabilization: true,
+          videoStabilization: true,
+          advanced: [{
+            focusMode: 'continuous',
+            zoom: this.config.zoom
+          }]
+        }
+      },
       {
         video: {
           width: { ideal: 1920 },
@@ -290,87 +312,103 @@ export class MobileWebcam {
     return this.canvas;
   }
 
-  public captureFrame(): HTMLCanvasElement | null {
-    if (!this.video || !this.canvas || !this.video.videoWidth || !this.video.videoHeight) {
-      return null;
-    }
-
-    const ctx = this.canvas.getContext('2d');
-    if (!ctx) {
-      return null;
-    }
-
-    this.canvas.width = 224;
-    this.canvas.height = 224;
-    
-    const zoomLevel = this.config.zoom || 1.0;
-    const videoWidth = this.video.videoWidth;
-    const videoHeight = this.video.videoHeight;
-    
-    const visibleWidth = videoWidth / zoomLevel;
-    const visibleHeight = videoHeight / zoomLevel;
-    
-    const cropX = (videoWidth - visibleWidth) / 2;
-    const cropY = (videoHeight - visibleHeight) / 2;
-    
-    ctx.drawImage(
-      this.video,
-      cropX, cropY, visibleWidth, visibleHeight,
-      0, 0, 224, 224
-    );
-    
-    return this.canvas;
+public captureFrame(): HTMLCanvasElement | null {
+  if (!this.video || !this.canvas || !this.video.videoWidth || !this.video.videoHeight) {
+    return null;
   }
 
-  /**
+  const ctx = this.canvas.getContext('2d');
+  if (!ctx) {
+    return null;
+  }
+
+  const videoWidth = this.video.videoWidth;
+  const videoHeight = this.video.videoHeight;
+  
+  // Calculate the centered 16:9 crop region (same as preview)
+  const targetAspect = 16 / 9;
+  const videoAspect = videoWidth / videoHeight;
+  
+  let cropWidth: number;
+  let cropHeight: number;
+  let cropX: number;
+  let cropY: number;
+  
+  if (videoAspect > targetAspect) {
+    cropHeight = videoHeight;
+    cropWidth = cropHeight * targetAspect;
+    cropX = (videoWidth - cropWidth) / 2;
+    cropY = 0;
+  } else {
+    cropWidth = videoWidth;
+    cropHeight = cropWidth / targetAspect;
+    cropX = 0;
+    cropY = (videoHeight - cropHeight) / 2;
+  }
+
+  this.canvas.width = 224;
+  this.canvas.height = 224;
+  
+  // Draw the cropped 16:9 viewport scaled to 224x224
+  ctx.drawImage(
+    this.video,
+    cropX, cropY, cropWidth, cropHeight,  // Source: centered 16:9 crop
+    0, 0, 224, 224                         // Destination: 224x224 for ML
+  );
+  
+  return this.canvas;
+}
+
+/**
    * Capture preview frame for screen sharing
-   * Captures the EXACT visible rectangular portion matching mobile preview (16:9 aspect ratio)
+   * Crops to the centered 16:9 viewport that the mobile user sees
    */
-  public capturePreviewFrame(targetWidth: number = 640, targetHeight: number = 360): HTMLCanvasElement | null {
+  public capturePreviewFrame(): HTMLCanvasElement | null {
     if (!this.video || !this.video.videoWidth || !this.video.videoHeight) {
       return null;
     }
 
+    const videoWidth = this.video.videoWidth;
+    const videoHeight = this.video.videoHeight;
+    
+    // Calculate the centered 16:9 crop region from the portrait video
+    const targetAspect = 16 / 9;
+    const videoAspect = videoWidth / videoHeight;
+    
+    let cropWidth: number;
+    let cropHeight: number;
+    let cropX: number;
+    let cropY: number;
+    
+    if (videoAspect > targetAspect) {
+      // Video is wider than 16:9 (shouldn't happen in portrait mode)
+      cropHeight = videoHeight;
+      cropWidth = cropHeight * targetAspect;
+      cropX = (videoWidth - cropWidth) / 2;
+      cropY = 0;
+    } else {
+      // Video is taller than 16:9 (portrait mode - expected case)
+      cropWidth = videoWidth;
+      cropHeight = cropWidth / targetAspect;
+      cropX = 0;
+      cropY = (videoHeight - cropHeight) / 2;
+    }
+    
+    // Create canvas with 16:9 dimensions
     const previewCanvas = document.createElement('canvas');
-    previewCanvas.width = targetWidth;
-    previewCanvas.height = targetHeight;
+    previewCanvas.width = cropWidth;
+    previewCanvas.height = cropHeight;
     
     const ctx = previewCanvas.getContext('2d');
     if (!ctx) {
       return null;
     }
 
-    const videoWidth = this.video.videoWidth;
-    const videoHeight = this.video.videoHeight;
-    const zoomLevel = this.config.zoom || 1.0;
-    
-    const zoomedWidth = videoWidth / zoomLevel;
-    const zoomedHeight = videoHeight / zoomLevel;
-    
-    const containerAspectRatio = targetWidth / targetHeight;
-    const videoAspectRatio = zoomedWidth / zoomedHeight;
-    
-    let sourceWidth: number;
-    let sourceHeight: number;
-    let sourceX: number;
-    let sourceY: number;
-    
-    if (videoAspectRatio > containerAspectRatio) {
-      sourceHeight = zoomedHeight;
-      sourceWidth = sourceHeight * containerAspectRatio;
-      sourceX = (videoWidth - sourceWidth) / 2;
-      sourceY = (videoHeight - zoomedHeight) / 2;
-    } else {
-      sourceWidth = zoomedWidth;
-      sourceHeight = sourceWidth / containerAspectRatio;
-      sourceX = (videoWidth - zoomedWidth) / 2;
-      sourceY = (videoHeight - sourceHeight) / 2;
-    }
-    
+    // Draw only the centered 16:9 viewport
     ctx.drawImage(
       this.video,
-      sourceX, sourceY, sourceWidth, sourceHeight,
-      0, 0, targetWidth, targetHeight
+      cropX, cropY, cropWidth, cropHeight,  // Source crop region
+      0, 0, cropWidth, cropHeight            // Destination (full canvas)
     );
     
     return previewCanvas;
@@ -500,5 +538,22 @@ export class MobileWebcam {
   public async setZoom(zoomLevel: number): Promise<boolean> {
     this.config.zoom = zoomLevel;
     return await this.applyZoom(zoomLevel);
+  }
+
+  /**
+   * Set the preview container dimensions dynamically
+   * This should be called from the Preview component after the container is rendered
+   */
+  public setPreviewDimensions(width: number, height: number): void {
+    this.previewWidth = width;
+    this.previewHeight = height;
+    console.log(`📱 Preview dimensions set: ${width}x${height} (aspect ratio: ${(width/height).toFixed(2)})`);
+  }
+
+  /**
+   * Get current preview dimensions
+   */
+  public getPreviewDimensions(): { width: number; height: number } {
+    return { width: this.previewWidth, height: this.previewHeight };
   }
 }

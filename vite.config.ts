@@ -9,21 +9,237 @@ import type { ViteDevServer } from 'vite';
 import type { IncomingMessage } from 'http';
 import type { Duplex } from 'stream';
 import type WebSocket from 'ws';
+import { S3Client, PutObjectCommand, GetObjectCommand, ListObjectsV2Command } from '@aws-sdk/client-s3';
 
 // Create Express app for backend endpoints
 const backendApp = express();
 backendApp.use(cors());
 backendApp.use(express.json({ limit: '50mb' }));
-backendApp.use(express.urlencoded({ extended: true }));
+backendApp.use(express.urlencoded({ limit: '50mb', extended: true }));
+
+// Initialize S3 Client
+const s3Client = new S3Client({
+  region: process.env.NEXT_PUBLIC_AWS_REGION || 'us-east-1',
+  credentials: {
+    accessKeyId: process.env.NEXT_PUBLIC_AWS_ACCESS_KEY_ID || '',
+    secretAccessKey: process.env.NEXT_PUBLIC_AWS_SECRET_ACCESS_KEY || '',
+  },
+});
+
+const BUCKET_NAME = process.env.NEXT_PUBLIC_S3_BUCKET || 'signatureai-uploads';
+
+// Helper functions for S3
+async function streamToString(stream: any): Promise<string> {
+  return new Promise((resolve, reject) => {
+    const chunks: Buffer[] = [];
+    stream.on('data', (chunk: Buffer) => chunks.push(chunk));
+    stream.on('error', reject);
+    stream.on('end', () => resolve(Buffer.concat(chunks).toString('utf-8')));
+  });
+}
+
+async function streamToBuffer(stream: any): Promise<Buffer> {
+  return new Promise((resolve, reject) => {
+    const chunks: Buffer[] = [];
+    stream.on('data', (chunk: Buffer) => chunks.push(chunk));
+    stream.on('error', reject);
+    stream.on('end', () => resolve(Buffer.concat(chunks)));
+  });
+}
 
 // Health check endpoint
 backendApp.get('/health', (req: Request, res: Response) => {
-  res.json({ status: 'OK', message: 'Backend is running' });
+  res.json({
+    status: 'ok',
+    message: 'Backend is running',
+    s3: {
+      bucket: BUCKET_NAME,
+      region: process.env.NEXT_PUBLIC_AWS_REGION
+    }
+  });
 });
 
-// Simple upload endpoint (placeholder)
-backendApp.post('/api/upload', (req: Request, res: Response) => {
-  res.json({ success: true, message: 'Upload endpoint placeholder' });
+// Upload model to S3 - FIXED for 3-file structure
+backendApp.post('/api/upload-model-to-s3', async (req: Request, res: Response) => {
+  try {
+    const { modelData, metadata, studentId, modelType, isThreeFileFormat } = req.body;
+
+    if (!modelData) {
+      return res.status(400).json({
+        success: false,
+        message: 'Missing modelData'
+      });
+    }
+
+    // Generate timestamp and folder structure
+    const timestamp = new Date().toISOString().replace(/[:.]/g, '-').slice(0, -5);
+    const folderPath = `ai-models/${timestamp}`;
+
+    if (isThreeFileFormat) {
+      // NEW FORMAT: 3 files (model.json, weights.bin, metadata.json)
+      console.log(`📦 Uploading 3-file model to ${folderPath}`);
+
+      // 1. Upload model.json
+      const modelJsonKey = `${folderPath}/model.json`;
+      await s3Client.send(new PutObjectCommand({
+        Bucket: BUCKET_NAME,
+        Key: modelJsonKey,
+        Body: modelData.modelJson,
+        ContentType: 'application/json',
+      }));
+      console.log(`✅ Uploaded model.json`);
+
+      // 2. Upload weights.bin (decode base64)
+      let weightsBase64 = modelData.weightsBin;
+      if (weightsBase64.includes(',')) {
+        weightsBase64 = weightsBase64.split(',')[1];
+      }
+      
+      const weightsBuffer = Buffer.from(weightsBase64, 'base64');
+      const weightsKey = `${folderPath}/weights.bin`;
+      
+      await s3Client.send(new PutObjectCommand({
+        Bucket: BUCKET_NAME,
+        Key: weightsKey,
+        Body: weightsBuffer,
+        ContentType: 'application/octet-stream',
+      }));
+      console.log(`✅ Uploaded weights.bin (${weightsBuffer.length} bytes)`);
+
+      // 3. Upload metadata.json
+      const metadataKey = `${folderPath}/metadata.json`;
+      await s3Client.send(new PutObjectCommand({
+        Bucket: BUCKET_NAME,
+        Key: metadataKey,
+        Body: modelData.metadataJson,
+        ContentType: 'application/json',
+      }));
+      console.log(`✅ Uploaded metadata.json`);
+
+      // Return success
+      res.json({
+        success: true,
+        location: `https://${BUCKET_NAME}.s3.${process.env.NEXT_PUBLIC_AWS_REGION}.amazonaws.com/${modelJsonKey}`,
+        metadata: {
+          storage: {
+            location: 's3',
+            bucket: BUCKET_NAME,
+            region: process.env.NEXT_PUBLIC_AWS_REGION,
+            modelKey: modelJsonKey,
+            weightsKey: weightsKey,
+            metadataKey: metadataKey
+          }
+        },
+        message: 'Model uploaded successfully (3-file format)'
+      });
+
+    } else {
+      // OLD FORMAT: Not supported
+      console.log('⚠️ Old format upload attempt rejected');
+      res.status(400).json({
+        success: false,
+        message: '5-file format is deprecated. Please use 3-file format (isThreeFileFormat=true)'
+      });
+    }
+
+  } catch (error) {
+    console.error('❌ Error uploading model:', error);
+    res.status(500).json({
+      success: false,
+      message: error instanceof Error ? error.message : 'Failed to upload model to S3'
+    });
+  }
+});
+
+// Download model from S3 - FIXED for 3-file structure
+backendApp.get('/api/download-model/:modelUuid', async (req: Request, res: Response) => {
+  try {
+    const { modelUuid } = req.params;
+    console.log(`📥 Downloading model: ${modelUuid}`);
+
+    // List all objects in ai-models/ to find the model
+    const listResponse = await s3Client.send(new ListObjectsV2Command({
+      Bucket: BUCKET_NAME,
+      Prefix: 'ai-models/'
+    }));
+
+    // Find the most recent folder containing model.json
+    let modelFolder: string | null = null;
+    const contents = listResponse.Contents || [];
+    
+    // Sort by last modified (most recent first)
+    contents.sort((a, b) => {
+      const dateA = a.LastModified ? a.LastModified.getTime() : 0;
+      const dateB = b.LastModified ? b.LastModified.getTime() : 0;
+      return dateB - dateA;
+    });
+
+    // Find the folder with model.json
+    for (const obj of contents) {
+      if (obj.Key && obj.Key.endsWith('model.json')) {
+        modelFolder = obj.Key.substring(0, obj.Key.lastIndexOf('/'));
+        break;
+      }
+    }
+
+    if (!modelFolder) {
+      return res.status(404).json({
+        success: false,
+        error: 'Model not found in S3'
+      });
+    }
+
+    console.log(`📂 Found model folder: ${modelFolder}`);
+
+    // Download the 3 files
+    const modelJsonKey = `${modelFolder}/model.json`;
+    const weightsKey = `${modelFolder}/weights.bin`;
+    const metadataKey = `${modelFolder}/metadata.json`;
+
+    // 1. Get model.json
+    const modelJsonResponse = await s3Client.send(new GetObjectCommand({
+      Bucket: BUCKET_NAME,
+      Key: modelJsonKey
+    }));
+    const modelJsonContent = await streamToString(modelJsonResponse.Body);
+
+    // 2. Get weights.bin
+    const weightsResponse = await s3Client.send(new GetObjectCommand({
+      Bucket: BUCKET_NAME,
+      Key: weightsKey
+    }));
+    const weightsBuffer = await streamToBuffer(weightsResponse.Body);
+    const weightsBase64 = `data:application/octet-stream;base64,${weightsBuffer.toString('base64')}`;
+
+    // 3. Get metadata.json
+    const metadataResponse = await s3Client.send(new GetObjectCommand({
+      Bucket: BUCKET_NAME,
+      Key: metadataKey
+    }));
+    const metadataContent = await streamToString(metadataResponse.Body);
+
+    // Combine into single response
+    const combinedData = {
+      modelJson: modelJsonContent,
+      weightsBin: weightsBase64,
+      metadataJson: metadataContent
+    };
+
+    console.log(`✅ Model downloaded successfully`);
+
+    res.json({
+      success: true,
+      data: JSON.stringify(combinedData),
+      message: 'Model downloaded successfully'
+    });
+
+  } catch (error) {
+    console.error('❌ Error downloading model:', error);
+    res.status(500).json({
+      success: false,
+      error: error instanceof Error ? error.message : 'Failed to download model'
+    });
+  }
 });
 
 // Create a custom plugin for WebSocket and backend integration
@@ -43,7 +259,7 @@ const customPlugin = () => {
         ipAddress: string;
         connectedAt: number;
         isConnected: boolean;
-        connectedTo?: string; // ID of connected device
+        connectedTo?: string;
       }
       
       const clients = new Map<string, ConnectedClient>();
@@ -51,7 +267,6 @@ const customPlugin = () => {
       // Generate simple device name based on device type
       function generateDeviceName(userAgent: string, deviceType: 'desktop' | 'mobile' | 'unknown'): string {
         if (deviceType === 'desktop') {
-          // Try to get hostname from environment variables
           const hostname = process.env.COMPUTERNAME || 
                          process.env.HOSTNAME || 
                          process.env.USERNAME || 
@@ -62,12 +277,10 @@ const customPlugin = () => {
         }
       }
       
-      // Helper function to generate unique client ID
       function generateClientId(): string {
         return Math.random().toString(36).substr(2, 9) + Date.now().toString(36);
       }
 
-      // Helper function to get browser name
       function getBrowserName(userAgent: string): string {
         if (/Chrome/i.test(userAgent) && !/Edg/i.test(userAgent)) return 'Chrome';
         if (/Firefox/i.test(userAgent)) return 'Firefox';
@@ -77,8 +290,6 @@ const customPlugin = () => {
         return 'Unknown Browser';
       }
 
-
-      // Broadcast device list to all clients
       function broadcastDeviceList(): void {
         const deviceList = Array.from(clients.values()).map(client => ({
           id: client.id,
@@ -113,20 +324,16 @@ const customPlugin = () => {
         const userAgent = req.headers['user-agent'] || '';
         const ipAddress = req.socket.remoteAddress || 'unknown';
         
-        // Determine device type - more precise detection
         let deviceType: 'desktop' | 'mobile' | 'unknown' = 'unknown';
         
-        // Check for mobile devices first (more specific patterns)
         if (/Mobile|Android|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini/i.test(userAgent) && 
             !/Windows NT/i.test(userAgent)) {
           deviceType = 'mobile';
         } 
-        // Check for desktop devices (exclude Android/Linux mobile)
         else if (/Windows NT|Macintosh|X11|CrOS/i.test(userAgent) || 
                  (/Linux/i.test(userAgent) && !/Android/i.test(userAgent))) {
           deviceType = 'desktop';
         }
-        // Fallback: if no clear desktop indicators but has browser, assume desktop
         else if (/Chrome|Firefox|Safari|Edge|MSIE/i.test(userAgent)) {
           deviceType = 'desktop';
         }
@@ -149,14 +356,10 @@ const customPlugin = () => {
           id: clientId,
           deviceName,
           deviceType,
-          ipAddress,
-          userAgent: userAgent.substring(0, 100) + '...',
-          isMobileDetected: /Mobile|Android|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini/i.test(userAgent) && !/Windows NT/i.test(userAgent),
-          isDesktopDetected: /Windows NT|Macintosh|Linux|X11|CrOS/i.test(userAgent)
+          ipAddress
         });
         console.log(`📊 Total connected clients: ${clients.size}`);
         
-        // Send client their device info
         ws.send(JSON.stringify({
           type: 'device-info',
           data: {
@@ -168,21 +371,17 @@ const customPlugin = () => {
           timestamp: Date.now()
         }));
         
-        // Broadcast updated device list
         broadcastDeviceList();
         
         ws.on('message', (message: string) => {
           try {
             const data = JSON.parse(message);
             
-            // Handle different message types
             if (data.type === 'connection-request') {
-              // Handle connection request
               const targetClientId = data.data.targetDeviceId;
               const targetClient = clients.get(targetClientId);
               
               if (targetClient && targetClient.ws.readyState === 1) {
-                // Forward connection request to target device
                 targetClient.ws.send(JSON.stringify({
                   type: 'connection-request',
                   data: {
@@ -195,12 +394,10 @@ const customPlugin = () => {
                 }));
               }
             } else if (data.type === 'connection-response') {
-              // Handle connection response
               const targetClientId = data.data.targetDeviceId;
               const targetClient = clients.get(targetClientId);
               
               if (targetClient && targetClient.ws.readyState === 1) {
-                // Forward connection response to target device
                 targetClient.ws.send(JSON.stringify({
                   type: 'connection-response',
                   data: {
@@ -211,7 +408,6 @@ const customPlugin = () => {
                   timestamp: Date.now()
                 }));
                 
-                // If accepted, update connection status
                 if (data.data.accepted) {
                   client.isConnected = true;
                   client.connectedTo = targetClientId;
@@ -222,12 +418,10 @@ const customPlugin = () => {
                 }
               }
             } else if (data.type === 'disconnect-request') {
-              // Handle disconnect request
               const targetClientId = data.data.targetDeviceId;
               const targetClient = clients.get(targetClientId);
               
               if (targetClient && targetClient.ws.readyState === 1) {
-                // Forward disconnect request to target device
                 targetClient.ws.send(JSON.stringify({
                   type: 'disconnect-request',
                   data: {
@@ -237,7 +431,6 @@ const customPlugin = () => {
                   timestamp: Date.now()
                 }));
                 
-                // Send disconnected message to target device
                 targetClient.ws.send(JSON.stringify({
                   type: 'disconnected',
                   data: {
@@ -247,7 +440,6 @@ const customPlugin = () => {
                   timestamp: Date.now()
                 }));
                 
-                // Update connection status for both devices
                 client.isConnected = false;
                 client.connectedTo = undefined;
                 targetClient.isConnected = false;
@@ -258,10 +450,8 @@ const customPlugin = () => {
                 broadcastDeviceList();
               }
             } else if (data.type === 'device-info-update') {
-              // Handle device info update from mobile device
               console.log('📱 Received device info update:', data.data);
               
-              // Update the client's device information
               if (data.data.deviceName) {
                 client.deviceName = data.data.deviceName;
                 console.log(`✅ Updated device name for ${clientId}: ${client.deviceName}`);
@@ -272,11 +462,9 @@ const customPlugin = () => {
                 console.log(`✅ Updated device type for ${clientId}: ${client.deviceType}`);
               }
               
-              // Broadcast updated device list
               broadcastDeviceList();
               
             } else if (data.type === 'preview-update' || data.type === 'prediction-result' || data.type === 'predicting-status' || data.type === 'model-status' || data.type === 'mode-change') {
-              // Only broadcast screen sharing messages between manually connected devices
               if (client.isConnected && client.connectedTo) {
                 const targetClient = clients.get(client.connectedTo);
                 if (targetClient && targetClient.ws.readyState === 1) {
@@ -306,7 +494,6 @@ const customPlugin = () => {
             deviceName: client.deviceName
           });
           
-          // Notify connected device about disconnection
           if (client.connectedTo) {
             const connectedClient = clients.get(client.connectedTo);
             if (connectedClient && connectedClient.ws.readyState === 1) {
@@ -321,7 +508,6 @@ const customPlugin = () => {
               
               connectedClient.ws.send(JSON.stringify(disconnectMessage));
               
-              // Update connected client status
               connectedClient.isConnected = false;
               connectedClient.connectedTo = undefined;
             }
@@ -330,12 +516,10 @@ const customPlugin = () => {
           clients.delete(clientId);
           console.log(`📊 Total connected clients: ${clients.size}`);
           
-          // Broadcast updated device list
           broadcastDeviceList();
         });
       });
       
-      // Handle WebSocket upgrades
       server.httpServer?.on('upgrade', (req: IncomingMessage, socket: Duplex, head: Buffer) => {
         if (req.url === '/ws') {
           wss.handleUpgrade(req, socket, head, (ws: WebSocket) => {
@@ -344,11 +528,11 @@ const customPlugin = () => {
         }
       });
       
-      // Handle backend API requests
       server.middlewares.use('/api', backendApp);
       
       console.log('✅ WebSocket server configured on /ws');
       console.log('✅ Backend API configured on /api');
+      console.log('✅ S3 endpoints ready on /api/upload-model-to-s3 and /api/download-model/:modelUuid');
     }
   };
 };
@@ -360,8 +544,8 @@ export default defineConfig({
     port: 5173,
     strictPort: true,
     allowedHosts: [
-      '.ngrok-free.app', // 👈 allow all ngrok subdomains
-      '.trycloudflare.com' // 👈 allow all Cloudflare tunnel subdomains
+      '.ngrok-free.app',
+      '.trycloudflare.com'
     ],
     hmr: {
       port: 5173,

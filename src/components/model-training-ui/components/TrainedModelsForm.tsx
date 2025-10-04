@@ -1,3 +1,4 @@
+//filepath: src\components\model-training-ui\components\TrainedModelsForm.tsx
 import React, { useState } from 'react';
 import {
   Dialog,
@@ -58,334 +59,156 @@ const TrainedModelsForm: React.FC<TrainedModelsFormProps> = ({
     }
   };
 
-  // Download model handler
-  const handleDownloadModel = async (modelId: string, studentName: string) => {
-    // Debug: Log the modelId being passed to download
-    console.log(`🔥 Download requested for modelId: "${modelId}", studentName: "${studentName}"`);
+// Download model handler - FIXED for 3-file structure
+const handleDownloadModel = async (modelId: string, studentName: string) => {
+  console.log(`🔥 Download requested for modelId: "${modelId}"`);
+  
+  // Validate modelId
+  if (!modelId || typeof modelId !== 'string' || !modelId.trim()) {
+    console.error('❌ Invalid modelId provided for download');
+    throw new Error('Invalid model ID');
+  }
+  
+  const trimmedModelId = modelId.trim();
+  
+  if (downloadingModels.has(trimmedModelId)) {
+    console.log('⚠️ Model already downloading:', trimmedModelId);
+    return;
+  }
+  
+  try {
+    // Clear any previous errors
+    setDownloadErrors(prev => {
+      const newErrors = { ...prev };
+      delete newErrors[trimmedModelId];
+      return newErrors;
+    });
     
-    // Enhanced modelId validation
-    if (!modelId || typeof modelId !== 'string') {
-      console.error('❌ Invalid modelId provided for download:', modelId);
-      throw new Error('Invalid model ID: Model ID must be a non-empty string');
+    // Add to downloading set
+    setDownloadingModels(prev => new Set(prev).add(trimmedModelId));
+    setDownloadProgress(prev => ({ ...prev, [trimmedModelId]: 0 }));
+    
+    // Import AIModelService
+    const getAIModelService = (await import('@/lib/AIModelService')).default;
+    const aiService = getAIModelService();
+    
+    // Simulate progress
+    const progressInterval = setInterval(() => {
+      setDownloadProgress(prev => {
+        const currentProgress = prev[trimmedModelId] || 0;
+        const newProgress = Math.min(currentProgress + 15, 90);
+        return { ...prev, [trimmedModelId]: newProgress };
+      });
+    }, 300);
+    
+    // Download the model
+    console.log(`📡 Downloading model from S3...`);
+    const downloadResult = await aiService.downloadModel(trimmedModelId);
+    
+    clearInterval(progressInterval);
+    
+    if (!downloadResult.success) {
+      throw new Error(downloadResult.error instanceof Error ? downloadResult.error.message : 'Failed to download model');
     }
     
-    const trimmedModelId = modelId.trim();
-    if (!trimmedModelId) {
-      console.error('❌ Empty modelId provided for download after trimming');
-      throw new Error('Invalid model ID: Model ID cannot be empty or whitespace');
+    setDownloadProgress(prev => ({ ...prev, [trimmedModelId]: 100 }));
+    
+    // Parse the downloaded model data
+    console.log('🔄 Processing downloaded model data...');
+    
+    if (typeof downloadResult.data !== 'string') {
+      throw new Error('Downloaded data is not in expected string format');
     }
     
-    // Check for known invalid model IDs (but allow model.json since that's what we have in existing data)
-    const invalidIds = ['undefined', 'null', 'NaN', ''];
-    if (invalidIds.includes(trimmedModelId)) {
-      console.error('❌ Invalid modelId value:', trimmedModelId);
-      throw new Error(`Invalid model ID: '${trimmedModelId}' is not a valid model identifier`);
-    }
-    
-    // Check for valid model ID formats (UUID, timestamp, or model_ prefix with timestamp)
-    const uuidRegex = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
-    const timestampRegex = /^model-\d{4}-\d{2}-\d{2}T\d{2}-\d{2}-\d{2}$/;
-    const modelPrefixRegex = /^model_\d+_[a-z0-9]+$/;
-    
-    // Allow model.json for backward compatibility with existing data
-    if (!uuidRegex.test(trimmedModelId) && !timestampRegex.test(trimmedModelId) && !modelPrefixRegex.test(trimmedModelId) && trimmedModelId !== 'model.json') {
-      console.warn('⚠️ Model ID does not match expected format:', trimmedModelId);
-    } // Don't throw error here, just warn - allow download to proceed
-
-    if (downloadingModels.has(trimmedModelId)) {
-      console.log('⚠️ Model already downloading:', trimmedModelId);
-      return;
-    }
-    
+    let combinedData;
     try {
-      // Clear any previous errors for this model
-      setDownloadErrors(prev => {
-        const newErrors = { ...prev };
-        delete newErrors[trimmedModelId];
-        return newErrors;
-      });
-      
-      // Add to downloading set
-      setDownloadingModels(prev => new Set(prev).add(trimmedModelId));
-      setDownloadProgress(prev => ({ ...prev, [trimmedModelId]: 0 }));
-      
-      // Import AIModelService dynamically to avoid server-side import issues
-      const getAIModelService = (await import('@/lib/AIModelService')).default;
-      const aiService = getAIModelService();
-      
-      // Simulate progress while downloading (since we can't track actual progress easily)
-      const progressInterval = setInterval(() => {
-        setDownloadProgress(prev => {
-          const currentProgress = prev[trimmedModelId] || 0;
-          const newProgress = Math.min(currentProgress + 15, 90);
-          return { ...prev, [trimmedModelId]: newProgress };
-        });
-      }, 300);
-      
-      // Download the actual model from AIModelService
-      console.log(`📡 Calling aiService.downloadModel with modelId: "${trimmedModelId}"`);
-      const downloadResult = await aiService.downloadModel(trimmedModelId);
-      console.log(`📡 Download result:`, downloadResult);
-      
-      clearInterval(progressInterval);
-      
-      if (!downloadResult.success) {
-        throw new Error(downloadResult.error instanceof Error ? downloadResult.error.message : 'Failed to download model');
+      combinedData = JSON.parse(downloadResult.data);
+    } catch (parseError) {
+      throw new Error('Failed to parse downloaded model data');
+    }
+    
+    // Validate 3-file structure
+    if (!combinedData.modelJson || !combinedData.weightsBin || !combinedData.metadataJson) {
+      throw new Error('Downloaded model is missing required files. Expected: modelJson, weightsBin, metadataJson');
+    }
+    
+    console.log('✅ Model has correct 3-file structure');
+    
+    // Parse metadata to get labels
+    const metadata = JSON.parse(combinedData.metadataJson);
+    const labels = metadata.labels || [studentName];
+    
+    // Create enhanced metadata matching export format
+    const enhancedMetadata = {
+      modelName: metadata.modelName || `model-${Date.now()}`,
+      labels: labels,
+      imageSize: metadata.imageSize || 224,
+      createdAt: metadata.createdAt || new Date().toISOString(),
+      userMetadata: {
+        student_id: metadata.userMetadata?.student_id || '',
+        student_name: metadata.userMetadata?.student_name || studentName,
+        sample_count: metadata.userMetadata?.sample_count || 0,
+        accuracy: metadata.userMetadata?.accuracy || 0.85,
+        training_date: metadata.userMetadata?.training_date || new Date().toISOString(),
+        model_architecture: metadata.userMetadata?.model_architecture || 'mobilenet_v1_classifier',
+        total_students: metadata.userMetadata?.total_students || labels.length,
+        training_summary: metadata.userMetadata?.training_summary || ''
+      },
+      tfjsVersion: metadata.tfjsVersion || tf.version.tfjs,
+      modelType: metadata.modelType || 'image_classification',
+      inputShape: metadata.inputShape || [224, 224, 3],
+      outputShape: metadata.outputShape || [labels.length]
+    };
+    
+    // Create timestamp for filename
+    const now = new Date();
+    const timestamp = now.toISOString().replace(/[:.]/g, '-').slice(0, -5);
+    const zipFileName = `model-${timestamp}.zip`;
+    
+    // Create ZIP file with 3 files
+    console.log('📦 Creating ZIP with 3 files...');
+    const zip = new JSZip();
+    
+    // Add model.json
+    zip.file('model.json', combinedData.modelJson);
+    
+    // Add weights.bin (convert from base64)
+    let weightsBlob;
+    try {
+      const base64Data = combinedData.weightsBin.split(',')[1] || combinedData.weightsBin;
+      const binaryString = atob(base64Data);
+      const bytes = new Uint8Array(binaryString.length);
+      for (let i = 0; i < binaryString.length; i++) {
+        bytes[i] = binaryString.charCodeAt(i);
       }
-      
-      setDownloadProgress(prev => ({ ...prev, [trimmedModelId]: 100 }));
-      
-      // Parse the downloaded model data
-      let modelData;
-      let parsedMetadata;
-      try {
-        // Type guard to ensure downloadResult.data is a string
-        if (typeof downloadResult.data !== 'string') {
-          throw new Error('Downloaded data is not in expected string format');
-        }
-        
-        // Create a proper wrapper object for the model data
-        modelData = {
-          modelJson: downloadResult.data, // Store the original JSON string
-          weightsBin: downloadResult.weights || '', // Handle weights from server response
-          metadataJson: '' // Will be populated below
-        };
-        
-        // Debug: Log weights information
-        console.log('📊 Download result weights info:', {
-          hasWeights: !!downloadResult.weights,
-          weightsLength: downloadResult.weights ? downloadResult.weights.length : 0,
-          weightsType: typeof downloadResult.weights
-        });
-        
-        // Parse metadata if it exists in the download result
-        if (downloadResult.metadata) {
-          parsedMetadata = downloadResult.metadata;
-        } else {
-          parsedMetadata = null;
-        }
-      } catch (parseError) {
-        // If JSON parsing fails, this might be old format data
-        // Handle old format (single file) as fallback
-        // Ensure data is treated as string in fallback case
-        const dataString = typeof downloadResult.data === 'string' ? downloadResult.data : JSON.stringify(downloadResult.data);
-        modelData = {
-          modelJson: dataString,
-          weightsBin: '',
-          metadataJson: JSON.stringify({
-            format: 'tensorflowjs',
-            generatedBy: 'signature-ai',
-            convertedBy: null,
-            userMetadata: {
-              labels: [studentName || 'Unknown'],
-              modelType: 'image_classification',
-              inputSize: [224, 224, 3],
-              author: 'signature-ai',
-              accuracy: 0.85,
-              totalSamples: 0,
-              trainingTime: 0
-            },
-            signatures: {
-              'default': {
-                inputs: [{
-                  name: 'input',
-                  dtype: 'float32',
-                  shape: [1, 224, 224, 3]
-                }],
-                outputs: [{
-                  name: 'output',
-                  dtype: 'float32',
-                  shape: [1, Math.max((parsedMetadata?.userMetadata?.labels || [studentName || 'Unknown']).length, 1)]
-                }]
-              }
-            }
-          })
-        };
-        parsedMetadata = JSON.parse(modelData.metadataJson);
-      }
-      
-      // Ensure metadata structure matches export format (S3 export structure)
-      if (!parsedMetadata || !parsedMetadata.format) {
-        // Create comprehensive metadata matching S3 export format
-        const labels = parsedMetadata?.userMetadata?.labels || [studentName || 'Unknown'];
-        const enhancedMetadata = {
-          format: 'tensorflowjs',
-          generatedBy: 'signature-ai',
-          convertedBy: null,
-          userMetadata: {
-            labels: labels,
-            modelType: 'image_classification',
-            inputSize: [224, 224, 3],
-            author: 'signature-ai',
-            accuracy: parsedMetadata?.userMetadata?.accuracy || 0.85,
-            totalSamples: parsedMetadata?.userMetadata?.totalSamples || 0,
-            trainingTime: parsedMetadata?.userMetadata?.trainingTime || 0
-          },
-          signatures: {
-            'default': {
-              inputs: [{
-                name: 'input',
-                dtype: 'float32',
-                shape: [1, 224, 224, 3]
-              }],
-              outputs: [{
-                name: 'output',
-                dtype: 'float32',
-                shape: [1, Math.max(labels.length, 1)]
-              }]
-            }
-          }
-        };
-        
-        modelData.metadataJson = JSON.stringify(enhancedMetadata, null, 2);
-        parsedMetadata = enhancedMetadata;
-      } else {
-        // Enhance existing metadata to ensure all required fields are present
-        const enhancedMetadata = {
-          ...parsedMetadata,
-          format: parsedMetadata.format || 'tensorflowjs',
-          generatedBy: parsedMetadata.generatedBy || 'signature-ai',
-          convertedBy: parsedMetadata.convertedBy !== undefined ? parsedMetadata.convertedBy : null,
-          userMetadata: {
-            labels: parsedMetadata.userMetadata?.labels || [studentName || 'Unknown'],
-            modelType: parsedMetadata.userMetadata?.modelType || 'image_classification',
-            inputSize: parsedMetadata.userMetadata?.inputSize || [224, 224, 3],
-            author: parsedMetadata.userMetadata?.author || 'signature-ai',
-            accuracy: parsedMetadata.userMetadata?.accuracy || 0.85,
-            totalSamples: parsedMetadata.userMetadata?.totalSamples || 0,
-            trainingTime: parsedMetadata.userMetadata?.trainingTime || 0,
-            ...parsedMetadata.userMetadata // Preserve any additional fields
-          },
-          signatures: parsedMetadata.signatures || {
-            'default': {
-              inputs: [{
-                name: 'input',
-                dtype: 'float32',
-                shape: [1, 224, 224, 3]
-              }],
-              outputs: [{
-                name: 'output',
-                dtype: 'float32',
-                shape: [1, Math.max(parsedMetadata.userMetadata?.labels?.length || 1, 1)]
-              }]
-            }
-          }
-        };
-        
-        modelData.metadataJson = JSON.stringify(enhancedMetadata, null, 2);
-        parsedMetadata = enhancedMetadata;
-      }
-      
-      // Create date/time filename like local export
-      const now = new Date();
-      const timestamp = now.toISOString().replace(/[:.]/g, '-').slice(0, -5);
-      const zipFileName = `model-${timestamp}.zip`;
-      
-      // Create a new zip file with proper structure
-      const zip = new JSZip();
-      
-      // Add model.json
-      zip.file('model.json', modelData.modelJson);
-      
-      // Add weights.bin (convert from base64 or array) - enhanced handling
-      let weightsBlob;
-      console.log('🔄 Starting weights blob creation...');
-      console.log('📊 Input weights data:', {
-        hasWeights: !!modelData.weightsBin,
-        weightsLength: modelData.weightsBin ? modelData.weightsBin.length : 0,
-        weightsType: typeof modelData.weightsBin
-      });
-      
-      if (!modelData.weightsBin || modelData.weightsBin === '') {
-        // Create empty weights blob if none provided
-        weightsBlob = new Blob([], { type: 'application/octet-stream' });
-        console.warn('⚠️ No weights data provided, creating empty weights.bin');
-      } else if (typeof modelData.weightsBin === 'string') {
-        try {
-          // If it's a base64 string, convert to blob
-          let base64Data = modelData.weightsBin;
-          
-          // Handle data URL format (data:application/octet-stream;base64,...)
-          if (base64Data.startsWith('data:')) {
-            const parts = base64Data.split(',');
-            if (parts.length > 1) {
-              base64Data = parts[1];
-            }
-          }
-          
-          const byteCharacters = atob(base64Data);
-          const byteNumbers = new Array(byteCharacters.length);
-          for (let i = 0; i < byteCharacters.length; i++) {
-            byteNumbers[i] = byteCharacters.charCodeAt(i);
-          }
-          const byteArray = new Uint8Array(byteNumbers);
-          weightsBlob = new Blob([byteArray], { type: 'application/octet-stream' });
-          console.log('✅ Successfully converted base64 weights to blob');
-          console.log('📊 Final weights blob info:', {
-            size: weightsBlob.size,
-            type: weightsBlob.type
-          });
-        } catch (base64Error) {
-          console.error('❌ Failed to convert base64 weights:', base64Error);
-          throw new Error(`Invalid base64 weights data: ${base64Error.message}`);
-        }
-      } else if (modelData.weightsBin instanceof Uint8Array) {
-        // If it's already a Uint8Array
-        weightsBlob = new Blob([modelData.weightsBin], { type: 'application/octet-stream' });
-        console.log('✅ Using existing Uint8Array weights');
-      } else if (modelData.weightsBin instanceof Blob) {
-        // If it's already a Blob
-        weightsBlob = modelData.weightsBin;
-        console.log('✅ Using existing Blob weights');
-      } else {
-        console.error('❌ Invalid weights data format:', typeof modelData.weightsBin, modelData.weightsBin);
-        throw new Error(`Invalid weights data format: ${typeof modelData.weightsBin}`);
-      }
-      
-      zip.file('weights.bin', weightsBlob);
-      
-      // Add metadata.json
-      zip.file('metadata.json', modelData.metadataJson);
-      
-      const zipBlob = await zip.generateAsync({ type: 'blob' });
-      
-      // Create download link
-      const url = URL.createObjectURL(zipBlob);
-      const link = document.createElement('a');
-      link.href = url;
-      link.download = zipFileName;
-      document.body.appendChild(link);
-      link.click();
-      document.body.removeChild(link);
-      
-      URL.revokeObjectURL(url);
-      
-      // Download complete - model is now available for user
-      
-      // Remove from downloading set after a short delay
-      setTimeout(() => {
-        setDownloadingModels(prev => {
-          const newSet = new Set(prev);
-          newSet.delete(trimmedModelId);
-          return newSet;
-        });
-        setDownloadProgress(prev => {
-          const newProgress = { ...prev };
-          delete newProgress[trimmedModelId];
-          return newProgress;
-        });
-      }, 1000);
-      
-    } catch (error) {
-      console.error('❌ Error downloading model:', error);
-      setDownloadErrors(prev => ({
-        ...prev,
-        [trimmedModelId]: error instanceof Error ? error.message : 'Failed to download model'
-      }));
-      
-      // Clean up download state for failed model
-      
-      // Remove from downloading set on error
+      weightsBlob = new Blob([bytes], { type: 'application/octet-stream' });
+      console.log('✅ Weights blob created, size:', weightsBlob.size, 'bytes');
+    } catch (base64Error) {
+      console.error('❌ Failed to convert base64 weights:', base64Error);
+      throw new Error('Invalid weights data format');
+    }
+    
+    zip.file('weights.bin', weightsBlob);
+    
+    // Add metadata.json with enhanced metadata
+    zip.file('metadata.json', JSON.stringify(enhancedMetadata, null, 2));
+    
+    // Generate and download ZIP
+    const zipBlob = await zip.generateAsync({ type: 'blob' });
+    
+    const url = URL.createObjectURL(zipBlob);
+    const link = document.createElement('a');
+    link.href = url;
+    link.download = zipFileName;
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+    URL.revokeObjectURL(url);
+    
+    console.log('✅ Model downloaded successfully:', zipFileName);
+    
+    // Remove from downloading set after short delay
+    setTimeout(() => {
       setDownloadingModels(prev => {
         const newSet = new Set(prev);
         newSet.delete(trimmedModelId);
@@ -396,8 +219,28 @@ const TrainedModelsForm: React.FC<TrainedModelsFormProps> = ({
         delete newProgress[trimmedModelId];
         return newProgress;
       });
-    }
-  };
+    }, 1000);
+    
+  } catch (error) {
+    console.error('❌ Error downloading model:', error);
+    setDownloadErrors(prev => ({
+      ...prev,
+      [trimmedModelId]: error instanceof Error ? error.message : 'Failed to download model'
+    }));
+    
+    // Clean up on error
+    setDownloadingModels(prev => {
+      const newSet = new Set(prev);
+      newSet.delete(trimmedModelId);
+      return newSet;
+    });
+    setDownloadProgress(prev => {
+      const newProgress = { ...prev };
+      delete newProgress[trimmedModelId];
+      return newProgress;
+    });
+  }
+};
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>

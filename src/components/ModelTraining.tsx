@@ -1,3 +1,4 @@
+//filepath: src\components\ModelTraining.tsx
 import React, { useState, useRef, useEffect, useCallback } from 'react';
 import * as tf from '@tensorflow/tfjs';
 import * as tmImage from '@teachablemachine/image';
@@ -413,34 +414,44 @@ export const ModelTraining: React.FC<ModelTrainingProps> = ({
     }
   };
 
-  const addMultipleStudents = (students: Student[]) => {
-    // Filter out students that are already in classes
-    const existingStudentIds = classes.map(cls => cls.student?.id).filter(id => id !== undefined);
-    const newStudents = students.filter(student => !existingStudentIds.includes(student.id));
-    
-    if (newStudents.length === 0) {
-      alert('All selected students are already added.');
-      return;
-    }
-    
-    
-    const colors = ['#FF6B6B', '#4ECDC4', '#45B7D1', '#96CEB4', '#FECA57', '#FF9FF3', '#54A0FF'];
-    const newClasses = newStudents.map((student, index) => ({
-      student,
-      color: colors[(classes.length + index) % colors.length],
-      samples: []
-    }));
-    
-    setClasses([...classes, ...newClasses]);
-    setCurrentClassIndex(classes.length);
-    
-    // Show feedback about how many were actually added
-    const skippedCount = students.length - newStudents.length;
-    if (skippedCount > 0) {
-      alert(`Added ${newStudents.length} student${newStudents.length !== 1 ? 's' : ''}. ${skippedCount} student${skippedCount !== 1 ? 's were' : ' was'} already added and skipped.`);
-    }
-  };
+const addMultipleStudents = (students: Student[], samplesMap?: Map<string, SampleData[]>) => {
+  const existingStudentIds = classes.map(cls => cls.student?.id).filter(id => id !== undefined);
+  const newStudents = students.filter(student => !existingStudentIds.includes(student.id));
   
+  if (newStudents.length === 0) {
+    toast({
+      title: 'No New Students',
+      description: 'All selected students are already added.',
+      variant: 'destructive',
+    });
+    return;
+  }
+  
+  const colors = ['#FF6B6B', '#4ECDC4', '#45B7D1', '#96CEB4', '#FECA57', '#FF9FF3', '#54A0FF'];
+  const newClasses = newStudents.map((student, index) => ({
+    student,
+    color: colors[(classes.length + index) % colors.length],
+    samples: samplesMap?.get(student.student_id) || []
+  }));
+  
+  setClasses([...classes, ...newClasses]);
+  setCurrentClassIndex(classes.length);
+  
+  const skippedCount = students.length - newStudents.length;
+  
+  // Show toast notification instead of alert
+  if (skippedCount > 0) {
+    toast({
+      title: 'Students Added',
+      description: `Added ${newStudents.length} student${newStudents.length !== 1 ? 's' : ''}. ${skippedCount} student${skippedCount !== 1 ? 's were' : ' was'} already added and skipped.`,
+    });
+  } else {
+    toast({
+      title: 'Students Added',
+      description: `Successfully added ${newStudents.length} student${newStudents.length !== 1 ? 's' : ''}.`,
+    });
+  }
+};
   // Update class student (replaces updateClassName)
   const updateClassName = (index: number, student: Student | null) => {
     // If student is null (clearing selection), allow it
@@ -747,12 +758,14 @@ export const ModelTraining: React.FC<ModelTrainingProps> = ({
 
 
 
-  // Train the model using AI Model Training
 
-// Updated Training Pipeline with 4x Augmentation
-// Optimized for 25+ classes with 50+ samples each
 
-const AUGMENTATION_COUNT = 2; // Changed from 2 to 4
+
+
+
+
+// Training Configuration - Optimized for R5 3400G (Vega 11 iGPU)
+const AUGMENTATION_COUNT = 2; // 
 
 const trainModel = async () => {
   const validClasses = classes.filter(cls => cls.samples.length > 0);
@@ -765,7 +778,6 @@ const trainModel = async () => {
   setTrainingProgress(0);
   setTrainingStartTime(Date.now());
   
-  // Reset export states
   setHasExportedToCloud(false);
   setHasDownloadedToPC(false);
   
@@ -773,20 +785,28 @@ const trainModel = async () => {
     console.log(`Starting training with ${AUGMENTATION_COUNT}x augmentation...`);
     logMemory('Before training');
     
-    // Dispose previous model if exists
+    // CRITICAL: Dispose previous model completely
     if (model) {
       console.log('Disposing previous model before training');
-      try {
-        if (model.featureExtractor) model.featureExtractor.dispose();
-        if (model.classifier) model.classifier.dispose();
-      } catch (e) {
-        console.warn('Error disposing previous model:', e);
+      if (model.featureExtractor) {
+        model.featureExtractor.dispose();
+      }
+      if (model.classifier) {
+        model.classifier.dispose();
       }
       setModel(null);
       await tf.nextFrame();
+      await tf.nextFrame(); // Double wait for complete cleanup
     }
     
-    // Load MobileNet with configuration matching Teachable Machine
+    // Force garbage collection
+    if (tf.memory().numTensors > 10) {
+      console.warn('High tensor count before training:', tf.memory().numTensors);
+      await tf.disposeVariables();
+      await tf.nextFrame();
+    }
+    
+    // Load MobileNet
     const mobilenet = await tmImage.loadTruncatedMobileNet({
       version: 2,
       alpha: 0.5,
@@ -796,38 +816,26 @@ const trainModel = async () => {
     
     logMemory('After loading MobileNet');
     
-    // MobileNet v2 with alpha=0.5 outputs 1280 features
     const FEATURE_SIZE = 1280;
     
-    // Enhanced classifier architecture for larger dataset (4x augmentation)
+    // OPTIMIZED classifier for limited VRAM (R5 3400G)
     const classifierModel = tf.sequential({
       layers: [
-        // Input layer matching MobileNet output
+        // Reduced architecture to fit in iGPU memory
         tf.layers.dense({ 
-          units: 256, // Increased from 128 for better capacity
+          units: 256, // 
           activation: 'relu', 
           inputShape: [FEATURE_SIZE],
           kernelRegularizer: tf.regularizers.l2({ l2: 0.001 })
         }),
-        tf.layers.batchNormalization(), // Added for training stability
         tf.layers.dropout({ rate: 0.5 }),
         
-        // Additional hidden layer for complex patterns
         tf.layers.dense({ 
-          units: 128,
+          units: 128, // 
           activation: 'relu',
           kernelRegularizer: tf.regularizers.l2({ l2: 0.001 })
         }),
-        tf.layers.batchNormalization(),
         tf.layers.dropout({ rate: 0.4 }),
-        
-        // Second hidden layer
-        tf.layers.dense({ 
-          units: 64, 
-          activation: 'relu',
-          kernelRegularizer: tf.regularizers.l2({ l2: 0.001 })
-        }),
-        tf.layers.dropout({ rate: 0.3 }),
         
         // Output layer
         tf.layers.dense({ 
@@ -837,23 +845,26 @@ const trainModel = async () => {
       ]
     });
 
-    // Compile with learning rate suitable for larger dataset
     classifierModel.compile({
-      optimizer: tf.train.adam(0.0001), // Lower LR for stability
+      optimizer: tf.train.adam(0.001),
       loss: 'categoricalCrossentropy',
       metrics: ['accuracy']
     });
     
     logMemory('After creating classifier');
     
-    // Prepare training data with consistent preprocessing
-    const trainingData: { xs: tf.Tensor[], ys: number[] } = { xs: [], ys: [] };
+    // CRITICAL: Extract features in batches with immediate cleanup
+    console.log('Extracting features with memory-efficient batching...');
     
-    console.log(`Extracting features with ${AUGMENTATION_COUNT}x augmentation...`);
-    
-    // Calculate total samples for progress tracking
     const totalSamples = validClasses.reduce((sum, cls) => sum + cls.samples.length, 0);
+    const totalWithAug = totalSamples * (AUGMENTATION_COUNT + 1);
+    
+    // We'll collect features into a single stacked tensor at the end
+    const allFeatures: number[][] = [];
+    const allLabels: number[] = [];
+    
     let processedSamples = 0;
+    const CLEANUP_INTERVAL = 10; // Clean up every 10 samples
     
     for (const [classIndex, cls] of validClasses.entries()) {
       console.log(`Processing class ${classIndex + 1}/${validClasses.length}: ${cls.samples.length} samples`);
@@ -863,7 +874,7 @@ const trainModel = async () => {
         img.src = sample.thumbnail;
         
         await new Promise<void>((resolve) => {
-          img.onload = () => {
+          img.onload = async () => {
             const canvas = document.createElement('canvas');
             canvas.width = 224;
             canvas.height = 224;
@@ -872,100 +883,108 @@ const trainModel = async () => {
             if (ctx) {
               ctx.drawImage(img, 0, 0, 224, 224);
               
-              // Extract features from ORIGINAL sample
-              const features = tf.tidy(() => {
+              // Extract features and IMMEDIATELY convert to array (dispose tensor)
+              const featuresArray = await tf.tidy(() => {
                 const imageTensor = tf.browser.fromPixels(canvas)
                   .resizeNearestNeighbor([224, 224])
                   .toFloat();
                 
-                // MobileNet preprocessing: normalize to [-1, 1]
                 const normalized = imageTensor.sub(127.5).div(127.5);
                 const batched = normalized.expandDims(0);
-                
-                // Extract features using MobileNet
                 const extracted = mobilenet.predict(batched) as tf.Tensor;
+                const squeezed = extracted.squeeze([0]);
                 
-                // Squeeze to remove batch dimension
-                return extracted.squeeze([0]);
+                // Convert to array synchronously inside tidy
+                return squeezed.arraySync() as number[];
               });
               
-              trainingData.xs.push(features);
-              trainingData.ys.push(classIndex);
+              allFeatures.push(featuresArray);
+              allLabels.push(classIndex);
               
-              // Add AUGMENTED samples
+              // Process augmented samples
               for (let aug = 0; aug < AUGMENTATION_COUNT; aug++) {
                 const augCanvas = augmentImage(canvas);
                 
-                const augFeatures = tf.tidy(() => {
+                const augFeaturesArray = await tf.tidy(() => {
                   const augTensor = tf.browser.fromPixels(augCanvas)
                     .resizeNearestNeighbor([224, 224])
                     .toFloat();
                   const augNormalized = augTensor.sub(127.5).div(127.5);
                   const augBatched = augNormalized.expandDims(0);
                   const augExtracted = mobilenet.predict(augBatched) as tf.Tensor;
-                  return augExtracted.squeeze([0]);
+                  const augSqueezed = augExtracted.squeeze([0]);
+                  
+                  return augSqueezed.arraySync() as number[];
                 });
                 
-                trainingData.xs.push(augFeatures);
-                trainingData.ys.push(classIndex);
+                allFeatures.push(augFeaturesArray);
+                allLabels.push(classIndex);
+                
+                // Clean up augmented canvas immediately
+                augCanvas.remove();
               }
+              
+              // Clean up original canvas
+              canvas.remove();
             }
             
             processedSamples++;
+            
             // Update progress (0-75% for feature extraction)
             const progress = Math.min(75, (processedSamples / totalSamples) * 75);
             setTrainingProgress(progress);
+            
+            // Periodic aggressive cleanup
+            if (processedSamples % CLEANUP_INTERVAL === 0) {
+              await tf.nextFrame();
+              await tf.nextFrame();
+              console.log(`✓ Processed ${processedSamples}/${totalSamples} samples | Tensors: ${tf.memory().numTensors}`);
+            }
             
             resolve();
           };
           
           img.onerror = () => {
-            console.error('Failed to load image:', sample.thumbnail);
+            console.error('Failed to load image');
             processedSamples++;
             resolve();
           };
         });
-        
-        // Periodic memory cleanup during feature extraction
-        if (processedSamples % 50 === 0) {
-          await tf.nextFrame();
-          console.log(`Processed ${processedSamples}/${totalSamples} samples`);
-          logMemory('During feature extraction');
-        }
       }
     }
     
-    if (trainingData.xs.length === 0) {
+    if (allFeatures.length === 0) {
       throw new Error('No training data extracted');
     }
     
-    const effectiveDatasetSize = trainingData.xs.length;
-    console.log(`Total training samples: ${effectiveDatasetSize} (${totalSamples} original × ${AUGMENTATION_COUNT + 1})`);
+    console.log(`Total training samples: ${allFeatures.length} (${totalSamples} original × ${AUGMENTATION_COUNT + 1})`);
+    logMemory('After feature extraction (all in arrays)');
     
-    logMemory('After feature extraction');
+    // Now convert arrays to tensors for training (one-time conversion)
+    console.log('Converting features to tensors for training...');
+    const xs = tf.tensor2d(allFeatures);
+    const ys = tf.oneHot(tf.tensor1d(allLabels, 'int32'), validClasses.length);
     
-    // Stack all features and create labels
-    const xs = tf.stack(trainingData.xs);
-    const ys = tf.oneHot(tf.tensor1d(trainingData.ys, 'int32'), validClasses.length);
+    // Clear the arrays to free memory
+    allFeatures.length = 0;
+    allLabels.length = 0;
     
     console.log('Training data shape:', xs.shape);
     console.log('Labels shape:', ys.shape);
     
-    // Clean up individual feature tensors
-    trainingData.xs.forEach(t => t.dispose());
-    logMemory('After disposing individual features');
+    logMemory('After tensor conversion');
     
-    // Training configuration optimized for 4x augmentation
-    const epochs = 60; // Reduced from 100 (more data = fewer epochs needed)
-    const batchSize = Math.min(32, Math.floor(effectiveDatasetSize / 8)); // Smaller batches for stability
+    // Training configuration - optimized for your hardware
+    const epochs = 50; 
+    const effectiveDatasetSize = xs.shape[0];
+    const batchSize = Math.min(8, Math.floor(effectiveDatasetSize / 10));
     
     console.log(`Training for ${epochs} epochs with batch size ${batchSize}...`);
     
-    // Train the model with callbacks
     const history = await classifierModel.fit(xs, ys, {
       epochs: epochs,
       batchSize: batchSize,
-      validationSplit: 0.1, // 
+      validationSplit: 0.1,
       shuffle: true,
       verbose: 0,
       callbacks: {
@@ -981,7 +1000,6 @@ const trainModel = async () => {
               `val_acc=${valAcc}%`
             );
             
-            // Update progress (75-100% for training)
             const progress = 75 + ((epoch + 1) / epochs) * 25;
             setTrainingProgress(progress);
           }
@@ -991,9 +1009,6 @@ const trainModel = async () => {
             await tf.nextFrame();
             logMemory(`After epoch ${epoch + 1}`);
           }
-        },
-        onTrainEnd: () => {
-          console.log('Training completed!');
         }
       }
     });
@@ -1004,7 +1019,7 @@ const trainModel = async () => {
       ? history.history.val_acc[history.history.val_acc.length - 1] as number
       : finalTrainAcc;
     
-    setTrainingAccuracy(finalValAcc); // Use validation accuracy as the main metric
+    setTrainingAccuracy(finalValAcc);
     
     console.log('═══════════════════════════════════════');
     console.log('Training Summary:');
@@ -1015,13 +1030,16 @@ const trainModel = async () => {
     console.log(`  Final validation accuracy: ${(finalValAcc * 100).toFixed(2)}%`);
     console.log('═══════════════════════════════════════');
     
-    // Clean up training tensors
+    // CRITICAL: Clean up training tensors immediately
     xs.dispose();
     ys.dispose();
     
+    await tf.nextFrame();
+    await tf.nextFrame();
+    
     logMemory('After training cleanup');
     
-    // Create the custom model with prediction function
+    // Create the custom model
     const customModel: CustomModel = {
       featureExtractor: mobilenet,
       classifier: classifierModel,
@@ -1030,32 +1048,21 @@ const trainModel = async () => {
         cls.student ? formatStudentDisplay(cls.student) : 'Unassigned'
       ),
       predict: async (image: HTMLCanvasElement | HTMLVideoElement, flipped?: boolean) => {
-        // Use EXACT SAME preprocessing as training
         const results = await tf.tidy(() => {
-          // Resize and preprocess
           let imageTensor = tf.browser.fromPixels(image)
             .resizeNearestNeighbor([224, 224])
             .toFloat();
           
-          // Apply flip if needed
           if (flipped) {
             imageTensor = imageTensor.reverse(1);
           }
           
-          // CRITICAL: Same normalization as training
           const normalized = imageTensor.sub(127.5).div(127.5);
           const batched = normalized.expandDims(0);
-          
-          // Extract features
           const features = mobilenet.predict(batched) as tf.Tensor;
-          
-          // Predict with classifier
           const predictions = classifierModel.predict(features) as tf.Tensor;
-          
-          // Get prediction data (synchronous in tidy)
           const predData = predictions.dataSync();
           
-          // Convert to results
           const labels = validClasses.map(cls => 
             cls.student ? formatStudentDisplay(cls.student) : 'Unassigned'
           );
@@ -1072,7 +1079,6 @@ const trainModel = async () => {
           return results;
         });
         
-        // Force tensor cleanup
         await tf.nextFrame();
         return results;
       }
@@ -1084,13 +1090,12 @@ const trainModel = async () => {
     setIsModelLoaded(true);
     setHasUploaded(false);
     
-    // Share model status
     if (!isMobile) {
       screenShareService.shareModelStatus(true, customModel.getClassLabels());
     }
     
     logMemory('After training complete');
-    console.log('✅ Model trained successfully with 4x augmentation!');
+    console.log('Model trained successfully!');
     
     if (onModelTrained) {
       onModelTrained(customModel);
@@ -1104,7 +1109,18 @@ const trainModel = async () => {
     setTimeout(() => setTrainingProgress(0), 2000);
   }
 };
-  
+ 
+
+
+
+
+
+
+
+
+
+
+
   // Upload trained model to S3
   const uploadModelToS3 = async () => {
     if (!model || !isModelLoaded) {

@@ -1,3 +1,4 @@
+//filepath: src\components\model-training-ui\services\ModelExport.ts
 import * as tf from '@tensorflow/tfjs';
 import JSZip from 'jszip';
 import { AIModelServiceClass, ModelMetadata } from '@/lib/AIModelService';
@@ -131,7 +132,7 @@ export const exportModel = async (params: ExportModelParams) => {
   }
 };
 
-// Export to S3
+// Export to S3 - FIXED to use correct 3-file structure
 export const exportToS3 = async (params: {
   model: {
     featureExtractor: tf.LayersModel;
@@ -158,178 +159,181 @@ export const exportToS3 = async (params: {
     const { model, classes, currentClassIndex, trainingAccuracy, trainingStartTime, formatStudentDisplay, setHasExportedToCloud, showCloudSuccessNotification } = params;
     const validClasses = classes.filter(cls => cls.samples.length > 0);
     
-    // Get current class student ID for individual model export
+    console.log('☁️ Starting S3 export with CORRECT 3-file structure...');
+    
+    // Get current class student ID
     const currentClass = classes[currentClassIndex];
     const studentId = currentClass?.student?.id;
     
-    // Get actual model topology and weights
-    const modelTopology = model.classifier.toJSON();
-    const weightData = await model.classifier.getWeights();
+    // Prepare student information
+    const students = validClasses.map(cls => ({
+      id: cls.student?.id?.toString() || '',
+      student_id: cls.student?.student_id || '',
+      firstname: cls.student?.firstname || '',
+      surname: cls.student?.surname || '',
+      full_name: cls.student ? formatStudentDisplay(cls.student) : 'Unassigned'
+    }));
     
-    // Extract weight values and create binary data
-    const weightBuffers = await Promise.all(
-      weightData.map(async (tensor) => {
-        const data = await tensor.data();
-        return new Uint8Array(data.buffer);
-      })
+    const labels = students.map(student => student.full_name);
+    const totalSampleCount = validClasses.reduce((total, cls) => total + cls.samples.length, 0);
+
+    // STEP 1: Create combined model (same as local export)
+    console.log('🔧 Creating combined model for S3...');
+    
+    const dummyInput = tf.zeros([1, 224, 224, 3]);
+    const mobileNetOutput = model.featureExtractor.predict(dummyInput) as tf.Tensor;
+    const featureSize = mobileNetOutput.shape[1];
+    mobileNetOutput.dispose();
+    dummyInput.dispose();
+
+    const combinedModel = tf.sequential();
+    
+    const mobileNetLayers = model.featureExtractor.layers;
+    for (const layer of mobileNetLayers) {
+      combinedModel.add(layer);
+    }
+    
+    const classifierLayers = model.classifier.layers;
+    for (const layer of classifierLayers) {
+      combinedModel.add(layer);
+    }
+
+    console.log('✅ Combined model created');
+
+    // STEP 2: Save and get model data
+    await combinedModel.save('indexeddb://temp-s3-model');
+    const loadedModel = await tf.loadLayersModel('indexeddb://temp-s3-model');
+    
+    const modelTopology = loadedModel.toJSON();
+    const weights = loadedModel.getWeights();
+    const weightData = await Promise.all(
+      weights.map(async (tensor) => await tensor.data())
     );
     
-    // Create weights binary data
-    const totalLength = weightBuffers.reduce((sum, buffer) => sum + buffer.length, 0);
-    const combinedWeights = new Uint8Array(totalLength);
+    const totalLength = weightData.reduce((sum, data) => sum + data.length, 0);
+    const combinedWeights = new Float32Array(totalLength);
     let offset = 0;
-    for (const buffer of weightBuffers) {
-      combinedWeights.set(buffer, offset);
-      offset += buffer.length;
+    for (const data of weightData) {
+      combinedWeights.set(data, offset);
+      offset += data.length;
     }
-    const weightsBlob = new Blob([combinedWeights], { type: 'application/octet-stream' });
     
-    // Create Teachable Machine format metadata
-    const metadata = {
-      format: "tensorflowjs",
-      generatedBy: "signature-ai",
+    const weightsBlob = new Blob([combinedWeights.buffer], { type: 'application/octet-stream' });
+
+    const weightsManifest = [{
+      paths: ['weights.bin'],
+      weights: weights.map((tensor, i) => ({
+        name: `weight_${i}`,
+        shape: tensor.shape,
+        dtype: tensor.dtype
+      }))
+    }];
+
+    // STEP 3: Create model.json
+    const modelJson = {
+      format: 'layers-model',
+      generatedBy: 'TensorFlow.js tfjs-layers v' + tf.version.tfjs,
       convertedBy: null,
-      userMetadata: {
-        labels: validClasses.map(cls => cls.student ? formatStudentDisplay(cls.student) : 'Unassigned'),
-        modelType: "image_classification",
-        inputSize: [224, 224, 3],
-        author: "signature-ai",
-        accuracy: trainingAccuracy || 0.85, // Use actual training accuracy
-        totalSamples: validClasses.reduce((sum, cls) => sum + cls.samples.length, 0),
-        trainingTime: trainingStartTime ? Date.now() - trainingStartTime : 0
-      },
-      signatures: {
-        "default": {
-          inputs: [
-            {
-              name: "input",
-              dtype: "float32",
-              shape: [1, 224, 224, 3]
-            }
-          ],
-          outputs: [
-            {
-              name: "output",
-              dtype: "float32",
-              shape: [1, validClasses.length]
-            }
-          ]
-        }
-      }
-    };
-    
-    // Prepare model data with real TensorFlow.js model files
-    const modelData = {
-      modelJson: JSON.stringify(modelTopology, null, 2),
-      weightsBin: weightsBlob,
-      metadataJson: JSON.stringify(metadata, null, 2)
-    };
-    
-    // Prepare comprehensive metadata
-    const modelMetadata: ModelMetadata = {
-      version: '1.0',
-      createdAt: new Date().toISOString(),
-      modelArchitecture: {
-        featureExtractor: 'MobileNetV1',
-        classifier: 'Sequential',
-        inputShape: [1024],
-        outputShape: [validClasses.length]
-      },
+      modelTopology: modelTopology,
+      weightsManifest: weightsManifest,
       trainingConfig: {
-        epochs: 50,
-        optimizer: 'adam',
-        learningRate: 0.001,
-        batchSize: 16,
-        augmentationTypes: 12, // Updated from 18
-        totalSamples: validClasses.reduce((sum, cls) => sum + cls.samples.length, 0)
-      },
-      performance: {
-        finalAccuracy: trainingAccuracy || 0.85, // Use actual training accuracy
-        finalLoss: 0.05,    // You can track this during training
-        trainingTime: trainingStartTime ? Date.now() - trainingStartTime : 0
-      },
-      classes: validClasses.map(cls => ({
-        name: cls.student ? formatStudentDisplay(cls.student) : 'Unassigned',
-        color: cls.color,
-        sampleCount: cls.samples.length,
-        studentId: cls.student?.id?.toString()
-      })),
-      storage: {
-        location: 's3',
-        bucket: '', // Will be filled by S3 service
-        region: '', // Will be filled by S3 service
-        modelKey: '', // Will be filled by S3 service
-        metadataKey: '' // Will be filled by S3 service
+        optimizer_config: {
+          class_name: 'Adam',
+          config: {
+            learning_rate: 0.001,
+            beta_1: 0.9,
+            beta_2: 0.999,
+            epsilon: 1e-7
+          }
+        },
+        loss: 'categorical_crossentropy',
+        metrics: ['accuracy']
       }
     };
-    
-    // Convert weights Blob to base64 for JSON serialization (required by backend)
-    const weightsBase64 = await new Promise((resolve, reject) => {
-      const reader = new FileReader();
-      reader.onload = () => resolve(reader.result);
-      reader.onerror = reject;
-      reader.readAsDataURL(modelData.weightsBin);
-    });
-    
-    // Prepare model data with base64 weights for backend compatibility
-    const preparedModelData = {
-      modelJson: JSON.parse(modelData.modelJson),
-      weightsBin: weightsBase64,
-      metadataJson: JSON.parse(modelData.metadataJson)
+
+    // STEP 4: Create metadata.json
+    const metadataJson = {
+      modelName: `model-${Date.now()}`,
+      labels: labels,
+      imageSize: 224,
+      createdAt: new Date().toISOString(),
+      userMetadata: {
+        student_id: currentClass?.student?.student_id || '',
+        student_name: students[0]?.full_name || 'Unknown',
+        sample_count: totalSampleCount,
+        accuracy: trainingAccuracy || 0.85,
+        training_date: new Date().toISOString(),
+        model_architecture: 'mobilenet_v1_classifier',
+        total_students: validClasses.length,
+        training_summary: `Trained on ${validClasses.length} students with ${totalSampleCount} total samples. Final accuracy: ${(trainingAccuracy || 0.85).toFixed(4)}`
+      },
+      tfjsVersion: tf.version.tfjs,
+      modelType: 'image_classification',
+      inputShape: [224, 224, 3],
+      outputShape: [labels.length]
     };
-    
-    // Upload to S3 using AIModelService (handles both S3 upload and database record creation)
-    console.log('🚀 Starting S3 upload with database record creation...');
-    const aiModelService = new AIModelServiceClass();
-    
-    // Prepare training data for database record
+
+    // STEP 5: Convert weights to base64 for backend
+    const weightsBase64 = await new Promise<string>((resolve, reject) => {
+      const reader = new FileReader();
+      reader.onload = () => resolve(reader.result as string);
+      reader.onerror = reject;
+      reader.readAsDataURL(weightsBlob);
+    });
+
+    // STEP 6: Prepare data for AIModelService
+    const modelData = {
+      modelJson: JSON.stringify(modelJson),
+      weightsBin: weightsBase64,
+      metadataJson: JSON.stringify(metadataJson)
+    };
+
+    // STEP 7: Prepare training data for database
     const trainingData = {
-      total_sample_count: validClasses.reduce((sum, cls) => sum + cls.samples.length, 0),
+      total_sample_count: totalSampleCount,
       student_count: validClasses.length,
-      students: validClasses.map(cls => ({
-        id: String(cls.student?.id || ''),
-        student_id: cls.student?.student_id || '',
-        firstname: cls.student?.firstname || '',
-        surname: cls.student?.surname || '',
-        full_name: cls.student ? formatStudentDisplay(cls.student) : 'Unassigned'
-      })),
-      accuracy: trainingAccuracy || 0.85, // Use actual training accuracy
+      students: students,
+      accuracy: trainingAccuracy || 0.85,
       epochs: 50,
       optimizer: 'adam',
       learning_rate: 0.001,
       batch_size: 16,
-      training_summary: `Model trained with ${validClasses.reduce((sum, cls) => sum + cls.samples.length, 0)} samples across ${validClasses.length} students. Final accuracy: ${(trainingAccuracy || 0.85).toFixed(4)}`,
-      model_architecture: 'cnn'
+      training_summary: metadataJson.userMetadata.training_summary,
+      model_architecture: 'mobilenet_v1_classifier'
     };
-    
-    // Create a unique model ID for this training session
+
+    // STEP 8: Upload to S3
+    const aiModelService = new AIModelServiceClass();
     const modelId = `model_${studentId || 'global'}_${Date.now()}`;
     
+    console.log('🚀 Uploading to S3...');
     const uploadResult = await aiModelService.uploadTrainedModelToS3(
       modelId,
-      preparedModelData,
+      modelData,
       studentId?.toString(),
       trainingData
     );
-    
-    console.log('🎉 S3 upload result:', uploadResult);
-    
+
+    // Cleanup
+    loadedModel.dispose();
+    weights.forEach(w => w.dispose());
+    await tf.io.removeModel('indexeddb://temp-s3-model');
+
     if (uploadResult.success) {
-      // Update UI state for successful cloud export
       setHasExportedToCloud(true);
       showCloudSuccessNotification();
-      console.log('✅ Cloud export state updated - S3 upload and database record created successfully');
+      console.log('✅ S3 upload successful');
     } else {
       throw new Error(uploadResult.message || 'Failed to upload to S3');
     }
     
   } catch (error) {
-    console.error('S3 export error:', error);
+    console.error('❌ S3 export error:', error);
     throw error;
   }
 };
 
-// Export to local download - uses complete model format
+/// Export to local download - FIXED to use correct 3-file structure
 export const exportToLocal = async (params: {
   model: {
     featureExtractor: tf.LayersModel;
@@ -359,6 +363,8 @@ export const exportToLocal = async (params: {
       params.setIsDownloading(true);
     }
 
+    console.log('💾 Starting CORRECT 3-file model export...');
+
     // Get the current class student for naming
     const currentClass = classes[currentClassIndex];
     const studentName = currentClass?.student ? formatStudentDisplay(currentClass.student) : 'Unknown';
@@ -379,198 +385,161 @@ export const exportToLocal = async (params: {
     // Prepare labels from student names
     const labels = students.map(student => student.full_name);
 
-    // Prepare model data for download - export COMPLETE TensorFlow.js model (MobileNet + Classifier)
-    console.log('🔄 Starting COMPLETE model export process...');
-    
-    // Create date/time filename like Teachable Machine
+    // Create date/time filename
     const now = new Date();
     const timestamp = now.toISOString().replace(/[:.]/g, '-').slice(0, -5);
     const modelName = `model-${timestamp}`;
+
+    // STEP 1: Create a COMBINED model (MobileNet features + Classifier layers)
+    console.log('🔧 Creating combined model architecture...');
     
-    // Get model topologies and weights for both models
-    let mobileNetTopology = model.featureExtractor.toJSON() as ModelTopology;
-    const mobileNetWeights = model.featureExtractor.getWeights();
+    // Get MobileNet output shape to connect to classifier
+    const dummyInput = tf.zeros([1, 224, 224, 3]);
+    const mobileNetOutput = model.featureExtractor.predict(dummyInput) as tf.Tensor;
+    const featureSize = mobileNetOutput.shape[1];
+    mobileNetOutput.dispose();
+    dummyInput.dispose();
+
+    // Create a sequential model that combines both
+    const combinedModel = tf.sequential();
     
-    let classifierTopology = model.classifier.toJSON() as ModelTopology;
-    const classifierWeights = model.classifier.getWeights();
+    // Add MobileNet layers (frozen)
+    const mobileNetLayers = model.featureExtractor.layers;
+    for (const layer of mobileNetLayers) {
+      combinedModel.add(layer);
+    }
     
-    // Fix model topologies for TensorFlow.js compatibility
-    console.log('🔧 Applying topology fixes for export compatibility...');
-    console.log('📋 Original MobileNet class_name:', mobileNetTopology.class_name);
-    console.log('📋 Original Classifier class_name:', classifierTopology.class_name);
+    // Add classifier layers
+    const classifierLayers = model.classifier.layers;
+    for (const layer of classifierLayers) {
+      combinedModel.add(layer);
+    }
+
+    console.log('✅ Combined model created with', combinedModel.layers.length, 'layers');
+
+    // STEP 2: Save the combined model to get model.json and weights
+    console.log('💾 Saving combined model...');
     
-    mobileNetTopology = fixModelTopology(mobileNetTopology);
-    classifierTopology = fixModelTopology(classifierTopology);
+    // Save to browser storage temporarily to get the files
+    const saveResult = await combinedModel.save('indexeddb://temp-model');
     
-    console.log('✅ Model topologies fixed successfully');
-    console.log('📋 Fixed MobileNet class_name:', mobileNetTopology.class_name);
-    console.log('📋 Fixed Classifier class_name:', classifierTopology.class_name);
+    // Load back the saved model to get the JSON and weights
+    const loadedModel = await tf.loadLayersModel('indexeddb://temp-model');
     
-    // Process MobileNet weights
-    const mobileNetWeightDataArray = await Promise.all(
-      mobileNetWeights.map(async (tensor, index) => {
-        return {
-          name: tensor.id || `mobilenet_weight_${index}`,
-          data: await tensor.data(),
-          shape: tensor.shape,
-          dtype: tensor.dtype
-        };
-      })
+    // Get the model topology as JSON
+    const modelTopology = loadedModel.toJSON();
+    
+    // Get all weights
+    const weights = loadedModel.getWeights();
+    const weightData = await Promise.all(
+      weights.map(async (tensor) => await tensor.data())
     );
     
-    // Process Classifier weights
-    const classifierWeightDataArray = await Promise.all(
-      classifierWeights.map(async (tensor, index) => {
-        return {
-          name: tensor.id || `classifier_weight_${index}`,
-          data: await tensor.data(),
-          shape: tensor.shape,
-          dtype: tensor.dtype
-        };
-      })
-    );
+    // Combine all weight data into a single binary blob
+    const totalLength = weightData.reduce((sum, data) => sum + data.length, 0);
+    const combinedWeights = new Float32Array(totalLength);
+    let offset = 0;
+    for (const data of weightData) {
+      combinedWeights.set(data, offset);
+      offset += data.length;
+    }
     
-    // Create MobileNet model.json
-    const mobileNetJson = {
+    // Create weights.bin
+    const weightsBlob = new Blob([combinedWeights.buffer], { type: 'application/octet-stream' });
+
+    // Create weight manifest for model.json
+    const weightsManifest = [{
+      paths: ['weights.bin'],
+      weights: weights.map((tensor, i) => ({
+        name: `weight_${i}`,
+        shape: tensor.shape,
+        dtype: tensor.dtype
+      }))
+    }];
+
+    // STEP 3: Create model.json with correct structure
+    const modelJson = {
       format: 'layers-model',
-      generatedBy: 'TensorFlow.js',
+      generatedBy: 'TensorFlow.js tfjs-layers v' + tf.version.tfjs,
       convertedBy: null,
-      modelTopology: mobileNetTopology,
-      weightsManifest: [{
-        paths: ['mobilenet_weights.bin'],
-        weights: mobileNetWeightDataArray.map(w => ({
-          name: w.name,
-          shape: w.shape,
-          dtype: w.dtype
-        }))
-      }]
+      modelTopology: modelTopology,
+      weightsManifest: weightsManifest,
+      trainingConfig: {
+        optimizer_config: {
+          class_name: 'Adam',
+          config: {
+            learning_rate: 0.001,
+            beta_1: 0.9,
+            beta_2: 0.999,
+            epsilon: 1e-7
+          }
+        },
+        loss: 'categorical_crossentropy',
+        metrics: ['accuracy']
+      }
     };
-    
-    // Create Classifier model.json
-    const classifierJson = {
-      format: 'layers-model',
-      generatedBy: 'TensorFlow.js',
-      convertedBy: null,
-      modelTopology: classifierTopology,
-      weightsManifest: [{
-        paths: ['classifier_weights.bin'],
-        weights: classifierWeightDataArray.map(w => ({
-          name: w.name,
-          shape: w.shape,
-          dtype: w.dtype
-        }))
-      }]
-    };
-    
-    // Create combined metadata.json
+
+    // STEP 4: Create metadata.json (custom, not required by TensorFlow.js)
     const metadataJson = {
-      tfjsVersion: tf.version.tfjs,
-      tmVersion: '2.4.10',
-      packageVersion: '0.8.5',
-      packageName: '@teachablemachine/image',
-      timeStamp: new Date().toISOString(),
+      modelName: modelName,
+      labels: labels,
+      imageSize: 224,
+      createdAt: new Date().toISOString(),
       userMetadata: {
         student_id: currentClass?.student?.student_id || '',
         student_name: studentName,
         sample_count: totalSampleCount,
         accuracy: trainingAccuracy || 0.85,
         training_date: new Date().toISOString(),
-        model_architecture: 'cnn',
+        model_architecture: 'mobilenet_v1_classifier',
         total_students: validClasses.length,
         training_summary: `Trained on ${validClasses.length} students with ${totalSampleCount} total samples. Final accuracy: ${(trainingAccuracy || 0.85).toFixed(4)}`
       },
-      modelName: modelName,
-      labels: labels,
-      imageSize: 224, // Teachable Machine default
-      modelStructure: {
-        hasMobileNet: true,
-        hasClassifier: true,
-        inputSize: [224, 224, 3],
-        featureSize: mobileNetWeightDataArray.length > 0 ? mobileNetWeightDataArray[0].shape : [1000],
-        outputSize: validClasses.length
-      }
+      tfjsVersion: tf.version.tfjs,
+      modelType: 'image_classification',
+      inputShape: [224, 224, 3],
+      outputShape: [labels.length]
     };
-    
-    // Create weight binaries
-    const mobileNetWeightBuffers = mobileNetWeightDataArray.map(w => {
-      return new Float32Array(w.data).buffer;
-    });
-    const mobileNetCombinedWeights = new Blob(mobileNetWeightBuffers, { type: 'application/octet-stream' });
-    
-    const classifierWeightBuffers = classifierWeightDataArray.map(w => {
-      return new Float32Array(w.data).buffer;
-    });
-    const classifierCombinedWeights = new Blob(classifierWeightBuffers, { type: 'application/octet-stream' });
-    
-    // Create JSON files
-    const mobileNetJsonBlob = new Blob([JSON.stringify(mobileNetJson, null, 2)], { type: 'application/json' });
-    const classifierJsonBlob = new Blob([JSON.stringify(classifierJson, null, 2)], { type: 'application/json' });
-    const metadataJsonBlob = new Blob([JSON.stringify(metadataJson, null, 2)], { type: 'application/json' });
-    
-    // Create download URLs
-    const mobileNetJsonUrl = URL.createObjectURL(mobileNetJsonBlob);
-    const classifierJsonUrl = URL.createObjectURL(classifierJsonBlob);
-    const metadataJsonUrl = URL.createObjectURL(metadataJsonBlob);
-    const mobileNetWeightsUrl = URL.createObjectURL(mobileNetCombinedWeights);
-    const classifierWeightsUrl = URL.createObjectURL(classifierCombinedWeights);
-    
-    try {
-      console.log('📦 Creating ZIP archive with COMPLETE model files...');
-      
-      // Create a new ZIP file
-      const zip = new JSZip();
-      
-      // Add all model files to the ZIP
-      zip.file('mobilenet_model.json', mobileNetJsonBlob);
-      zip.file('mobilenet_weights.bin', mobileNetCombinedWeights);
-      zip.file('classifier_model.json', classifierJsonBlob);
-      zip.file('classifier_weights.bin', classifierCombinedWeights);
-      zip.file('metadata.json', metadataJsonBlob);
-      
-      // Generate the ZIP file
-      const zipBlob = await zip.generateAsync({ type: 'blob' });
-      
-      // Create download URL for the ZIP file
-      const zipUrl = URL.createObjectURL(zipBlob);
-      
-      // Download the ZIP file
-      const zipLink = document.createElement('a');
-      zipLink.href = zipUrl;
-      zipLink.download = `${modelName}.zip`;
-      document.body.appendChild(zipLink);
-      zipLink.click();
-      document.body.removeChild(zipLink);
-      
-      console.log('✅ COMPLETE model export finished successfully!');
-      console.log(`📁 Downloaded: ${modelName}.zip`);
-      console.log('📦 ZIP contains:');
-      console.log('   - mobilenet_model.json (MobileNet architecture)');
-      console.log('   - mobilenet_weights.bin (MobileNet trained weights)');
-      console.log('   - classifier_model.json (Classifier architecture)');
-      console.log('   - classifier_weights.bin (Classifier trained weights)');
-      console.log('   - metadata.json (Model information and labels)');
-      
-      // Clean up ZIP URL
-      URL.revokeObjectURL(zipUrl);
-      
-    } finally {
-      // Clean up individual file URLs
-      URL.revokeObjectURL(mobileNetJsonUrl);
-      URL.revokeObjectURL(classifierJsonUrl);
-      URL.revokeObjectURL(metadataJsonUrl);
-      URL.revokeObjectURL(mobileNetWeightsUrl);
-      URL.revokeObjectURL(classifierWeightsUrl);
-    }
 
-    // Mark as downloaded to PC
+    // STEP 5: Create blobs for download
+    const modelJsonBlob = new Blob([JSON.stringify(modelJson, null, 2)], { type: 'application/json' });
+    const metadataJsonBlob = new Blob([JSON.stringify(metadataJson, null, 2)], { type: 'application/json' });
+
+    // STEP 6: Create ZIP with 3 files
+    console.log('📦 Creating ZIP with 3 files...');
+    const zip = new JSZip();
+    zip.file('model.json', modelJsonBlob);
+    zip.file('weights.bin', weightsBlob);
+    zip.file('metadata.json', metadataJsonBlob);
+
+    const zipBlob = await zip.generateAsync({ type: 'blob' });
+
+    // STEP 7: Download the ZIP
+    const zipUrl = URL.createObjectURL(zipBlob);
+    const link = document.createElement('a');
+    link.href = zipUrl;
+    link.download = `${modelName}.zip`;
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+    URL.revokeObjectURL(zipUrl);
+
+    // Cleanup
+    loadedModel.dispose();
+    weights.forEach(w => w.dispose());
+    await tf.io.removeModel('indexeddb://temp-model');
+
+    console.log('✅ Export completed successfully!');
+    console.log('📁 Downloaded:', `${modelName}.zip`);
+    console.log('📦 Contains: model.json, weights.bin, metadata.json');
+
     setHasDownloadedToPC(true);
     showLocalExportSuccessNotification(`${modelName}.zip`);
 
   } catch (error) {
-    console.error('Local download error:', error);
+    console.error('❌ Local download error:', error);
     alert('Error downloading model: ' + (error instanceof Error ? error.message : 'Unknown error'));
   } finally {
-    // Safety check to prevent errors if component unmounted
     if (params.setIsDownloading) {
       params.setIsDownloading(false);
     }
