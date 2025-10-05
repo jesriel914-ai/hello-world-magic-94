@@ -24,13 +24,10 @@ export interface LocalStudent {
   firstname: string;
   surname: string;
   middlename?: string;
-  middle_initial?: string;
   program: string;
   year: string;
   section: string;
-  email?: string;
-  contact_number?: string;
-  address?: string;
+  sex?: string;
   created_at?: string;
   updated_at?: string;
 }

@@ -9,17 +9,12 @@ import { supabase } from "@/lib/supabase";
 
 interface StudentImportData {
   surname: string;
-  middle_initial: string;
   firstname: string;
   student_id: string;
   program: string;
   year: string;
   section: string;
   sex: string;
-  address: string;
-  birthday: string;
-  contact_no: string;
-  email: string;
   [key: string]: string;
 }
 
@@ -231,17 +226,12 @@ data = result.data as StudentRecord[];
     // Define the headers based on the StudentForm fields
     const headers = [
       'surname',
-      'middle_initial',
       'firstname',
       'student_id',
       'program',
       'year',
       'section',
-      'sex',
-      'address',
-      'birthday',
-      'contact_no',
-      'email'
+      'sex'
     ];
 
     // Create a new workbook
@@ -254,31 +244,21 @@ data = result.data as StudentRecord[];
     const exampleData = [
       {
         surname: 'Doe',
-        middle_initial: 'M',
         firstname: 'John',
         student_id: '2023-001',
         program: 'Computer Science',
         year: '1st',
         section: 'BSCS 1A',
-        sex: 'Male',
-        address: '123 Main St',
-        birthday: '2005-05-15',
-        contact_no: '09123456789',
-        email: 'john.doe@example.com'
+        sex: 'Male'
       },
       {
         surname: 'Smith',
-        middle_initial: 'A',
         firstname: 'Jane',
         student_id: '2023-002',
         program: 'Information Technology',
         year: '2nd',
         section: 'BSIT 2B',
-        sex: 'Female',
-        address: '456 Oak Ave',
-        birthday: '2004-08-22',
-        contact_no: '09123456780',
-        email: 'jane.smith@example.com'
+        sex: 'Female'
       }
     ];
 

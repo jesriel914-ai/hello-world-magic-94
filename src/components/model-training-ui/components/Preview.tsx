@@ -1,4 +1,5 @@
 //filepath: src\components\model-training-ui\components\Preview.tsx
+import { predictFromCanvas, forceMemoryCleanup } from '../utils/modelPrediction';
 import React, { useState, useEffect, useRef, useCallback } from 'react';
 import * as tmImage from '@teachablemachine/image';
 import * as tf from '@tensorflow/tfjs';
@@ -10,14 +11,12 @@ import {
   DropdownMenuItem,
   DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu';
-import { FileImage, Brain, Menu, X, Loader2, Upload, Camera, FolderOpen, Check, Cloud, Download, ChevronDown, List } from 'lucide-react';
+import { FileImage, Brain, X, Loader2, Upload, Camera, FolderOpen, Cloud, ChevronDown, List } from 'lucide-react';
 import useMobileDetection from '@/hooks/use-mobile-detection';
 import type { TrainedModel } from '../../ModelTraining';
 import type { PredictionResult } from '../../ModelTraining';
 import type { CustomModel } from '../../ModelTraining';
 import { MobileWebcam } from '../services/mobileWebcam';
-import { ConnectionDropdown } from './ConnectionDropdown';
-import { ScreenShareService } from '../../../services/ScreenShareService';
 import { toast } from '@/hooks/use-toast';
 
 const formatDateTime = (date: Date): string => {
@@ -42,6 +41,7 @@ interface PreviewProps {
   isWebcamActive: boolean;
   webcam: tmImage.Webcam | null;
   model: CustomModel | null;
+  isPredicting: boolean;
   onToggleModels: () => void;
   onShowMorePredictions: () => void;
   onChangeModel: () => void;
@@ -62,431 +62,339 @@ export const Preview: React.FC<PreviewProps> = ({
   webcam,
   trainedModels,
   isLoadingModels,
+  isPredicting,
   onShowMorePredictions,
   onChangeModel,
   onCloudModelSelect,
   onLocalModelSelect,
   onHandlePreviewFileUpload
 }) => {
-  const screenShareService = ScreenShareService.getInstance();
   const [activeMode, setActiveMode] = useState<'webcam' | 'upload'>('upload');
-  
   const [modelTrainedAt, setModelTrainedAt] = useState<Date | null>(null);
-  
-  const [isMobileClient, setIsMobileClient] = useState(false);
-  const [isConnected, setIsConnected] = useState(false);
-  const [isUsingRemoteModel, setIsUsingRemoteModel] = useState(false);
-  const [remotePredictions, setRemotePredictions] = useState<PredictionResult[]>([]);
-  const [mobilePreviewImage, setMobilePreviewImage] = useState<string | null>(null);
-  const [desktopCameraFeed, setDesktopCameraFeed] = useState<string | null>(null);
-  
-  const [networkError, setNetworkError] = useState<string | null>(null);
-  
-  const displayPredictions = isUsingRemoteModel ? remotePredictions : predictions;
+  const [localPreviewImage, setLocalPreviewImage] = useState<string | null>(null);
   
   const webcamRef = useRef<HTMLDivElement>(null);
   const mobileWebcam = useRef<MobileWebcam | null>(null);
   const [isCameraStarting, setIsCameraStarting] = useState(false);
   const [cameraError, setCameraError] = useState<string | null>(null);
-  
-  const screenShareIntervalRef = useRef<NodeJS.Timeout | null>(null);
+  const [localPredictions, setLocalPredictions] = useState<PredictionResult[]>([]);
+  const [isVideoPaused, setIsVideoPaused] = useState(false);
   const cameraPredictionIntervalRef = useRef<NodeJS.Timeout | null>(null);
-  const [isPredicting, setIsPredicting] = useState(false);
 
+  const [isCameraReady, setIsCameraReady] = useState(false);
 
+  // Use local predictions if available, otherwise use props predictions
+  const displayPredictions = localPredictions.length > 0 ? localPredictions : predictions;
 
-  useEffect(() => {
-    const initMobileClient = async () => {
-      if (isMobile) {
-        try {
-          console.log('📱 Initializing mobile client for real-time sync...');
-          setIsMobileClient(true);
-          
-          await screenShareService.initialize(false);
-          
-          screenShareService.onPredictionUpdateHandler((predictionsData) => {
-            setIsUsingRemoteModel(true);
-            setRemotePredictions(predictionsData.results);
-          });
-          
-          screenShareService.onPreviewUpdateHandler((previewData) => {
-            console.log('📱 Preview image received from desktop');
-            setMobilePreviewImage(previewData.imageData);
-          });
-          
-          screenShareService.onModeChangeHandler((modeData) => {
-            console.log('📱 Mode change received from desktop:', modeData.mode);
-            setActiveMode(modeData.mode);
-            
-            if (modeData.mode === 'upload' && mobileWebcam.current) {
-              stopCamera();
-            }
-          });
-          
-          screenShareService.onModelStatusUpdateHandler((status) => {
-            console.log('📱 Model status received:', status);
-          });
-          
-          console.log('✅ Mobile client initialized');
-        } catch (error) {
-          console.error('❌ Failed to initialize mobile client:', error);
-          
-          if (error instanceof Error && error.message.includes('network')) {
-            setNetworkError('Network validation failed: Devices must be on the same local network');
-          }
-        }
-      }
-    };
-    
-    initMobileClient();
-    
-    return () => {
-      if (mobilePreviewImage) {
-        URL.revokeObjectURL(mobilePreviewImage);
-      }
-    };
-  }, [isMobile, model, screenShareService]);
-
-  useEffect(() => {
-    const initDesktopClient = async () => {
-      if (!isMobile) {
-        try {
-          console.log('🖥️ Initializing desktop client for real-time sync...');
-          
-          await screenShareService.initialize(true);
-          
-          screenShareService.onConnectionStatusHandler((connected) => {
-            console.log('🖥️ Desktop connection status:', connected ? 'Connected' : 'Disconnected');
-            setIsConnected(connected);
-          });
-          
-          screenShareService.onModeChangeHandler((modeData) => {
-            console.log('🖥️ Mode change received from mobile:', modeData.mode);
-          });
-          
-          screenShareService.onPreviewUpdateHandler((previewData) => {
-            console.log('🖥️ Preview update received from mobile');
-            if (previewData.source === 'mobile') {
-              console.log('🖥️ Setting mobile camera feed as desktop preview');
-              setDesktopCameraFeed(previewData.imageData);
-            }
-          });
-          
-          console.log('✅ Desktop client initialized');
-        } catch (error) {
-          console.error('❌ Failed to initialize desktop client:', error);
-          
-          if (error instanceof Error && error.message.includes('network')) {
-            setNetworkError('Network validation failed: Desktop must be on a local network');
-          }
-        }
-      }
-    };
-    
-    initDesktopClient();
-  }, [isMobile, screenShareService]);
-
-  useEffect(() => {
-    if (!isMobile || activeMode !== 'webcam' || !mobileWebcam.current || !model) {
-      if (cameraPredictionIntervalRef.current) {
-        clearInterval(cameraPredictionIntervalRef.current);
-        cameraPredictionIntervalRef.current = null;
-      }
-      setIsPredicting(false);
-      return;
-    }
-    
-    const runCameraPrediction = async () => {
-      if (!mobileWebcam.current || !model) return;
-      
-      try {
-        const canvas = mobileWebcam.current.captureFrame();
-        if (!canvas) return;
-        
-        setIsPredicting(true);
-        const predictions = await model.predict(canvas, false);
-        const sortedPredictions = predictions.sort((a, b) => b.confidence - a.confidence);
-        
-        if (isConnected) {
-          screenShareService.sharePredictionResults(sortedPredictions);
-        }
-      } catch (error) {
-        console.error('Camera prediction error:', error);
-      } finally {
-        setIsPredicting(false);
-      }
-    };
-    
-    cameraPredictionIntervalRef.current = setInterval(runCameraPrediction, 500);
-    
-    return () => {
-      if (cameraPredictionIntervalRef.current) {
-        clearInterval(cameraPredictionIntervalRef.current);
-        cameraPredictionIntervalRef.current = null;
-      }
-    };
-  }, [isMobile, activeMode, model, isConnected, screenShareService]);
-
-  const handleWebcamClick = () => {
-    if (!mobileWebcam.current) return;
-    
-    const videoElement = mobileWebcam.current.getVideo();
-    if (!videoElement) return;
-    
-    if (videoElement.paused) {
-      videoElement.play();
-      startScreenSharing();
-      console.log('Camera resumed');
-    } else {
-      videoElement.pause();
-      stopScreenSharing();
-      console.log('Camera paused');
-    }
-  };
+// Update handleWebcamClick to track pause state:
+const handleWebcamClick = () => {
+  if (!mobileWebcam.current) return;
+  
+  const videoElement = mobileWebcam.current.getVideo();
+  if (!videoElement) return;
+  
+  if (videoElement.paused) {
+    videoElement.play();
+    setIsVideoPaused(false);
+    console.log('Camera resumed');
+  } else {
+    videoElement.pause();
+    setIsVideoPaused(true);
+    console.log('Camera paused');
+  }
+};
 
   const handleFileUpload = useCallback(async (event: React.ChangeEvent<HTMLInputElement>) => {
     const files = event.target.files;
     if (!files || files.length === 0) return;
     
-    if (isConnected && isMobileClient) {
-      for (let i = 0; i < files.length; i++) {
-        const file = files[i];
-        if (!file || !file.type.startsWith('image/')) continue;
-        
-        try {
-          console.log(`📱 Sending image ${i + 1}/${files.length} to desktop: ${file.name}`);
-          
-          const imageUrl = URL.createObjectURL(file);
-          const img = new Image();
-          
-          img.onload = async () => {
-            try {
-              const canvas = document.createElement('canvas');
-              canvas.width = img.width;
-              canvas.height = img.height;
-              const ctx = canvas.getContext('2d');
-              
-              if (ctx) {
-                ctx.drawImage(img, 0, 0);
-                const imageData = canvas.toDataURL('image/png');
-                
-                if (i === 0) {
-                  const previewUrl = URL.createObjectURL(file);
-                  if (mobilePreviewImage) {
-                    URL.revokeObjectURL(mobilePreviewImage);
-                  }
-                  setMobilePreviewImage(previewUrl);
-                }
-                
-                screenShareService.sharePreviewImage(imageData);
-                console.log(`✅ Image sent to desktop: ${file.name}`);
-              }
-            } catch (error) {
-              console.error('Error sending image to desktop:', error);
-            } finally {
-              URL.revokeObjectURL(imageUrl);
-            }
-          };
-          
-          img.onerror = () => {
-            console.error('❌ Failed to load image');
-            URL.revokeObjectURL(imageUrl);
-          };
-          
-          img.src = imageUrl;
-        } catch (error) {
-          console.error(`Error processing file: ${file.name}`, error);
-        }
-      }
-    } else {
-      console.log('🖥️ Processing files for local prediction on desktop');
+    for (let i = 0; i < files.length; i++) {
+      const file = files[i];
+      if (!file || !file.type.startsWith('image/')) continue;
       
-      for (let i = 0; i < files.length; i++) {
-        const file = files[i];
-        if (!file || !file.type.startsWith('image/')) continue;
+      try {
+        console.log(`📱 Processing image ${i + 1}/${files.length}: ${file.name}`);
         
-        try {
-          const imageUrl = URL.createObjectURL(file);
-          const img = new Image();
-          
-          img.onload = async () => {
-            try {
+        const imageUrl = URL.createObjectURL(file);
+        const img = new Image();
+        
+        img.onload = async () => {
+          try {
+            const canvas = document.createElement('canvas');
+            canvas.width = 224;
+            canvas.height = 224;
+            const ctx = canvas.getContext('2d');
+            
+            if (ctx) {
+              ctx.drawImage(img, 0, 0, 224, 224);
+              
               if (i === 0) {
-                if (mobilePreviewImage) {
-                  URL.revokeObjectURL(mobilePreviewImage);
+                if (localPreviewImage) {
+                  URL.revokeObjectURL(localPreviewImage);
                 }
-                setMobilePreviewImage(imageUrl);
+                setLocalPreviewImage(imageUrl);
+              } else {
+                URL.revokeObjectURL(imageUrl);
               }
               
               if (model) {
-                const predictions = await model.predict(img as any);
-                console.log('✅ Desktop local prediction completed:', predictions);
-              }
-            } catch (error) {
-              console.error('❌ Error processing desktop image:', error);
-              if (i !== 0) {
-                URL.revokeObjectURL(imageUrl);
+                console.log('🎯 Making prediction...');
+                const predictions = await model.predict(canvas, false);
+                const sortedPredictions = predictions.sort((a, b) => b.confidence - a.confidence);
+                console.log('✅ Prediction completed:', sortedPredictions);
+                setLocalPredictions(sortedPredictions);
               }
             }
-          };
-          
-          img.onerror = () => {
-            console.error('❌ Failed to load desktop image');
-            URL.revokeObjectURL(imageUrl);
-          };
-          
-          img.src = imageUrl;
-        } catch (error) {
-          console.error(`Error processing file: ${file.name}`, error);
-        }
-      }
-    }
-  }, [isConnected, isMobileClient, screenShareService, mobilePreviewImage, model]);
-
-  const startCamera = useCallback(async () => {
-    console.log('📷 startCamera called - isMobile:', isMobile);
-    if (!isMobile || !webcamRef.current) {
-      console.log('❌ startCamera blocked');
-      return;
-    }
-    
-    console.log('🚀 Starting camera process...');
-    setIsCameraStarting(true);
-    setCameraError(null);
-    
-    try {
-      const permissions = await navigator.permissions.query({ name: 'camera' as PermissionName });
-      console.log('📋 Camera permission status:', permissions.state);
-      
-      if (permissions.state === 'denied') {
-        throw new Error('Camera permission denied. Please enable camera permissions in your browser settings.');
-      }
-      
-      if (mobileWebcam.current) {
-        mobileWebcam.current.stop();
-        mobileWebcam.current = null;
-      }
-      
-      webcamRef.current.innerHTML = '<div class="flex flex-col items-center justify-center h-full text-gray-500"><div class="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-500 mb-2"></div><div class="text-sm">Starting camera...</div></div>';
-      
-      mobileWebcam.current = new MobileWebcam({
-        width: 300,
-        height: 300,
-        facingMode: 'environment',
-        timeout: 20000,
-        zoom: 2.0
-      });
-      
-      console.log('📷 Initializing camera with 2x zoom...');
-      const videoElement = await mobileWebcam.current.start();
-      
-      webcamRef.current.innerHTML = '';
-      webcamRef.current.appendChild(videoElement);
-      
-      setTimeout(() => {
-        if (webcamRef.current && mobileWebcam.current) {
-          const outerContainer = webcamRef.current.parentElement;
-          if (outerContainer) {
-            const rect = outerContainer.getBoundingClientRect();
-            console.log('📱 Mobile preview container dimensions (OUTER):', {
-              width: rect.width,
-              height: rect.height,
-              aspectRatio: (rect.width / rect.height).toFixed(2)
-            });
-            
-            mobileWebcam.current.setPreviewDimensions(rect.width, rect.height);
+          } catch (error) {
+            console.error('❌ Error processing image:', error);
+            if (i !== 0) {
+              URL.revokeObjectURL(imageUrl);
+            }
           }
-        }
-      }, 1000);
-      
-      console.log('📡 Starting screen sharing...');
-      startScreenSharing();
-      
-      console.log('✅ Camera started successfully with zoom');
-    } catch (error) {
-      console.error('❌ Error starting camera:', error);
-      
-      let userErrorMessage = 'Failed to start camera';
-      
-      if (error instanceof Error) {
-        if (error.message.includes('permission denied')) {
-          userErrorMessage = 'Camera permission denied. Please allow camera access.';
-        } else if (error.message.includes('timeout')) {
-          userErrorMessage = 'Camera startup timed out. Please try again.';
-        } else {
-          userErrorMessage = error.message;
-        }
-      }
-      
-      setCameraError(userErrorMessage);
-      
-      if (webcamRef.current) {
-        webcamRef.current.innerHTML = `<div class="flex flex-col items-center justify-center h-full text-red-500 p-4 text-center"><div class="text-lg mb-2">❌ Camera Error</div><div class="text-sm">${userErrorMessage}</div></div>`;
-      }
-      
-      if (mobileWebcam.current) {
-        mobileWebcam.current.stop();
-        mobileWebcam.current = null;
-      }
-    } finally {
-      setIsCameraStarting(false);
-    }
-  }, [isMobile]);
-
-  const startScreenSharing = useCallback(() => {
-    if (!isMobile || !mobileWebcam.current) return;
-    
-    console.log('📤 Starting continuous screen sharing...');
-    
-    if (screenShareIntervalRef.current) {
-      clearInterval(screenShareIntervalRef.current);
-    }
-    
-    screenShareIntervalRef.current = setInterval(() => {
-      try {
-        const videoElement = mobileWebcam.current?.getVideo();
+        };
         
-        if (videoElement && videoElement.readyState === 4) {
-          const canvas = mobileWebcam.current?.capturePreviewFrame();
-          
-          if (canvas) {
-            const imageDataUrl = canvas.toDataURL('image/jpeg', 0.8);
-            screenShareService.sharePreviewImage(imageDataUrl);
-            setMobilePreviewImage(imageDataUrl);
-          }
-        }
+        img.onerror = () => {
+          console.error('❌ Failed to load image');
+          URL.revokeObjectURL(imageUrl);
+        };
+        
+        img.src = imageUrl;
       } catch (error) {
-        console.error('❌ Error capturing frame:', error);
+        console.error(`Error processing file: ${file.name}`, error);
       }
-    }, 300);
-    
-    console.log('✅ Screen sharing interval started (with zoom-aware capture)');
-  }, [isMobile, screenShareService]);
-
-  const stopScreenSharing = useCallback(() => {
-    if (screenShareIntervalRef.current) {
-      clearInterval(screenShareIntervalRef.current);
-      screenShareIntervalRef.current = null;
-      console.log('📤 Screen sharing stopped');
     }
-  }, []);
-
-  const stopCamera = useCallback(() => {
-    console.log('🛑 Stopping camera...');
+  }, [localPreviewImage, model]);
+// Then update your startCamera function to set this state when ready:
+const startCamera = useCallback(async () => {
+  console.log('📷 startCamera called - isMobile:', isMobile);
+  if (!isMobile || !webcamRef.current) {
+    console.log('❌ startCamera blocked');
+    return;
+  }
+  
+  console.log('🚀 Starting camera process...');
+  setIsCameraStarting(true);
+  setCameraError(null);
+  setIsCameraReady(false); // Reset camera ready state
+  
+  try {
+    const permissions = await navigator.permissions.query({ name: 'camera' as PermissionName });
+    console.log('📋 Camera permission status:', permissions.state);
     
-    stopScreenSharing();
+    if (permissions.state === 'denied') {
+      throw new Error('Camera permission denied. Please enable camera permissions in your browser settings.');
+    }
     
     if (mobileWebcam.current) {
       mobileWebcam.current.stop();
       mobileWebcam.current = null;
     }
     
-    if (webcamRef.current) {
-      webcamRef.current.innerHTML = '<div class="flex flex-col items-center justify-center h-full text-gray-400"><div class="text-lg mb-2">📷</div><div class="text-sm">Camera stopped</div></div>';
+    webcamRef.current.innerHTML = '<div class="flex flex-col items-center justify-center h-full text-gray-500"><div class="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-500 mb-2"></div><div class="text-sm">Starting camera...</div></div>';
+    
+    mobileWebcam.current = new MobileWebcam({
+      width: 300,
+      height: 300,
+      facingMode: 'environment',
+      timeout: 20000,
+      zoom: 2.0
+    });
+    
+    console.log('📷 Initializing camera with 2x zoom...');
+    const videoElement = await mobileWebcam.current.start();
+    
+    webcamRef.current.innerHTML = '';
+    webcamRef.current.appendChild(videoElement);
+    
+    setTimeout(() => {
+      if (webcamRef.current && mobileWebcam.current) {
+        const outerContainer = webcamRef.current.parentElement;
+        if (outerContainer) {
+          const rect = outerContainer.getBoundingClientRect();
+          console.log('📱 Mobile preview container dimensions:', {
+            width: rect.width,
+            height: rect.height,
+            aspectRatio: (rect.width / rect.height).toFixed(2)
+          });
+          
+          mobileWebcam.current.setPreviewDimensions(rect.width, rect.height);
+        }
+      }
+    }, 1000);
+    
+    // CRITICAL: Set camera ready state AFTER camera is fully started
+setIsCameraReady(true);
+setIsVideoPaused(false); // Camera starts playing
+console.log('✅ Camera started successfully with zoom and marked as ready');
+    
+  } catch (error) {
+    console.error('❌ Error starting camera:', error);
+    
+    let userErrorMessage = 'Failed to start camera';
+    
+    if (error instanceof Error) {
+      if (error.message.includes('permission denied')) {
+        userErrorMessage = 'Camera permission denied. Please allow camera access.';
+      } else if (error.message.includes('timeout')) {
+        userErrorMessage = 'Camera startup timed out. Please try again.';
+      } else {
+        userErrorMessage = error.message;
+      }
     }
     
-    console.log('✅ Camera stopped successfully');
-  }, [stopScreenSharing]);
+    setCameraError(userErrorMessage);
+    setIsCameraReady(false);
+    
+    if (webcamRef.current) {
+      webcamRef.current.innerHTML = `<div class="flex flex-col items-center justify-center h-full text-red-500 p-4 text-center"><div class="text-lg mb-2">❌ Camera Error</div><div class="text-sm">${userErrorMessage}</div></div>`;
+    }
+    
+    if (mobileWebcam.current) {
+      mobileWebcam.current.stop();
+      mobileWebcam.current = null;
+    }
+  } finally {
+    setIsCameraStarting(false);
+  }
+}, [isMobile]);
+
+const stopCamera = useCallback(() => {
+  console.log('🛑 Stopping camera...');
+  
+  if (mobileWebcam.current) {
+    mobileWebcam.current.stop();
+    mobileWebcam.current = null;
+  }
+  
+  setIsCameraReady(false);
+  setIsVideoPaused(false); // Reset pause state
+  
+  if (webcamRef.current) {
+    webcamRef.current.innerHTML = '<div class="flex flex-col items-center justify-center h-full text-gray-400"><div class="text-lg mb-2">📷</div><div class="text-sm">Camera stopped</div></div>';
+  }
+  
+  console.log('✅ Camera stopped successfully');
+}, []);
+
+useEffect(() => {
+  if (!isMobile || activeMode !== 'webcam' || !isCameraReady || !mobileWebcam.current || !model) {
+    if (cameraPredictionIntervalRef.current) {
+      clearInterval(cameraPredictionIntervalRef.current);
+      cameraPredictionIntervalRef.current = null;
+    }
+    setLocalPredictions([]);
+    console.log('🛑 Camera prediction loop stopped');
+    return;
+  }
+  
+  let isRunning = false;
+  let consecutiveErrors = 0;
+  const MAX_ERRORS = 3;
+  let successCount = 0;
+  let lastCleanupTime = Date.now();
+  const CLEANUP_INTERVAL = 5000; // Cleanup every 5 seconds
+  
+  const runCameraPrediction = async () => {
+    if (isRunning) return;
+    if (!mobileWebcam.current || !model) return;
+    
+    isRunning = true;
+    
+    try {
+      // Check if it's time for periodic memory cleanup
+      const now = Date.now();
+      if (now - lastCleanupTime > CLEANUP_INTERVAL) {
+        forceMemoryCleanup();
+        lastCleanupTime = now;
+      }
+      
+      const videoElement = mobileWebcam.current.getVideo();
+      if (!videoElement) {
+        throw new Error('Video element is null');
+      }
+      
+      if (videoElement.paused || videoElement.ended) {
+        throw new Error('Video is paused or ended');
+      }
+      
+      if (videoElement.readyState < 2) {
+        throw new Error(`Video not ready (readyState: ${videoElement.readyState})`);
+      }
+      
+      const canvas = mobileWebcam.current.captureFrame();
+      if (!canvas) {
+        throw new Error('captureFrame() returned null');
+      }
+      
+      if (canvas.width !== 224 || canvas.height !== 224) {
+        throw new Error(`Invalid canvas size: ${canvas.width}x${canvas.height}`);
+      }
+      
+      // Prediction now wrapped in tf.tidy() automatically via predictFromCanvas
+      const predictions = await predictFromCanvas(model, canvas, false);
+      
+      if (!predictions || predictions.length === 0) {
+        throw new Error('Model returned empty predictions');
+      }
+      
+      consecutiveErrors = 0;
+      successCount++;
+      
+      const sortedPredictions = predictions.sort((a, b) => b.confidence - a.confidence);
+      
+      // Log memory stats every 30 predictions (~9 seconds)
+      if (successCount % 30 === 0) {
+        const memory = tf.memory();
+        console.log(`📊 Memory stats after ${successCount} predictions:`, {
+          numTensors: memory.numTensors,
+          numBytes: (memory.numBytes / 1024 / 1024).toFixed(2) + ' MB'
+        });
+      }
+      
+      setLocalPredictions(sortedPredictions);
+      
+    } catch (error) {
+      consecutiveErrors++;
+      console.error(`❌ Camera prediction error #${consecutiveErrors}:`, error);
+      
+      if (consecutiveErrors >= MAX_ERRORS) {
+        console.error('🛑 Too many consecutive errors, stopping predictions');
+        
+        if (cameraPredictionIntervalRef.current) {
+          clearInterval(cameraPredictionIntervalRef.current);
+          cameraPredictionIntervalRef.current = null;
+        }
+        
+        toast({
+          title: 'Camera Prediction Failed',
+          description: 'Unable to process camera feed. Please try restarting the camera.',
+          variant: 'destructive',
+        });
+        
+        setLocalPredictions([]);
+      }
+    } finally {
+      isRunning = false;
+    }
+  };
+  
+  console.log('🚀 Starting camera prediction loop with memory management');
+  runCameraPrediction();
+  
+  cameraPredictionIntervalRef.current = setInterval(runCameraPrediction, 300);
+  
+  return () => {
+    if (cameraPredictionIntervalRef.current) {
+      console.log('🛑 Stopping camera prediction loop');
+      clearInterval(cameraPredictionIntervalRef.current);
+      cameraPredictionIntervalRef.current = null;
+    }
+    
+    // Final cleanup when stopping
+    console.log('🧹 Final memory cleanup');
+    forceMemoryCleanup();
+  };
+}, [isMobile, activeMode, isCameraReady, model, toast]);
 
   useEffect(() => {
     console.log('🔄 Mode changed to:', activeMode);
@@ -519,20 +427,15 @@ export const Preview: React.FC<PreviewProps> = ({
     }
   }, [model]);
 
-  useEffect(() => {
-    if (predictions.length > 0 && isUsingRemoteModel) {
-      setIsUsingRemoteModel(false);
-    }
-  }, [predictions, isUsingRemoteModel]);
-
   const renderCameraDisplay = () => (
     <div className="relative border-2 border-dashed border-gray-300 rounded-lg aspect-video flex items-center justify-center bg-gray-50">
       <div 
         ref={webcamRef} 
         className={`absolute inset-[2px] flex items-center justify-center ${activeMode === 'webcam' ? '' : 'hidden'} z-0 rounded-lg overflow-hidden cursor-pointer`}
+        onClick={handleWebcamClick}
       />
 
-      {activeMode === 'webcam' && isPredicting && (
+      {activeMode === 'webcam' && displayPredictions.length > 0 && (
         <div className="absolute top-2 left-2 bg-blue-500 text-white px-3 py-1.5 rounded text-xs font-medium z-20 flex items-center gap-2">
           <div className="w-2 h-2 bg-white rounded-full animate-pulse"></div>
           Analyzing...
@@ -555,10 +458,10 @@ export const Preview: React.FC<PreviewProps> = ({
       )}
       
       {activeMode === 'upload' && (
-        (isMobileClient && mobilePreviewImage) || previewImage || desktopCameraFeed ? (
+        (localPreviewImage || previewImage) ? (
           <div className="absolute inset-[2px] flex items-center justify-center z-30 rounded-lg overflow-hidden">
             <img 
-              src={isMobileClient && mobilePreviewImage ? mobilePreviewImage : (previewImage || desktopCameraFeed)} 
+              src={localPreviewImage || previewImage} 
               alt="Preview" 
               className="max-w-full max-h-full object-contain"
             />
@@ -590,28 +493,16 @@ export const Preview: React.FC<PreviewProps> = ({
               </>
             )}
           </div>
-          <div className="flex gap-1">
-            <ConnectionDropdown isMobile={isMobile} onConnectionStatusChange={setIsConnected} />
-            <Button 
-              variant="ghost" 
-              size="default"
-              onClick={onToggleModels}
-              className="h-10 w-10 p-0"
-              title={showModels ? "Back to Preview" : "Models"}
-            >
-              {showModels ? <X className="w-5 h-5" /> : <List className="w-5 h-5" />}
-            </Button>
-          </div>
+          <Button 
+            variant="ghost" 
+            size="default"
+            onClick={onToggleModels}
+            className="h-10 w-10 p-0"
+            title={showModels ? "Back to Preview" : "Models"}
+          >
+            {showModels ? <X className="w-5 h-5" /> : <List className="w-5 h-5" />}
+          </Button>
         </div>
-        
-        {networkError && (
-          <div className="text-xs px-3 py-2 rounded-md mb-4 bg-red-100 text-red-800">
-            <div className="flex items-center gap-2">
-              <div className="w-2 h-2 rounded-full bg-red-500"></div>
-              <span>{networkError}</span>
-            </div>
-          </div>
-        )}
         
         {showModels ? (
           <>
@@ -620,7 +511,7 @@ export const Preview: React.FC<PreviewProps> = ({
                 <DropdownMenu>
                   <DropdownMenuTrigger asChild>
                     <Button variant="outline" className="w-fit">
-                      <Download className="mr-2 h-4 w-4" />
+                      <Cloud className="mr-2 h-4 w-4" />
                       Change Model
                     </Button>
                   </DropdownMenuTrigger>
@@ -662,7 +553,7 @@ export const Preview: React.FC<PreviewProps> = ({
                 <DropdownMenu>
                   <DropdownMenuTrigger asChild>
                     <Button variant="outline">
-                      <Download className="mr-2 h-4 w-4" />
+                      <Cloud className="mr-2 h-4 w-4" />
                       Select Model
                     </Button>
                   </DropdownMenuTrigger>
@@ -690,20 +581,14 @@ export const Preview: React.FC<PreviewProps> = ({
                   </Button>
                 </DropdownMenuTrigger>
                 <DropdownMenuContent align="start" className="w-48">
-                  <DropdownMenuItem onClick={() => {
-                    setActiveMode('webcam');
-                    screenShareService.shareModeChange('webcam');
-                  }}>
+                  <DropdownMenuItem onClick={() => setActiveMode('webcam')}>
                     <Camera className="mr-2 h-4 w-4" />
                     <span>Webcam</span>
                     {activeMode === 'webcam' && (
                       <div className="w-2 h-2 bg-green-500 rounded-full ml-auto"></div>
                     )}
                   </DropdownMenuItem>
-                  <DropdownMenuItem onClick={() => {
-                    setActiveMode('upload');
-                    screenShareService.shareModeChange('upload');
-                  }}>
+                  <DropdownMenuItem onClick={() => setActiveMode('upload')}>
                     <FolderOpen className="mr-2 h-4 w-4" />
                     <span>Upload</span>
                     {activeMode === 'upload' && (
@@ -715,18 +600,19 @@ export const Preview: React.FC<PreviewProps> = ({
               
               {activeMode === 'webcam' ? (
                 <Button
-                  variant={activeMode === 'webcam' ? 'default' : 'outline'}
-                  className={`justify-center w-auto py-3 ${activeMode === 'webcam' ? 'bg-green-600 hover:bg-green-700' : ''}`}
-                  onClick={handleWebcamClick}
-                >
-                  <div className="flex items-center gap-2">
-                    <Camera className="w-5 h-5" />
-                    <span>{mobileWebcam.current?.getVideo()?.paused ? 'Resume' : 'Pause'}</span>
-                    {activeMode === 'webcam' && !mobileWebcam.current?.getVideo()?.paused && (
-                      <div className="w-2 h-2 bg-green-400 rounded-full animate-pulse ml-1"></div>
-                    )}
-                  </div>
-                </Button>
+  variant={activeMode === 'webcam' ? 'default' : 'outline'}
+  className={`justify-center w-auto py-3 ${activeMode === 'webcam' ? 'bg-green-600 hover:bg-green-700' : ''}`}
+  onClick={handleWebcamClick}
+  disabled={!mobileWebcam.current}
+>
+  <div className="flex items-center gap-2">
+    <Camera className="w-5 h-5" />
+    <span>{isVideoPaused ? 'Resume' : 'Pause'}</span>
+    {activeMode === 'webcam' && !isVideoPaused && (
+      <div className="w-2 h-2 bg-green-400 rounded-full animate-pulse ml-1"></div>
+    )}
+  </div>
+</Button>
               ) : (
                 <div className="relative w-auto">
                   <input 
@@ -757,24 +643,36 @@ export const Preview: React.FC<PreviewProps> = ({
             </div>
             
             {renderCameraDisplay()}
+
+            {/* TEMPORARY DEBUG BUTTON */}
+{activeMode === 'webcam' && mobileWebcam.current && (
+  <Button 
+    onClick={() => {
+      if (mobileWebcam.current) {
+        const canvas = mobileWebcam.current.captureFrame();
+        if (canvas) {
+          const dataUrl = canvas.toDataURL();
+          console.log('✅ Test capture successful:', dataUrl.substring(0, 50) + '...');
+          const a = document.createElement('a');
+          a.href = dataUrl;
+          a.download = 'test-capture.png';
+          a.click();
+        } else {
+          console.error('❌ captureFrame returned null');
+        }
+      }
+    }}
+    variant="outline"
+    size="sm"
+    className="w-full"
+  >
+    🧪 Test Frame Capture
+  </Button>
+)}
+
+<div className="space-y-3"></div>
             
             <div className="space-y-3">
-              {!isMobile && (
-                <div className="flex items-center gap-2 text-xs px-3 py-2 rounded-md">
-                  <div className={`w-2 h-2 rounded-full ${isConnected ? 'bg-green-500' : 'bg-yellow-500'}`}></div>
-                  <span className={isConnected ? 'text-green-700' : 'text-yellow-700'}>
-                    {isConnected ? 'Mobile device connected' : 'Waiting for mobile connection...'}
-                  </span>
-                </div>
-              )}
-              
-              {isUsingRemoteModel && (
-                <div className="flex items-center gap-2 text-xs bg-blue-50 text-blue-700 px-3 py-2 rounded-md">
-                  <div className="w-2 h-2 bg-blue-500 rounded-full animate-pulse"></div>
-                  <span>Using model from desktop</span>
-                </div>
-              )}
-              
               <h4 className="font-medium">Prediction Results</h4>
               <div className="space-y-2">
                 {displayPredictions.length > 0 ? (
@@ -853,30 +751,18 @@ export const Preview: React.FC<PreviewProps> = ({
                 </>
               )}
             </div>
-            <div className="flex gap-1">
-              <ConnectionDropdown isMobile={isMobile} onConnectionStatusChange={setIsConnected} />
-              <Button 
-                variant="ghost" 
-                size="sm"
-                onClick={onToggleModels}
-                className="h-8 w-8 p-0"
-                title={showModels ? "Back to Preview" : "Models"}
-              >
-                {showModels ? <X className="w-4 h-4" /> : <List className="w-4 h-4" />}
-              </Button>
-            </div>
+            <Button 
+              variant="ghost" 
+              size="sm"
+              onClick={onToggleModels}
+              className="h-8 w-8 p-0"
+              title={showModels ? "Back to Preview" : "Models"}
+            >
+              {showModels ? <X className="w-4 h-4" /> : <List className="w-4 h-4" />}
+            </Button>
           </CardTitle>
         </CardHeader>
         <CardContent className="flex-1 overflow-hidden flex flex-col space-y-4">
-          {networkError && (
-            <div className="text-xs px-3 py-2 rounded-md bg-red-100 text-red-800">
-              <div className="flex items-center gap-2">
-                <div className="w-2 h-2 rounded-full bg-red-500"></div>
-                <span>{networkError}</span>
-              </div>
-            </div>
-          )}
-          
           {showModels ? (
             <>
               {model ? (
@@ -884,7 +770,7 @@ export const Preview: React.FC<PreviewProps> = ({
                   <DropdownMenu>
                     <DropdownMenuTrigger asChild>
                       <Button variant="outline" size="default" className="w-fit">
-                        <Download className="mr-2 h-4 w-4" />
+                        <Cloud className="mr-2 h-4 w-4" />
                         Change Model
                       </Button>
                     </DropdownMenuTrigger>
@@ -926,7 +812,7 @@ export const Preview: React.FC<PreviewProps> = ({
                   <DropdownMenu>
                     <DropdownMenuTrigger asChild>
                       <Button variant="outline" size="default">
-                        <Download className="mr-2 h-4 w-4" />
+                        <Cloud className="mr-2 h-4 w-4" />
                         Select Model
                       </Button>
                     </DropdownMenuTrigger>
@@ -954,20 +840,14 @@ export const Preview: React.FC<PreviewProps> = ({
                     </Button>
                   </DropdownMenuTrigger>
                   <DropdownMenuContent align="start" className="w-48">
-                    <DropdownMenuItem onClick={() => {
-                      setActiveMode('webcam');
-                      screenShareService.shareModeChange('webcam');
-                    }}>
+                    <DropdownMenuItem onClick={() => setActiveMode('webcam')}>
                       <Camera className="mr-2 h-4 w-4" />
                       <span>Webcam</span>
                       {activeMode === 'webcam' && (
                         <div className="w-2 h-2 bg-green-500 rounded-full ml-auto"></div>
                       )}
                     </DropdownMenuItem>
-                    <DropdownMenuItem onClick={() => {
-                      setActiveMode('upload');
-                      screenShareService.shareModeChange('upload');
-                    }}>
+                    <DropdownMenuItem onClick={() => setActiveMode('upload')}>
                       <FolderOpen className="mr-2 h-4 w-4" />
                       <span>Upload</span>
                       {activeMode === 'upload' && (
@@ -978,23 +858,20 @@ export const Preview: React.FC<PreviewProps> = ({
                 </DropdownMenu>
                 
                 {activeMode === 'webcam' ? (
-                  <Button
-                    variant={activeMode === 'webcam' ? 'default' : 'outline'}
-                    className={`justify-center w-auto py-3 ${activeMode === 'webcam' ? 'bg-green-600 hover:bg-green-700' : ''}`}
-                    onClick={handleWebcamClick}
-                  >
-                    <div className="flex items-center gap-2">
-                      {isCameraStarting ? (
-                        <Loader2 className="w-5 h-5 animate-spin" />
-                      ) : (
-                        <Camera className="w-5 h-5" />
-                      )}
-                      <span>{isCameraStarting ? 'Starting...' : 'Webcam'}</span>
-                      {activeMode === 'webcam' && !isCameraStarting && (
-                        <div className="w-2 h-2 bg-green-400 rounded-full animate-pulse ml-1"></div>
-                      )}
-                    </div>
-                  </Button>
+<Button
+  variant={activeMode === 'webcam' ? 'default' : 'outline'}
+  className={`justify-center w-auto py-3 ${activeMode === 'webcam' ? 'bg-green-600 hover:bg-green-700' : ''}`}
+  onClick={handleWebcamClick}
+  disabled={!mobileWebcam.current}
+>
+  <div className="flex items-center gap-2">
+    <Camera className="w-5 h-5" />
+    <span>{isVideoPaused ? 'Resume' : 'Pause'}</span>
+    {activeMode === 'webcam' && !isVideoPaused && (
+      <div className="w-2 h-2 bg-green-400 rounded-full animate-pulse ml-1"></div>
+    )}
+  </div>
+</Button>
                 ) : (
                   <div className="relative w-auto">
                     <input 
@@ -1025,6 +902,7 @@ export const Preview: React.FC<PreviewProps> = ({
               </div>
               
               {renderCameraDisplay()}
+
               
               <div className="space-y-3">
                 <h4 className="font-medium">Prediction Results</h4>

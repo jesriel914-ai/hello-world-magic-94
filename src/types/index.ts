@@ -61,9 +61,11 @@ export interface Student {
   student_id: string;
   firstname: string;
   surname: string;
+  middlename?: string;
   program: string;
   year: string;
   section: string;
+  sex?: string;
   signature_url?: string;
   created_at: string;
   updated_at: string;

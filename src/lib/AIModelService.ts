@@ -16,18 +16,26 @@ declare global {
 
 // Function to get AI service URL with fallback for browser environment
 // Function to get AI service URL with fallback for browser environment
+// Function to get AI service URL with fallback for browser environment
 const getAIServiceUrl = () => {
   if (typeof window !== 'undefined') {
-    // Use Vite environment variable correctly
-    // Remove any trailing slashes and ensure we use the correct port
-    const baseUrl = import.meta.env.VITE_AI_BASE_URL as string;
+    const currentHost = window.location.hostname;
     
+    // If accessing via Cloudflare tunnel, use the same domain
+    if (currentHost.includes('.trycloudflare.com') || currentHost.includes('.cfargotunnel.com')) {
+      // Use the current Cloudflare URL with /api prefix
+      const protocol = window.location.protocol; // https
+      const host = window.location.host; // includes port if any
+      return `${protocol}//${host}`;
+    }
+    
+    // For localhost/local IP, use environment variable or default
+    const baseUrl = import.meta.env.VITE_AI_BASE_URL as string;
     if (baseUrl) {
-      // Clean up the URL - remove trailing slashes
       return baseUrl.replace(/\/$/, '');
     }
     
-    // Fallback to localhost:8000 (backend server) if not set
+    // Fallback to localhost:8000
     return 'http://localhost:8000';
   }
   return 'http://localhost:8000';
@@ -621,6 +629,9 @@ async uploadTrainedModelToS3(
       throw new Error('Invalid JSON in model files');
     }
     
+    const metadataToUpload = JSON.parse(typedModelData.metadataJson);
+console.log('📤 Metadata being uploaded - labels:', metadataToUpload.labels);
+console.log('📤 Metadata being uploaded - full:', metadataToUpload);
     // Create model metadata for database
     const modelDetails = {
       sample_count: trainingData?.total_sample_count || 0,
@@ -758,6 +769,7 @@ async downloadModel(modelId: string): Promise<S3DownloadResult> {
         throw new Error(result.error || 'Backend proxy failed to download model');
       }
       
+      console.log('📥 Downloaded metadata - labels:', JSON.parse(result.data).metadataJson);
       console.log('✅ Backend proxy download successful');
       
       // Validate that we have the 3 required files
@@ -848,9 +860,12 @@ async downloadModel(modelId: string): Promise<S3DownloadResult> {
     }
   }
 
+
 /**
  * Load a trained model and convert it to CustomModel format
- * FIXED: Loads correct 3-file structure (model.json, weights.bin, metadata.json)
+ * FIXED: Uses new ModelImport service for Teachable Machine models
+ * 
+ * Replace the existing loadModel function in AIModelService.ts with this:
  */
 async loadModel(modelId: string): Promise<{
   success: boolean;
@@ -873,124 +888,81 @@ async loadModel(modelId: string): Promise<{
       throw new Error('Downloaded data is not in expected string format');
     }
     
-    let combinedData;
-    try {
-      combinedData = JSON.parse(modelContent);
-    } catch (parseError) {
-      throw new Error('Failed to parse downloaded model data');
-    }
+    console.log('✅ Model data downloaded');
     
-    // Validate 3-file structure
-    if (!combinedData.modelJson || !combinedData.weightsBin || !combinedData.metadataJson) {
-      throw new Error('Downloaded model is missing required files');
-    }
+    // Use the new ModelImport service to load the model
+    const { loadModelFromDownload } = await import('@/components/model-training-ui/services/ModelImport');
+    const importedModel = await loadModelFromDownload(modelContent);
     
-    console.log('✅ Model data validated');
+    console.log('✅ Model imported successfully');
+    console.log('📋 Model labels:', importedModel.metadata.labels);
     
-    // Parse model.json and metadata.json
-    const modelJson = JSON.parse(combinedData.modelJson);
-    const metadata = JSON.parse(combinedData.metadataJson);
-    
-    console.log('📋 Model format:', modelJson.format);
-    console.log('📋 Model labels:', metadata.labels);
-    
-    // Convert base64 weights to Uint8Array
-    let weightsData: Uint8Array;
-    try {
-      const base64Data = combinedData.weightsBin.split(',')[1] || combinedData.weightsBin;
-      const binaryString = atob(base64Data);
-      const bytes = new Uint8Array(binaryString.length);
-      for (let i = 0; i < binaryString.length; i++) {
-        bytes[i] = binaryString.charCodeAt(i);
-      }
-      weightsData = bytes;
-      console.log('✅ Weights converted from base64, size:', weightsData.length, 'bytes');
-    } catch (base64Error) {
-      console.error('❌ Failed to convert base64 weights:', base64Error);
-      throw new Error('Invalid weights data format');
-    }
-    
-    // Create Blob for weights
-    const weightsBlob = new Blob([weightsData], { type: 'application/octet-stream' });
-    
-    // Create File objects for TensorFlow.js loader
-    const modelJsonBlob = new Blob([combinedData.modelJson], { type: 'application/json' });
-    const modelJsonFile = new File([modelJsonBlob], 'model.json');
-    const weightsFile = new File([weightsBlob], 'weights.bin');
-    
-    console.log('🔧 Loading model with TensorFlow.js...');
-    
-    // Load the model using TensorFlow.js
-    const loadedTFModel = await tf.loadLayersModel(
-      tf.io.browserFiles([modelJsonFile, weightsFile])
-    );
-    
-    console.log('✅ TensorFlow.js model loaded successfully');
-    
-    // Extract labels from metadata
-    const labels = metadata.labels || [];
-    
-    // Create CustomModel interface
+    // Create CustomModel interface with proper prediction function
     const customModel: LoadedModel = {
       modelId: modelId,
-      trainingDate: metadata.createdAt || new Date().toISOString(),
-      accuracy: metadata.userMetadata?.accuracy || 0.85,
-      sampleCount: metadata.userMetadata?.sample_count || 0,
-      studentCount: metadata.userMetadata?.total_students || labels.length,
+      trainingDate: importedModel.metadata.userMetadata?.training_date || new Date().toISOString(),
+      accuracy: importedModel.metadata.userMetadata?.accuracy || 0.85,
+      sampleCount: importedModel.metadata.userMetadata?.sample_count || 0,
+      studentCount: importedModel.metadata.userMetadata?.total_students || importedModel.metadata.labels.length,
       
-      getClassLabels: () => labels,
-      getTotalClasses: () => labels.length,
+      getClassLabels: () => importedModel.metadata.labels,
+      getTotalClasses: () => importedModel.metadata.labels.length,
       
       predict: async (image: HTMLCanvasElement | HTMLVideoElement, flipped?: boolean) => {
         console.log('🔮 Making prediction with loaded model');
-        
+  
+        // DON'T use tf.tidy with async - do memory management manually
+        let imageTensor: tf.Tensor | null = null;
+        let normalized: tf.Tensor | null = null;
+        let batched: tf.Tensor | null = null;
+        let features: tf.Tensor | null = null;
+        let predictions: tf.Tensor | null = null;
+  
         try {
           // Preprocess image
-          let imageTensor = tf.browser.fromPixels(image)
+          imageTensor = tf.browser.fromPixels(image)
             .resizeNearestNeighbor([224, 224])
             .toFloat();
-          
+    
           if (flipped) {
-            imageTensor = imageTensor.reverse(1);
+            const flippedTensor = imageTensor.reverse(1);
+            imageTensor.dispose();
+            imageTensor = flippedTensor;
           }
-          
-          // Normalize to [-1, 1] (MobileNet preprocessing)
-          const normalized = imageTensor.sub(127.5).div(127.5);
-          const batched = normalized.expandDims(0);
-          
-          // Run prediction
-          const predictions = loadedTFModel.predict(batched) as tf.Tensor;
+    
+          // Normalize for MobileNet [-1, 1]
+          normalized = imageTensor.sub(127.5).div(127.5);
+          batched = normalized.expandDims(0);
+    
+          // Extract features using MobileNet
+          features = importedModel.featureExtractor.predict(batched) as tf.Tensor;
+    
+          // Run through classifier
+          predictions = importedModel.classifier.predict(features) as tf.Tensor;
           const predictionData = await predictions.data();
-          
+    
           // Convert to results
           const results: PredictionResult[] = Array.from(predictionData).map((confidence, index) => ({
-            className: labels[index] || `Class ${index}`,
+            className: importedModel.metadata.labels[index] || `Class ${index}`,
             confidence: Number(confidence)
           }));
-          
+    
           // Sort by confidence
           results.sort((a, b) => b.confidence - a.confidence);
-          
-          // Clean up tensors
-          imageTensor.dispose();
-          normalized.dispose();
-          batched.dispose();
-          predictions.dispose();
-          
+    
           return results;
-          
-        } catch (predictionError) {
-          console.error('❌ Error during prediction:', predictionError);
-          throw predictionError;
-        }
-      },
-      
-      dispose: () => {
-        console.log('🧹 Disposing model resources');
-        if (loadedTFModel) {
-          loadedTFModel.dispose();
+    
+        } finally {
+          // Clean up all tensors
+          if (imageTensor) imageTensor.dispose();
+          if (normalized) normalized.dispose();
+          if (batched) batched.dispose();
+          if (features) features.dispose();
+          if (predictions) predictions.dispose();
         }
       }
+      
+      
     };
     
     console.log('✅ Model loaded and ready for predictions');
