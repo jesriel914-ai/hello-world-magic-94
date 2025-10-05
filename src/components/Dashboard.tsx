@@ -617,7 +617,7 @@ const Dashboard = () => {
               </Button>
             </div>
           </CardHeader>
-          <CardContent className="h-[300px] overflow-y-auto overlay-scrollbar">
+          <CardContent className="h-[300px] overflow-y-auto overlay-scrollbar-container">
             <div className="space-y-3">
               {recentSessions.length > 0 ? (
                 recentSessions.map((session, index) => (

@@ -179,7 +179,7 @@ All colors MUST be HSL.
     display: none;  /* Chrome, Safari and Opera */
   }
 
-  /* Hidden overlay scrollbar - slim, minimal, blends perfectly */
+  /* True overlay scrollbar - doesn't consume space, overlays on content */
   .overlay-scrollbar {
     scrollbar-width: thin;
     scrollbar-color: rgba(0, 0, 0, 0.2) transparent;
@@ -205,6 +205,37 @@ All colors MUST be HSL.
   }
 
   .overlay-scrollbar::-webkit-scrollbar-corner {
+    background: transparent;
+  }
+
+  /* True overlay scrollbar container - content takes full width */
+  .overlay-scrollbar-container {
+    position: relative;
+    overflow: auto;
+    scrollbar-width: thin;
+    scrollbar-color: rgba(0, 0, 0, 0.2) transparent;
+  }
+
+  .overlay-scrollbar-container::-webkit-scrollbar {
+    width: 6px;
+    height: 6px;
+  }
+
+  .overlay-scrollbar-container::-webkit-scrollbar-track {
+    background: transparent;
+  }
+
+  .overlay-scrollbar-container::-webkit-scrollbar-thumb {
+    background: rgba(0, 0, 0, 0.2);
+    border-radius: 3px;
+    border: none;
+  }
+
+  .overlay-scrollbar-container::-webkit-scrollbar-thumb:hover {
+    background: rgba(0, 0, 0, 0.3);
+  }
+
+  .overlay-scrollbar-container::-webkit-scrollbar-corner {
     background: transparent;
   }
 }

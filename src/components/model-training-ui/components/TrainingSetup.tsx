@@ -195,7 +195,7 @@ const TrainingSetup: React.FC<TrainingSetupProps> = ({
         </CardTitle>
       </CardHeader>
       <CardContent className="flex-1 overflow-hidden flex flex-col">
-        <div className="flex-1 overflow-y-auto overlay-scrollbar space-y-4 pb-4">
+        <div className="flex-1 overflow-y-auto overlay-scrollbar-container space-y-4 pb-4">
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
             {classes.map((cls, index) => (
               <Card key={index} className="border-2 border-gray-200">
@@ -264,7 +264,7 @@ const TrainingSetup: React.FC<TrainingSetupProps> = ({
                       </div>
                     </div>
                     
-                    <div className="border-solid border-gray-300 rounded-lg p-1 min-h-[100px] bg-gray-50 overflow-x-auto overlay-scrollbar border-[0.5px]">
+                    <div className="border-solid border-gray-300 rounded-lg p-1 min-h-[100px] bg-gray-50 overflow-x-auto overlay-scrollbar-container border-[0.5px]">
                       {cls.samples.length > 0 ? (
                         <div className="flex gap-1">
                           {cls.samples.map((sample, sampleIndex) => (

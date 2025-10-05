@@ -916,55 +916,49 @@ const ExcuseApplicationContent = () => {
           {selectedExcuse && (
             <div className="flex flex-col flex-1 overflow-hidden">
               {/* Main Content - Scrollable */}
-              <div className="flex-1 overflow-y-auto overlay-scrollbar pr-2 space-y-6">
-                {/* Student Information */}
-                <div className="grid grid-cols-2 gap-4">
-                  <div>
-                    <Label className="text-sm font-medium text-gray-700">Name:</Label>
-                    <p className="text-base text-gray-900 mt-1">
+              <div className="flex-1 overflow-y-auto overlay-scrollbar-container pr-2 space-y-6">
+                {/* Student Information - Inline Format */}
+                <div className="space-y-2">
+                  <p className="text-sm">
+                    <span className="text-muted-foreground">Name:</span> <span className="font-medium">
                       {selectedExcuse.students?.firstname || 'Unknown'} {selectedExcuse.students?.surname || 'Student'}
-                    </p>
-                  </div>
-                  <div>
-                    <Label className="text-sm font-medium text-gray-700">Program:</Label>
-                    <p className="text-base text-gray-900 mt-1">
+                    </span>
+                  </p>
+                  <p className="text-sm">
+                    <span className="text-muted-foreground">Program:</span> <span className="font-medium">
                       {selectedExcuse.students?.program || 'N/A'}
-                    </p>
-                  </div>
-                  <div>
-                    <Label className="text-sm font-medium text-gray-700">ID:</Label>
-                    <p className="text-base text-gray-900 mt-1">
+                    </span>
+                  </p>
+                  <p className="text-sm">
+                    <span className="text-muted-foreground">ID:</span> <span className="font-medium">
                       {selectedExcuse.students?.student_id || 'N/A'}
-                    </p>
-                  </div>
-                  <div>
-                    <Label className="text-sm font-medium text-gray-700">Section:</Label>
-                    <p className="text-base text-gray-900 mt-1">
+                    </span>
+                  </p>
+                  <p className="text-sm">
+                    <span className="text-muted-foreground">Section:</span> <span className="font-medium">
                       {selectedExcuse.students?.section || 'N/A'}
-                    </p>
-                  </div>
-                  <div>
-                    <Label className="text-sm font-medium text-gray-700">Year:</Label>
-                    <p className="text-base text-gray-900 mt-1">
+                    </span>
+                  </p>
+                  <p className="text-sm">
+                    <span className="text-muted-foreground">Year:</span> <span className="font-medium">
                       {selectedExcuse.students?.year || 'N/A'}
-                    </p>
-                  </div>
-                  <div>
-                    <Label className="text-sm font-medium text-gray-700">Status:</Label>
-                    <div className="mt-1">
+                    </span>
+                  </p>
+                  <p className="text-sm">
+                    <span className="text-muted-foreground">Status:</span> <span className="ml-2">
                       {getStatusBadge(selectedExcuse.status)}
-                    </div>
-                  </div>
+                    </span>
+                  </p>
                 </div>
 
                 {/* Absence Data */}
                 <div>
-                  <Label className="text-sm font-medium text-gray-700">Absence Data:</Label>
-                  <p className="text-base text-gray-900 mt-1">
-                    {format(new Date(selectedExcuse.absence_date), 'EEEE, MMMM d, yyyy')}
+                  <p className="text-sm">
+                    <span className="text-muted-foreground">Absence Data:</span> <span className="font-medium">
+                      {format(new Date(selectedExcuse.absence_date), 'EEEE, MMMM d, yyyy')}
+                    </span>
                   </p>
                 </div>
-
 
                 {/* Review Notes */}
                 {selectedExcuse.review_notes && (
@@ -976,15 +970,7 @@ const ExcuseApplicationContent = () => {
                   </div>
                 )}
 
-                {/* Created Date */}
-                <div>
-                  <Label className="text-sm font-medium text-gray-700">Created</Label>
-                  <p className="text-sm text-gray-500 mt-1">
-                    {format(new Date(selectedExcuse.created_at), 'MMM d, yyyy h:mm a')}
-                  </p>
-                </div>
-
-                {/* Image Section - Square with hover zoom controls */}
+                {/* Image Section - Match viewport height with hover zoom controls */}
                 <div>
                   <div className="flex items-center justify-between mb-2">
                     <Label className="text-sm font-medium text-gray-700">Excuse Letter Preview</Label>
@@ -993,7 +979,7 @@ const ExcuseApplicationContent = () => {
                   {selectedExcuse.documentation_url ? (
                     <div className="relative group">
                       <div 
-                        className="border rounded-lg overflow-hidden bg-gray-50 relative cursor-grab active:cursor-grabbing aspect-square"
+                        className="border rounded-lg overflow-hidden bg-gray-50 relative cursor-grab active:cursor-grabbing h-96"
                         onMouseDown={handleImageMouseDown}
                         onMouseMove={handleImageMouseMove}
                         onMouseUp={handleImageMouseUp}
@@ -1035,7 +1021,7 @@ const ExcuseApplicationContent = () => {
                       </div>
                     </div>
                   ) : (
-                    <div className="aspect-square bg-gray-50 rounded-lg border-2 border-dashed border-gray-300 flex items-center justify-center">
+                    <div className="h-96 bg-gray-50 rounded-lg border-2 border-dashed border-gray-300 flex items-center justify-center">
                       <p className="text-sm text-gray-400">No excuse letter attached</p>
                     </div>
                   )}

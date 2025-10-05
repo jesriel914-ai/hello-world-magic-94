@@ -278,47 +278,39 @@ export default function SessionStudents({ sessionId, onClose }: SessionStudentsF
   return (
     <div className="space-y-4">
 
-      {/* Session Details - Updated Format */}
+      {/* Session Details - Inline Format */}
       <div className="mb-8">
-        <div className="grid grid-cols-2 gap-4">
-          <div>
-            <p className="text-sm text-muted-foreground mb-1">Type:</p>
-            <p className="text-base font-medium capitalize">{session.type}</p>
-          </div>
-          <div>
-            <p className="text-sm text-muted-foreground mb-1">Program:</p>
-            <p className="text-base font-medium">{session.program}</p>
-          </div>
-          <div>
-            <p className="text-sm text-muted-foreground mb-1">Date:</p>
-            <p className="text-base font-medium">
+        <div className="space-y-2">
+          <p className="text-sm">
+            <span className="text-muted-foreground">Type:</span> <span className="font-medium capitalize">{session.type}</span>
+          </p>
+          <p className="text-sm">
+            <span className="text-muted-foreground">Program:</span> <span className="font-medium">{session.program}</span>
+          </p>
+          <p className="text-sm">
+            <span className="text-muted-foreground">Date:</span> <span className="font-medium">
               {new Date(session.date).toLocaleDateString('en-US', {
                 weekday: 'long',
                 year: 'numeric',
                 month: 'long',
                 day: 'numeric'
               })}
-            </p>
-          </div>
-          <div>
-            <p className="text-sm text-muted-foreground mb-1">Year:</p>
-            <p className="text-base font-medium">{session.year}</p>
-          </div>
-          <div>
-            <p className="text-sm text-muted-foreground mb-1">Time:</p>
-            <p className="text-base font-medium">
+            </span>
+          </p>
+          <p className="text-sm">
+            <span className="text-muted-foreground">Year:</span> <span className="font-medium">{session.year}</span>
+          </p>
+          <p className="text-sm">
+            <span className="text-muted-foreground">Time:</span> <span className="font-medium">
               {formatTime(session.time_in)} - {session.time_out ? formatTime(session.time_out) : 'TBD'}
-            </p>
-          </div>
-          <div>
-            <p className="text-sm text-muted-foreground mb-1">Section:</p>
-            <p className="text-base font-medium">{session.section}</p>
-          </div>
-        </div>
-        
-        <div className="mt-4">
-          <p className="text-sm text-muted-foreground mb-1">Attendees:</p>
-          <p className="text-base font-medium">{pagination.totalCount} students</p>
+            </span>
+          </p>
+          <p className="text-sm">
+            <span className="text-muted-foreground">Section:</span> <span className="font-medium">{session.section}</span>
+          </p>
+          <p className="text-sm">
+            <span className="text-muted-foreground">Attendees:</span> <span className="font-medium">{pagination.totalCount} students</span>
+          </p>
         </div>
       </div>
       
@@ -366,42 +358,40 @@ export default function SessionStudents({ sessionId, onClose }: SessionStudentsF
 
             {paginatedStudents.length > 0 ? (
               <div className="bg-white rounded-md border border-gray-200 overflow-hidden">
-                <div className="overflow-x-auto overlay-scrollbar max-h-96">
-                  <table className="min-w-full divide-y divide-gray-200 text-sm">
-                    <thead className="bg-gray-50 sticky top-0">
-                      <tr className="text-xs text-gray-500">
-                        <th scope="col" className="px-6 py-2 text-left font-medium">Student</th>
-                        <th scope="col" className="px-6 py-2 text-left font-medium">ID</th>
-                        <th scope="col" className="px-6 py-2 text-left font-medium">Program</th>
-                        <th scope="col" className="px-6 py-2 text-left font-medium">Year & Section</th>
-                      </tr>
-                    </thead>
-                    <tbody className="bg-white divide-y divide-gray-200">
-                      {paginatedStudents.map((student) => {
-                        return (
-                          <tr key={student.id} className="hover:bg-gray-50">
-                            <td className="px-6 py-2 whitespace-nowrap">
-                              <div className="text-sm font-medium text-gray-900">
-                                {student.full_name}
-                              </div>
-                            </td>
-                            <td className="px-6 py-2 whitespace-nowrap text-gray-500 text-sm">
-                              {student.student_id}
-                            </td>
-                            <td className="px-6 py-2 whitespace-nowrap">
-                              <div className="text-sm text-gray-500 truncate max-w-[120px]">{student.program}</div>
-                            </td>
-                            <td className="px-6 py-2 whitespace-nowrap">
-                              <div className="text-sm text-gray-500">
-                                {student.year} • {student.section}
-                              </div>
-                            </td>
-                          </tr>
-                        );
-                      })}
-                    </tbody>
-                  </table>
-                </div>
+                <table className="min-w-full divide-y divide-gray-200 text-sm">
+                  <thead className="bg-gray-50">
+                    <tr className="text-xs text-gray-500">
+                      <th scope="col" className="px-6 py-2 text-left font-medium">Student</th>
+                      <th scope="col" className="px-6 py-2 text-left font-medium">ID</th>
+                      <th scope="col" className="px-6 py-2 text-left font-medium">Program</th>
+                      <th scope="col" className="px-6 py-2 text-left font-medium">Year & Section</th>
+                    </tr>
+                  </thead>
+                  <tbody className="bg-white divide-y divide-gray-200">
+                    {paginatedStudents.map((student) => {
+                      return (
+                        <tr key={student.id} className="hover:bg-gray-50">
+                          <td className="px-6 py-2 whitespace-nowrap">
+                            <div className="text-sm font-medium text-gray-900">
+                              {student.full_name}
+                            </div>
+                          </td>
+                          <td className="px-6 py-2 whitespace-nowrap text-gray-500 text-sm">
+                            {student.student_id}
+                          </td>
+                          <td className="px-6 py-2 whitespace-nowrap">
+                            <div className="text-sm text-gray-500 truncate max-w-[120px]">{student.program}</div>
+                          </td>
+                          <td className="px-6 py-2 whitespace-nowrap">
+                            <div className="text-sm text-gray-500">
+                              {student.year} • {student.section}
+                            </div>
+                          </td>
+                        </tr>
+                      );
+                    })}
+                  </tbody>
+                </table>
               </div>
             ) : (
               <div className="flex flex-col items-center justify-center py-12 px-4 text-center">
