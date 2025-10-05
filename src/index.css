@@ -178,4 +178,33 @@ All colors MUST be HSL.
   .hide-scrollbar::-webkit-scrollbar {
     display: none;  /* Chrome, Safari and Opera */
   }
+
+  /* Hidden overlay scrollbar - slim, minimal, blends perfectly */
+  .overlay-scrollbar {
+    scrollbar-width: thin;
+    scrollbar-color: rgba(0, 0, 0, 0.2) transparent;
+  }
+
+  .overlay-scrollbar::-webkit-scrollbar {
+    width: 6px;
+    height: 6px;
+  }
+
+  .overlay-scrollbar::-webkit-scrollbar-track {
+    background: transparent;
+  }
+
+  .overlay-scrollbar::-webkit-scrollbar-thumb {
+    background: rgba(0, 0, 0, 0.2);
+    border-radius: 3px;
+    border: none;
+  }
+
+  .overlay-scrollbar::-webkit-scrollbar-thumb:hover {
+    background: rgba(0, 0, 0, 0.3);
+  }
+
+  .overlay-scrollbar::-webkit-scrollbar-corner {
+    background: transparent;
+  }
 }

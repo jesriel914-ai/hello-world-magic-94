@@ -1,10 +1,9 @@
 import { useState, useEffect } from "react";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { Search, ArrowLeft, Users, User, Hash, GraduationCap, BookOpen, Clock, Calendar, Bookmark, RefreshCw, ChevronLeft, ChevronRight, ChevronsLeft, ChevronsRight } from "lucide-react";
+import { Search, ArrowLeft, User, RefreshCw } from "lucide-react";
 import { fetchSessionStudents } from "@/lib/supabaseService";
 import type { Student } from "@/types";
 
@@ -212,7 +211,8 @@ export default function SessionStudents({ sessionId, onClose }: SessionStudentsF
   };
 
   // Handle page size change
-  const handlePageSizeChange = (newPageSize: number) => {
+  const handlePageSizeChange = (value: string) => {
+    const newPageSize = value === 'all' ? filteredStudents.length : parseInt(value);
     setPagination(prev => ({ 
       ...prev, 
       pageSize: newPageSize, 
@@ -220,121 +220,6 @@ export default function SessionStudents({ sessionId, onClose }: SessionStudentsF
     }));
   };
 
-  // Pagination component
-  const PaginationControls = () => {
-    const { currentPage, totalPages, totalCount, pageSize } = pagination;
-    
-    if (totalPages <= 1) return null;
-
-    const getVisiblePages = () => {
-      const delta = 2;
-      const range = [];
-      const rangeWithDots = [];
-
-      for (let i = Math.max(2, currentPage - delta); i <= Math.min(totalPages - 1, currentPage + delta); i++) {
-        range.push(i);
-      }
-
-      if (currentPage - delta > 2) {
-        rangeWithDots.push(1, '...');
-      } else {
-        rangeWithDots.push(1);
-      }
-
-      rangeWithDots.push(...range);
-
-      if (currentPage + delta < totalPages - 1) {
-        rangeWithDots.push('...', totalPages);
-      } else if (totalPages > 1) {
-        rangeWithDots.push(totalPages);
-      }
-
-      return rangeWithDots;
-    };
-
-    const startItem = ((currentPage - 1) * pageSize) + 1;
-    const endItem = Math.min(currentPage * pageSize, totalCount);
-
-    return (
-      <div className="flex items-center justify-between px-6 py-3 bg-white border-t border-gray-200">
-        <div className="flex items-center text-sm text-gray-700">
-          <span>Showing {startItem.toLocaleString()} to {endItem.toLocaleString()} of {totalCount.toLocaleString()} students</span>
-          <div className="ml-4 flex items-center space-x-2">
-            <span>Show:</span>
-            <Select
-              value={pageSize.toString()}
-              onValueChange={(value) => handlePageSizeChange(parseInt(value))}
-            >
-              <SelectTrigger className="w-20 h-8">
-                <SelectValue />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="10">10</SelectItem>
-                <SelectItem value="25">25</SelectItem>
-                <SelectItem value="50">50</SelectItem>
-                <SelectItem value="100">100</SelectItem>
-              </SelectContent>
-            </Select>
-          </div>
-        </div>
-
-        <div className="flex items-center space-x-1">
-          <Button
-            variant="outline"
-            size="sm"
-            onClick={() => handlePageChange(1)}
-            disabled={currentPage === 1}
-            className="h-8 w-8 p-0"
-          >
-            <ChevronsLeft className="h-4 w-4" />
-          </Button>
-          
-          <Button
-            variant="outline"
-            size="sm"
-            onClick={() => handlePageChange(currentPage - 1)}
-            disabled={currentPage === 1}
-            className="h-8 w-8 p-0"
-          >
-            <ChevronLeft className="h-4 w-4" />
-          </Button>
-
-          {getVisiblePages().map((page, index) => (
-            <Button
-              key={index}
-              variant={currentPage === page ? "default" : "outline"}
-              size="sm"
-              onClick={() => typeof page === 'number' && handlePageChange(page)}
-              disabled={typeof page === 'string'}
-              className="h-8 min-w-[32px] px-2"
-            >
-              {page}
-            </Button>
-          ))}
-
-          <Button
-            variant="outline"
-            size="sm"
-            onClick={() => handlePageChange(currentPage + 1)}
-            disabled={currentPage === totalPages}
-            className="h-8 w-8 p-0"
-          >
-            <ChevronRight className="h-4 w-4" />
-          </Button>
-          
-          <Button
-            variant="outline"
-            size="sm"
-            onClick={() => handlePageChange(totalPages)}
-            disabled={currentPage === totalPages}
-            className="h-8 w-8 p-0"
-          >
-            <ChevronsRight className="h-4 w-4" />
-          </Button>
-        </div>
-      </div>
-    );
-  };
 
   if (loading) {
     return (
@@ -391,57 +276,49 @@ export default function SessionStudents({ sessionId, onClose }: SessionStudentsF
   }
 
   return (
-    <div className="px-6 py-4 space-y-4">
-      <Card className="border-0 shadow-sm w-full">
-        <CardContent className="p-6">
+    <div className="space-y-4">
 
-      {/* Session Details - Minimalist Layout */}
+      {/* Session Details - Updated Format */}
       <div className="mb-8">
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-          <div className="space-y-4">
-            <div>
-              <p className="text-sm text-muted-foreground mb-1">Date</p>
-              <p className="text-base font-medium">
-                {new Date(session.date).toLocaleDateString('en-US', {
-                  weekday: 'long',
-                  year: 'numeric',
-                  month: 'long',
-                  day: 'numeric'
-                })}
-              </p>
-            </div>
-            
-            <div>
-              <p className="text-sm text-muted-foreground mb-1">Time</p>
-              <p className="text-base font-medium">
-                {formatTime(session.time_in)} - {session.time_out ? formatTime(session.time_out) : 'TBD'}
-              </p>
-            </div>
-            
-            <div>
-              <p className="text-sm text-muted-foreground mb-1">Program</p>
-              <p className="text-base font-medium">{session.program}</p>
-            </div>
+        <div className="grid grid-cols-2 gap-4">
+          <div>
+            <p className="text-sm text-muted-foreground mb-1">Type:</p>
+            <p className="text-base font-medium capitalize">{session.type}</p>
           </div>
-          
-          <div className="space-y-4">
-            <div>
-              <p className="text-sm text-muted-foreground mb-1">Class</p>
-              <p className="text-base font-medium">
-                {session.year} • {session.section}
-              </p>
-            </div>
-            
-            <div>
-              <p className="text-sm text-muted-foreground mb-1">Attendees</p>
-              <p className="text-base font-medium">{pagination.totalCount} students</p>
-            </div>
-            
-            <div>
-              <p className="text-sm text-muted-foreground mb-1">Type</p>
-              <p className="text-base font-medium capitalize">{session.type}</p>
-            </div>
+          <div>
+            <p className="text-sm text-muted-foreground mb-1">Program:</p>
+            <p className="text-base font-medium">{session.program}</p>
           </div>
+          <div>
+            <p className="text-sm text-muted-foreground mb-1">Date:</p>
+            <p className="text-base font-medium">
+              {new Date(session.date).toLocaleDateString('en-US', {
+                weekday: 'long',
+                year: 'numeric',
+                month: 'long',
+                day: 'numeric'
+              })}
+            </p>
+          </div>
+          <div>
+            <p className="text-sm text-muted-foreground mb-1">Year:</p>
+            <p className="text-base font-medium">{session.year}</p>
+          </div>
+          <div>
+            <p className="text-sm text-muted-foreground mb-1">Time:</p>
+            <p className="text-base font-medium">
+              {formatTime(session.time_in)} - {session.time_out ? formatTime(session.time_out) : 'TBD'}
+            </p>
+          </div>
+          <div>
+            <p className="text-sm text-muted-foreground mb-1">Section:</p>
+            <p className="text-base font-medium">{session.section}</p>
+          </div>
+        </div>
+        
+        <div className="mt-4">
+          <p className="text-sm text-muted-foreground mb-1">Attendees:</p>
+          <p className="text-base font-medium">{pagination.totalCount} students</p>
         </div>
       </div>
       
@@ -455,25 +332,43 @@ export default function SessionStudents({ sessionId, onClose }: SessionStudentsF
       {/* Students List Section */}
       <div className="pt-6">
         <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 mb-6">
-          <h3 className="text-lg font-medium">
-            Students {pagination.totalPages > 1 && `(Page ${pagination.currentPage} of ${pagination.totalPages})`}
-          </h3>
-          <div className="relative w-full sm:w-64">
-            <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-muted-foreground w-4 h-4" />
-            <Input
-              placeholder="Search by name or ID..."
-              className="pl-10 h-9 w-full bg-background/80 border-border/50 hover:border-border/70 focus:border-primary/50 transition-colors"
-              value={searchQuery}
-              onChange={(e) => setSearchQuery(e.target.value)}
-            />
+          <h3 className="text-lg font-medium">Students</h3>
+          <div className="flex items-center gap-4">
+            <div className="flex items-center gap-2">
+              <span className="text-sm text-muted-foreground">Showed:</span>
+              <Select
+                value={pagination.pageSize.toString()}
+                onValueChange={(value) => handlePageSizeChange(parseInt(value))}
+              >
+                <SelectTrigger className="w-20 h-8">
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="10">10</SelectItem>
+                  <SelectItem value="25">25</SelectItem>
+                  <SelectItem value="50">50</SelectItem>
+                  <SelectItem value="100">100</SelectItem>
+                  <SelectItem value="all">ALL</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
+            <div className="relative w-full sm:w-64">
+              <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-muted-foreground w-4 h-4" />
+              <Input
+                placeholder="Search by name or ID..."
+                className="pl-10 h-9 w-full bg-background/80 border-border/50 hover:border-border/70 focus:border-primary/50 transition-colors"
+                value={searchQuery}
+                onChange={(e) => setSearchQuery(e.target.value)}
+              />
+            </div>
           </div>
         </div>
 
             {paginatedStudents.length > 0 ? (
               <div className="bg-white rounded-md border border-gray-200 overflow-hidden">
-                <div className="overflow-x-auto">
+                <div className="overflow-x-auto overlay-scrollbar max-h-96">
                   <table className="min-w-full divide-y divide-gray-200 text-sm">
-                    <thead className="bg-gray-50">
+                    <thead className="bg-gray-50 sticky top-0">
                       <tr className="text-xs text-gray-500">
                         <th scope="col" className="px-6 py-2 text-left font-medium">Student</th>
                         <th scope="col" className="px-6 py-2 text-left font-medium">ID</th>
@@ -507,7 +402,6 @@ export default function SessionStudents({ sessionId, onClose }: SessionStudentsF
                     </tbody>
                   </table>
                 </div>
-                <PaginationControls />
               </div>
             ) : (
               <div className="flex flex-col items-center justify-center py-12 px-4 text-center">
@@ -534,8 +428,6 @@ export default function SessionStudents({ sessionId, onClose }: SessionStudentsF
               </div>
             )}
           </div>
-        </CardContent>
-      </Card>
     </div>
   );
 }

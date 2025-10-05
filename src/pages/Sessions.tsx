@@ -1314,7 +1314,7 @@ const Schedule = () => {
             </div>
 
             {/* Sessions List */}
-            <div className="space-y-2">
+            <div className="space-y-2 overlay-scrollbar max-h-96 overflow-y-auto">
               {isLoading ? (
                 <div className="flex items-center justify-center py-8">
                   <Loader2 className="w-6 h-6 animate-spin text-education-blue mr-2" />

@@ -916,33 +916,55 @@ const ExcuseApplicationContent = () => {
           {selectedExcuse && (
             <div className="flex flex-col flex-1 overflow-hidden">
               {/* Main Content - Scrollable */}
-              <div className="flex-1 overflow-y-auto pr-2 space-y-6">
+              <div className="flex-1 overflow-y-auto overlay-scrollbar pr-2 space-y-6">
                 {/* Student Information */}
-                <div>
-                  <Label className="text-sm font-medium text-gray-700">Student</Label>
-                  <p className="text-base text-gray-900 mt-1">
-                    {selectedExcuse.students?.firstname || 'Unknown'} {selectedExcuse.students?.surname || 'Student'}
-                  </p>
-                  <p className="text-sm text-gray-500 mt-1">
-                    ID: {selectedExcuse.students?.student_id || 'N/A'} • {selectedExcuse.students?.program || 'N/A'}
-                  </p>
-                </div>
-
-                {/* Status */}
-                <div>
-                  <Label className="text-sm font-medium text-gray-700">Status</Label>
-                  <div className="mt-1">
-                    {getStatusBadge(selectedExcuse.status)}
+                <div className="grid grid-cols-2 gap-4">
+                  <div>
+                    <Label className="text-sm font-medium text-gray-700">Name:</Label>
+                    <p className="text-base text-gray-900 mt-1">
+                      {selectedExcuse.students?.firstname || 'Unknown'} {selectedExcuse.students?.surname || 'Student'}
+                    </p>
+                  </div>
+                  <div>
+                    <Label className="text-sm font-medium text-gray-700">Program:</Label>
+                    <p className="text-base text-gray-900 mt-1">
+                      {selectedExcuse.students?.program || 'N/A'}
+                    </p>
+                  </div>
+                  <div>
+                    <Label className="text-sm font-medium text-gray-700">ID:</Label>
+                    <p className="text-base text-gray-900 mt-1">
+                      {selectedExcuse.students?.student_id || 'N/A'}
+                    </p>
+                  </div>
+                  <div>
+                    <Label className="text-sm font-medium text-gray-700">Section:</Label>
+                    <p className="text-base text-gray-900 mt-1">
+                      {selectedExcuse.students?.section || 'N/A'}
+                    </p>
+                  </div>
+                  <div>
+                    <Label className="text-sm font-medium text-gray-700">Year:</Label>
+                    <p className="text-base text-gray-900 mt-1">
+                      {selectedExcuse.students?.year || 'N/A'}
+                    </p>
+                  </div>
+                  <div>
+                    <Label className="text-sm font-medium text-gray-700">Status:</Label>
+                    <div className="mt-1">
+                      {getStatusBadge(selectedExcuse.status)}
+                    </div>
                   </div>
                 </div>
 
-                {/* Absence Date */}
+                {/* Absence Data */}
                 <div>
-                  <Label className="text-sm font-medium text-gray-700">Absence Date</Label>
+                  <Label className="text-sm font-medium text-gray-700">Absence Data:</Label>
                   <p className="text-base text-gray-900 mt-1">
                     {format(new Date(selectedExcuse.absence_date), 'EEEE, MMMM d, yyyy')}
                   </p>
                 </div>
+
 
                 {/* Review Notes */}
                 {selectedExcuse.review_notes && (
@@ -962,60 +984,58 @@ const ExcuseApplicationContent = () => {
                   </p>
                 </div>
 
-                {/* Image Section - Larger */}
+                {/* Image Section - Square with hover zoom controls */}
                 <div>
                   <div className="flex items-center justify-between mb-2">
-                    <Label className="text-sm font-medium text-gray-700">Excuse Letter</Label>
-                    {selectedExcuse.documentation_url && (
-                      <div className="flex items-center gap-2">
+                    <Label className="text-sm font-medium text-gray-700">Excuse Letter Preview</Label>
+                  </div>
+                  
+                  {selectedExcuse.documentation_url ? (
+                    <div className="relative group">
+                      <div 
+                        className="border rounded-lg overflow-hidden bg-gray-50 relative cursor-grab active:cursor-grabbing aspect-square"
+                        onMouseDown={handleImageMouseDown}
+                        onMouseMove={handleImageMouseMove}
+                        onMouseUp={handleImageMouseUp}
+                        onMouseLeave={handleImageMouseUp}
+                      >
+                        <img 
+                          src={selectedExcuse.documentation_url} 
+                          alt="Excuse letter" 
+                          className="transition-transform duration-200 max-w-none object-contain w-full h-full"
+                          style={{ 
+                            transform: `scale(${imageZoom}) translate(${imagePan.x}px, ${imagePan.y}px)`,
+                            transformOrigin: 'center center'
+                          }}
+                          draggable={false}
+                        />
+                      </div>
+                      
+                      {/* Zoom controls - only visible on hover */}
+                      <div className="absolute top-2 right-2 opacity-0 group-hover:opacity-100 transition-opacity duration-200 flex items-center gap-1">
                         <Button
                           variant="outline"
                           size="sm"
                           onClick={() => handleZoomChange(Math.max(0.5, imageZoom - 0.25))}
+                          className="h-8 w-8 p-0 bg-black/80 hover:bg-black/90 border-black/80 text-white"
                         >
                           <ZoomOut className="h-4 w-4" />
                         </Button>
-                        <span className="text-xs text-muted-foreground">{Math.round(imageZoom * 100)}%</span>
+                        <span className="text-xs text-white bg-black/80 px-2 py-1 rounded text-center min-w-[3rem]">
+                          {Math.round(imageZoom * 100)}%
+                        </span>
                         <Button
                           variant="outline"
                           size="sm"
                           onClick={() => handleZoomChange(Math.min(3, imageZoom + 0.25))}
+                          className="h-8 w-8 p-0 bg-black/80 hover:bg-black/90 border-black/80 text-white"
                         >
                           <ZoomIn className="h-4 w-4" />
                         </Button>
-                        <Button
-                          variant="outline"
-                          size="sm"
-                          onClick={() => handleZoomChange(1)}
-                          className="ml-2"
-                        >
-                          Reset
-                        </Button>
                       </div>
-                    )}
-                  </div>
-                  
-                  {selectedExcuse.documentation_url ? (
-                    <div 
-                      className="border rounded-lg overflow-hidden bg-gray-50 relative cursor-grab active:cursor-grabbing h-96"
-                      onMouseDown={handleImageMouseDown}
-                      onMouseMove={handleImageMouseMove}
-                      onMouseUp={handleImageMouseUp}
-                      onMouseLeave={handleImageMouseUp}
-                    >
-                      <img 
-                        src={selectedExcuse.documentation_url} 
-                        alt="Excuse letter" 
-                        className="transition-transform duration-200 max-w-none object-contain w-full h-full"
-                        style={{ 
-                          transform: `scale(${imageZoom}) translate(${imagePan.x}px, ${imagePan.y}px)`,
-                          transformOrigin: 'center center'
-                        }}
-                        draggable={false}
-                      />
                     </div>
                   ) : (
-                    <div className="h-96 bg-gray-50 rounded-lg border-2 border-dashed border-gray-300 flex items-center justify-center">
+                    <div className="aspect-square bg-gray-50 rounded-lg border-2 border-dashed border-gray-300 flex items-center justify-center">
                       <p className="text-sm text-gray-400">No excuse letter attached</p>
                     </div>
                   )}
