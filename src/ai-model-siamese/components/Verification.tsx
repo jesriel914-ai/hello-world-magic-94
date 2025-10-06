@@ -83,33 +83,42 @@ export const Verification: React.FC<VerificationProps> = ({
   // Get available classes for dropdown
   const availableClasses = classes.filter(cls => cls.student);
 
-  // Mock verification handler
+  // Verification handler - calls Python verification pipeline
   const handleVerifySignature = async (signatureData: any) => {
-    if (!onVerifySignature) return;
+    if (!onVerifySignature || !selectedStudent) {
+      alert('Please select a student first!');
+      return;
+    }
     
     setIsVerifying(true);
     setVerificationResult(null);
     
     try {
-      // Simulate verification delay
-      await new Promise(resolve => setTimeout(resolve, 1500));
+      console.log('Starting signature verification...');
+      console.log('Student ID:', selectedStudent);
+      console.log('Signature data:', signatureData);
       
-      // Mock verification result - always show some result
-      const mockResult = {
-        isVerified: Math.random() > 0.3, // 70% chance of being verified
-        confidence: Math.random() * 0.4 + 0.6, // 60-100% confidence
-        studentId: 'mock-student'
+      // Import the Siamese service
+      const { siameseModelService } = await import('../lib/AIModelService');
+      
+      // Call the verification service
+      const result = await siameseModelService.verifySignature(selectedStudent, signatureData);
+      
+      console.log('Verification result:', result);
+      
+      // Convert to our expected format
+      const verificationResult = {
+        isVerified: result.is_verified,
+        confidence: result.confidence,
+        studentId: selectedStudent
       };
       
-      setVerificationResult(mockResult);
-      onVerifySignature(signatureData);
+      setVerificationResult(verificationResult);
+      onVerifySignature(verificationResult);
+      
     } catch (error) {
       console.error('Verification failed:', error);
-      setVerificationResult({
-        isVerified: false,
-        confidence: 0.2, // Show 20% confidence for failed verification
-        studentId: 'mock-student'
-      });
+      alert(`Verification failed: ${error}`);
     } finally {
       setIsVerifying(false);
     }

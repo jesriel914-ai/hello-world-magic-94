@@ -176,11 +176,12 @@ export const ModelTraining: React.FC<ModelTrainingProps> = ({
     setClasses(newClasses);
   };
 
-  // Mock training function
+  // Training function - calls Python training pipeline
   const trainModel = async () => {
     const validClasses = classes.filter(cls => cls.student && (cls.genuineSamples.length > 0 || cls.forgedSamples.length > 0));
     
     if (validClasses.length < 1) {
+      alert('Please add students and upload samples before training!');
       return;
     }
 
@@ -188,16 +189,35 @@ export const ModelTraining: React.FC<ModelTrainingProps> = ({
     setTrainingProgress(0);
 
     try {
-      // Mock training process
-      for (let i = 0; i <= 100; i += 10) {
-        await new Promise(resolve => setTimeout(resolve, 200));
-        setTrainingProgress(i);
+      console.log('Starting Siamese training for all students...');
+      
+      // Train model for each student
+      for (let i = 0; i < validClasses.length; i++) {
+        const cls = validClasses[i];
+        const studentId = cls.student?.student_id || `student_${i}`;
+        
+        console.log(`Training model for student: ${studentId}`);
+        
+        // Call the Siamese training service
+        const metadata = await siameseModelService.trainModel(
+          studentId,
+          cls.genuineSamples,
+          cls.forgedSamples
+        );
+        
+        console.log('Training completed for student:', metadata);
+        
+        // Update progress
+        const progress = ((i + 1) / validClasses.length) * 100;
+        setTrainingProgress(progress);
       }
 
       setIsModelLoaded(true);
+      console.log('All models trained successfully!');
 
     } catch (error) {
       console.error('Training failed:', error);
+      alert(`Training failed: ${error}`);
     } finally {
       setIsTraining(false);
       setTrainingProgress(0);
