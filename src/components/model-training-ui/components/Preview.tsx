@@ -106,7 +106,7 @@ export const Preview: React.FC<PreviewProps> = ({
       // Simulate verification delay
       await new Promise(resolve => setTimeout(resolve, 1500));
       
-      // Mock verification result
+      // Mock verification result - always show some result
       const mockResult = {
         isVerified: Math.random() > 0.3, // 70% chance of being verified
         confidence: Math.random() * 0.4 + 0.6, // 60-100% confidence
@@ -119,7 +119,7 @@ export const Preview: React.FC<PreviewProps> = ({
       console.error('Verification failed:', error);
       setVerificationResult({
         isVerified: false,
-        confidence: 0,
+        confidence: 0.2, // Show 20% confidence for failed verification
         studentId: prediction.className
       });
     } finally {
@@ -685,31 +685,39 @@ useEffect(() => {
             
             {renderCameraDisplay()}
 
-            {/* TEMPORARY DEBUG BUTTON */}
-{activeMode === 'webcam' && mobileWebcam.current && (
-  <Button 
-    onClick={() => {
-      if (mobileWebcam.current) {
-        const canvas = mobileWebcam.current.captureFrame();
-        if (canvas) {
-          const dataUrl = canvas.toDataURL();
-          console.log('✅ Test capture successful:', dataUrl.substring(0, 50) + '...');
-          const a = document.createElement('a');
-          a.href = dataUrl;
-          a.download = 'test-capture.png';
-          a.click();
-        } else {
-          console.error('❌ captureFrame returned null');
-        }
-      }
-    }}
-    variant="outline"
-    size="sm"
-    className="w-full"
-  >
-    🧪 Test Frame Capture
-  </Button>
-)}
+            {/* Verify Button and Match Display */}
+            {displayPredictions.length > 0 && displayPredictions[0] && (
+              <div className="flex items-center justify-between pt-3">
+                <div className="flex items-center gap-4">
+                  <div className="text-sm">
+                    <span className="text-gray-600">No Match:</span>
+                    <span className="ml-1 font-medium">
+                      {verificationResult && verificationResult.studentId === displayPredictions[0].className 
+                        ? `${((1 - verificationResult.confidence) * 100).toFixed(0)}%`
+                        : '00%'
+                      }
+                    </span>
+                  </div>
+                  <div className="text-sm">
+                    <span className="text-gray-600">Matched:</span>
+                    <span className="ml-1 font-medium">
+                      {verificationResult && verificationResult.studentId === displayPredictions[0].className 
+                        ? `${(verificationResult.confidence * 100).toFixed(0)}%`
+                        : '00%'
+                      }
+                    </span>
+                  </div>
+                </div>
+                <Button
+                  size="sm"
+                  variant="outline"
+                  onClick={() => handleVerifySignature(displayPredictions[0])}
+                  disabled={isVerifying}
+                >
+                  {isVerifying ? 'Verifying...' : 'Verify'}
+                </Button>
+              </div>
+            )}
 
 <div className="space-y-3"></div>
             
@@ -729,44 +737,6 @@ useEffect(() => {
                             className="bg-green-600 h-2 rounded-full transition-all duration-300" 
                             style={{ width: `${displayPredictions[0].confidence * 100}%` }}
                           />
-                        </div>
-                        
-                        {/* Verify Button */}
-                        <div className="flex items-center justify-between pt-2">
-                          <Button
-                            size="sm"
-                            variant="outline"
-                            onClick={() => handleVerifySignature(displayPredictions[0])}
-                            disabled={isVerifying}
-                            className="flex items-center gap-2"
-                          >
-                            {isVerifying ? (
-                              <Loader2 className="w-4 h-4 animate-spin" />
-                            ) : (
-                              <Shield className="w-4 h-4" />
-                            )}
-                            {isVerifying ? 'Verifying...' : 'Verify'}
-                          </Button>
-                          
-                          {/* Verification Result */}
-                          {verificationResult && verificationResult.studentId === displayPredictions[0].className && (
-                            <div className="flex items-center gap-2">
-                              {verificationResult.isVerified ? (
-                                <div className="flex items-center gap-1 text-green-600">
-                                  <CheckCircle className="w-4 h-4" />
-                                  <span className="text-sm font-medium">Verified</span>
-                                </div>
-                              ) : (
-                                <div className="flex items-center gap-1 text-red-600">
-                                  <XCircle className="w-4 h-4" />
-                                  <span className="text-sm font-medium">Rejected</span>
-                                </div>
-                              )}
-                              <span className="text-xs text-gray-500">
-                                {(verificationResult.confidence * 100).toFixed(0)}%
-                              </span>
-                            </div>
-                          )}
                         </div>
                       </div>
                     )}
@@ -982,6 +952,39 @@ useEffect(() => {
               
               {renderCameraDisplay()}
 
+              {/* Verify Button and Match Display */}
+              {displayPredictions.length > 0 && displayPredictions[0] && (
+                <div className="flex items-center justify-between pt-3">
+                  <div className="flex items-center gap-4">
+                    <div className="text-sm">
+                      <span className="text-gray-600">No Match:</span>
+                      <span className="ml-1 font-medium">
+                        {verificationResult && verificationResult.studentId === displayPredictions[0].className 
+                          ? `${((1 - verificationResult.confidence) * 100).toFixed(0)}%`
+                          : '00%'
+                        }
+                      </span>
+                    </div>
+                    <div className="text-sm">
+                      <span className="text-gray-600">Matched:</span>
+                      <span className="ml-1 font-medium">
+                        {verificationResult && verificationResult.studentId === displayPredictions[0].className 
+                          ? `${(verificationResult.confidence * 100).toFixed(0)}%`
+                          : '00%'
+                        }
+                      </span>
+                    </div>
+                  </div>
+                  <Button
+                    size="sm"
+                    variant="outline"
+                    onClick={() => handleVerifySignature(displayPredictions[0])}
+                    disabled={isVerifying}
+                  >
+                    {isVerifying ? 'Verifying...' : 'Verify'}
+                  </Button>
+                </div>
+              )}
               
               <div className="space-y-3">
                 <h4 className="font-medium">Prediction Results</h4>

@@ -17,7 +17,9 @@ import {
   Shield,
   AlertTriangle,
   ChevronLeft,
-  ChevronRight
+  ChevronRight,
+  Users,
+  User
 } from 'lucide-react';
 import {
   DropdownMenu,
@@ -216,7 +218,7 @@ const TrainingSetup: React.FC<TrainingSetupProps> = ({
                     : 'text-gray-600 hover:text-gray-900'
                 }`}
               >
-                <Brain className="w-3 h-3 inline mr-1" />
+                <Users className="w-3 h-3 inline mr-1" />
                 Classifier
               </button>
               <button
@@ -227,7 +229,7 @@ const TrainingSetup: React.FC<TrainingSetupProps> = ({
                     : 'text-gray-600 hover:text-gray-900'
                 }`}
               >
-                <Shield className="w-3 h-3 inline mr-1" />
+                <User className="w-3 h-3 inline mr-1" />
                 Siamese
               </button>
             </div>
@@ -286,8 +288,8 @@ const TrainingSetup: React.FC<TrainingSetupProps> = ({
                         <label className="cursor-pointer">
                           <Button variant="secondary" size="sm" className="bg-green-100 hover:bg-green-200 text-green-800 border-green-200" asChild>
                             <span>
-                              <Upload className="w-4 h-4 mr-2" />
-                              Genuine Upload
+                              <Upload className="w-3 h-3 mr-1" />
+                              Genuine
                             </span>
                           </Button>
                           <input 
@@ -301,8 +303,8 @@ const TrainingSetup: React.FC<TrainingSetupProps> = ({
                         <label className="cursor-pointer">
                           <Button variant="secondary" size="sm" className="bg-red-100 hover:bg-red-200 text-red-800 border-red-200" asChild>
                             <span>
-                              <AlertTriangle className="w-4 h-4 mr-2" />
-                              Forged Upload
+                              <Upload className="w-3 h-3 mr-1" />
+                              Forged
                             </span>
                           </Button>
                           <input 
