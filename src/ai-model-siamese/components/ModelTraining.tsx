@@ -139,17 +139,22 @@ export const ModelTraining: React.FC<ModelTrainingProps> = ({
   };
 
   // Add multiple students
-  const addMultipleStudents = (students: Student[], samplesMap?: Map<string, SampleData[]>) => {
+  const addMultipleStudents = (students: Student[], samplesMap?: Map<string, { genuine: SampleData[], forged: SampleData[] }>) => {
     if (students.length === 0) return;
     
     const colors = ['#FF6B6B', '#4ECDC4', '#45B7D1', '#96CEB4', '#FECA57', '#FF9FF3', '#54A0FF'];
-    const newClasses = students.map((student, index) => ({
-      student,
-      color: colors[(classes.length + index) % colors.length],
-      samples: samplesMap?.get(student.student_id) || [],
-      genuineSamples: [],
-      forgedSamples: []
-    }));
+    const newClasses = students.map((student, index) => {
+      const studentSamples = samplesMap?.get(student.student_id);
+      const allSamples = studentSamples ? [...studentSamples.genuine, ...studentSamples.forged] : [];
+      
+      return {
+        student,
+        color: colors[(classes.length + index) % colors.length],
+        samples: allSamples,
+        genuineSamples: studentSamples?.genuine || [],
+        forgedSamples: studentSamples?.forged || []
+      };
+    });
     
     setClasses([...classes, ...newClasses]);
   };

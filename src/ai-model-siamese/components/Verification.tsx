@@ -264,7 +264,7 @@ return (
           ) : (
             <>
               <FileImage className="w-6 h-6" />
-              <span className="text-base">Signature Verification</span>
+              <span className="text-base">Verification</span>
             </>
           )}
         </div>
@@ -380,39 +380,39 @@ return (
           
           {renderCameraDisplay()}
 
-          {/* Verify Button and Match Display */}
-          {(localPreviewImage || previewImage) && (
-            <div className="flex items-center justify-between pt-3">
-              <div className="flex items-center gap-4">
-                <div className="text-sm">
-                  <span className="text-gray-600">No Match:</span>
-                  <span className="ml-1 font-medium">
-                    {verificationResult 
-                      ? `${((1 - verificationResult.confidence) * 100).toFixed(0)}%`
-                      : '00%'
-                    }
-                  </span>
-                </div>
-                <div className="text-sm">
-                  <span className="text-gray-600">Matched:</span>
-                  <span className="ml-1 font-medium">
-                    {verificationResult 
-                      ? `${(verificationResult.confidence * 100).toFixed(0)}%`
-                      : '00%'
-                    }
-                  </span>
-                </div>
-              </div>
-              <Button
-                size="sm"
-                variant="outline"
-                onClick={() => handleVerifySignature({ image: localPreviewImage || previewImage })}
-                disabled={isVerifying}
-              >
-                {isVerifying ? 'Verifying...' : 'Verify'}
-              </Button>
+          {/* Verify Button - Always visible */}
+          <div className="flex justify-end pt-3">
+            <Button
+              size="sm"
+              variant="outline"
+              onClick={() => handleVerifySignature({ image: localPreviewImage || previewImage })}
+              disabled={isVerifying}
+            >
+              {isVerifying ? 'Verifying...' : 'Verify'}
+            </Button>
+          </div>
+
+          {/* Match Display - Always visible below */}
+          <div className="flex items-center gap-4 pt-2">
+            <div className="text-sm">
+              <span className="text-gray-600">No Match:</span>
+              <span className="ml-1 font-medium">
+                {verificationResult 
+                  ? `${((1 - verificationResult.confidence) * 100).toFixed(0)}%`
+                  : '10%'
+                }
+              </span>
             </div>
-          )}
+            <div className="text-sm">
+              <span className="text-gray-600">Matched:</span>
+              <span className="ml-1 font-medium">
+                {verificationResult 
+                  ? `${(verificationResult.confidence * 100).toFixed(0)}%`
+                  : '90%'
+                }
+              </span>
+            </div>
+          </div>
 
 <div className="space-y-3"></div>
         </>
@@ -431,7 +431,7 @@ return (
             ) : (
               <>
                 <FileImage className="w-5 h-5" />
-                <span>Signature Verification</span>
+                <span>Verification</span>
               </>
             )}
           </div>
@@ -547,39 +547,39 @@ return (
             
             {renderCameraDisplay()}
 
-            {/* Verify Button and Match Display */}
-            {(localPreviewImage || previewImage) && (
-              <div className="flex items-center justify-between pt-3">
-                <div className="flex items-center gap-4">
-                  <div className="text-sm">
-                    <span className="text-gray-600">No Match:</span>
-                    <span className="ml-1 font-medium">
-                      {verificationResult 
-                        ? `${((1 - verificationResult.confidence) * 100).toFixed(0)}%`
-                        : '00%'
-                      }
-                    </span>
-                  </div>
-                  <div className="text-sm">
-                    <span className="text-gray-600">Matched:</span>
-                    <span className="ml-1 font-medium">
-                      {verificationResult 
-                        ? `${(verificationResult.confidence * 100).toFixed(0)}%`
-                        : '00%'
-                      }
-                    </span>
-                  </div>
-                </div>
-                <Button
-                  size="sm"
-                  variant="outline"
-                  onClick={() => handleVerifySignature({ image: localPreviewImage || previewImage })}
-                  disabled={isVerifying}
-                >
-                  {isVerifying ? 'Verifying...' : 'Verify'}
-                </Button>
+            {/* Verify Button - Always visible */}
+            <div className="flex justify-end pt-3">
+              <Button
+                size="sm"
+                variant="outline"
+                onClick={() => handleVerifySignature({ image: localPreviewImage || previewImage })}
+                disabled={isVerifying}
+              >
+                {isVerifying ? 'Verifying...' : 'Verify'}
+              </Button>
+            </div>
+
+            {/* Match Display - Always visible below */}
+            <div className="flex items-center gap-4 pt-2">
+              <div className="text-sm">
+                <span className="text-gray-600">No Match:</span>
+                <span className="ml-1 font-medium">
+                  {verificationResult 
+                    ? `${((1 - verificationResult.confidence) * 100).toFixed(0)}%`
+                    : '10%'
+                  }
+                </span>
               </div>
-            )}
+              <div className="text-sm">
+                <span className="text-gray-600">Matched:</span>
+                <span className="ml-1 font-medium">
+                  {verificationResult 
+                    ? `${(verificationResult.confidence * 100).toFixed(0)}%`
+                    : '90%'
+                  }
+                </span>
+              </div>
+            </div>
           </>
         )}
       </CardContent>

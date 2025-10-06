@@ -28,7 +28,7 @@ import {
   DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu';
 import StudentSelectionModal from '@/components/model-training-ui/components/StudentSelectionModal';
-import BatchUpload from '@/components/model-training-ui/components/BatchUpload';
+import BatchUpload from './BatchUpload';
 import type { Student } from '@/types';
 import type { ClassData } from './ModelTraining';
 import { fetchStudents } from '@/lib/supabaseService';
@@ -111,19 +111,21 @@ const TrainingSetup: React.FC<TrainingSetupProps> = ({
       setProcessedFiles(0);
       
       // Calculate total files
-      const total = validFolders.reduce((sum, folder) => sum + folder.files.length, 0);
+      const total = validFolders.reduce((sum, folder) => sum + folder.genuineFiles.length + folder.forgedFiles.length, 0);
       setTotalFiles(total);
       
-      const samplesMap = new Map<string, any[]>();
+      const samplesMap = new Map<string, { genuine: any[], forged: any[] }>();
       let filesProcessed = 0;
       
       for (const folder of validFolders) {
-        const { matchedStudent, files } = folder;
-        const samples: any[] = [];
+        const { matchedStudent, genuineFiles, forgedFiles } = folder;
+        const genuineSamples: any[] = [];
+        const forgedSamples: any[] = [];
         
         setCurrentProcessingStudent(formatStudentDisplay(matchedStudent));
         
-        for (const file of files) {
+        // Process genuine files
+        for (const file of genuineFiles) {
           try {
             const img = new Image();
             await new Promise<void>((resolve, reject) => {
@@ -138,9 +140,10 @@ const TrainingSetup: React.FC<TrainingSetupProps> = ({
                     ctx.drawImage(img, 0, 0, 224, 224);
                     const thumbnail = canvas.toDataURL('image/jpeg', 0.8);
                     
-                    samples.push({
+                    genuineSamples.push({
                       thumbnail,
-                      timestamp: Date.now()
+                      timestamp: Date.now(),
+                      type: 'genuine'
                     });
                   }
                   
@@ -158,11 +161,55 @@ const TrainingSetup: React.FC<TrainingSetupProps> = ({
               img.src = URL.createObjectURL(file);
             });
           } catch (error) {
-            console.error('Error processing file:', error);
+            console.error('Error processing genuine file:', error);
           }
         }
         
-        samplesMap.set(matchedStudent.student_id, samples);
+        // Process forged files
+        for (const file of forgedFiles) {
+          try {
+            const img = new Image();
+            await new Promise<void>((resolve, reject) => {
+              img.onload = async () => {
+                try {
+                  const canvas = document.createElement('canvas');
+                  canvas.width = 224;
+                  canvas.height = 224;
+                  const ctx = canvas.getContext('2d');
+                  
+                  if (ctx) {
+                    ctx.drawImage(img, 0, 0, 224, 224);
+                    const thumbnail = canvas.toDataURL('image/jpeg', 0.8);
+                    
+                    forgedSamples.push({
+                      thumbnail,
+                      timestamp: Date.now(),
+                      type: 'forged'
+                    });
+                  }
+                  
+                  filesProcessed++;
+                  setProcessedFiles(filesProcessed);
+                  setUploadProgress((filesProcessed / total) * 100);
+                  
+                  resolve();
+                } catch (error) {
+                  reject(error);
+                }
+              };
+              
+              img.onerror = () => reject(new Error(`Failed to load image: ${file.name}`));
+              img.src = URL.createObjectURL(file);
+            });
+          } catch (error) {
+            console.error('Error processing forged file:', error);
+          }
+        }
+        
+        samplesMap.set(matchedStudent.student_id, { 
+          genuine: genuineSamples, 
+          forged: forgedSamples 
+        });
       }
       
       const students = validFolders.map(folder => folder.matchedStudent);
@@ -185,7 +232,7 @@ const TrainingSetup: React.FC<TrainingSetupProps> = ({
         <CardTitle className="flex items-center justify-between">
           <div className="flex items-center gap-2">
             <User className="w-5 h-5" />
-            Siamese Training Setup
+            Training Setup
           </div>
           <DropdownMenu>
             <DropdownMenuTrigger asChild>
@@ -429,7 +476,7 @@ const TrainingSetup: React.FC<TrainingSetupProps> = ({
               className="flex-1"
             >
               <User className="w-4 h-4 mr-2" />
-              {isTraining ? 'Training...' : 'Train Siamese Model'}
+              {isTraining ? 'Training...' : 'Train Model'}
             </Button>
             
             <DropdownMenu>
