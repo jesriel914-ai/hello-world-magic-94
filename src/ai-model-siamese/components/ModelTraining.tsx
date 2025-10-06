@@ -1,21 +1,9 @@
 //filepath: ai-model-siamese/components/ModelTraining.tsx
-import React, { useState, useRef, useEffect, useCallback } from 'react';
-import { Progress } from '@/components/ui/progress';
-import StudentSelectionModal from '@/components/model-training-ui/components/StudentSelectionModal';
-import { useStudents } from '@/hooks/use-students';
+import React, { useState } from 'react';
 import TrainingSetup from './TrainingSetup';
 import Verification from './Verification';
 import useMobileDetection from '@/hooks/use-mobile-detection';
 import type { Student } from '@/types';
-import { toast } from '@/hooks/use-toast';
-import {
-  DropdownMenu,
-  DropdownMenuContent,
-  DropdownMenuItem,
-  DropdownMenuTrigger,
-} from '@/components/ui/dropdown-menu';
-import { Button } from '@/components/ui/button';
-import { Cloud, Download, FolderOpen } from 'lucide-react';
 
 interface ModelTrainingProps {
   onModelTrained?: (model: any) => void;
@@ -73,68 +61,23 @@ export const ModelTraining: React.FC<ModelTrainingProps> = ({
   const [classes, setClasses] = useState<ClassData[]>([
     { student: null, color: '#FF6B6B', samples: [], genuineSamples: [], forgedSamples: [] }
   ]);
-  const [currentClassIndex, setCurrentClassIndex] = useState(0);
-  const [newClassName, setNewClassName] = useState('');
-  const [model, setModel] = useState<CustomModel | null>(null);
-  const [maxPredictions, setMaxPredictions] = useState(0);
   const [trainingProgress, setTrainingProgress] = useState(0);
-  const [trainingAccuracy, setTrainingAccuracy] = useState<number | null>(null);
   const [previewImage, setPreviewImage] = useState<string | null>(null);
-  const [webcam, setWebcam] = useState<any>(null);
-  const [trainingStartTime, setTrainingStartTime] = useState<number | null>(null);
   
   // Models display state
   const [showModels, setShowModels] = useState(false);
   const [isLoadingModels, setIsLoadingModels] = useState(false);
   const [trainedModels, setTrainedModels] = useState<TrainedModel[]>([]);
-  const [visiblePredictions, setVisiblePredictions] = useState(3);
-
-  const { students, isLoading: isLoadingStudents } = useStudents();
-
-  // Initialize TensorFlow
-  useEffect(() => {
-    const initTF = async () => {
-      try {
-        // Initialize TF for Siamese networks - will be implemented later
-        console.log('Initializing TensorFlow for Siamese networks...');
-      } catch (error) {
-        console.error('Failed to initialize TensorFlow:', error);
-      }
-    };
-    initTF();
-  }, []);
 
   // Handle preview file upload
-  const handlePreviewFileUpload = useCallback(async (event: React.ChangeEvent<HTMLInputElement>) => {
-    console.log('📤 File upload handler called');
+  const handlePreviewFileUpload = (event: React.ChangeEvent<HTMLInputElement>) => {
     const file = event.target.files?.[0];
-    if (!file) {
-      console.log('❌ No file selected');
-      return;
-    }
+    if (!file) return;
     
-    try {
-      const imageUrl = URL.createObjectURL(file);
-      console.log('✅ Created object URL:', imageUrl);
-      
-      setPreviewImage(imageUrl);
-      console.log('✅ Set preview image');
-      
-      // Mock prediction for now
-      const mockPredictions = [
-        { className: 'Mock Student 1', confidence: 0.85 },
-        { className: 'Mock Student 2', confidence: 0.72 },
-        { className: 'Mock Student 3', confidence: 0.68 }
-      ];
-      
-      console.log('✅ Mock predictions generated:', mockPredictions);
-      
-    } catch (error) {
-      console.error('❌ Error processing file:', error);
-    }
-    
+    const imageUrl = URL.createObjectURL(file);
+    setPreviewImage(imageUrl);
     event.target.value = '';
-  }, []);
+  };
 
   // Handle file upload for specific class
   const handleFileUpload = async (classIndex: number, event: React.ChangeEvent<HTMLInputElement>, type: 'genuine' | 'forged' = 'genuine') => {
@@ -142,7 +85,6 @@ export const ModelTraining: React.FC<ModelTrainingProps> = ({
     if (!files || files.length === 0) return;
 
     const newClasses = [...classes];
-    let processedCount = 0;
 
     try {
       for (let i = 0; i < files.length; i++) {
@@ -175,8 +117,6 @@ export const ModelTraining: React.FC<ModelTrainingProps> = ({
                 
                 // Also add to main samples array for backward compatibility
                 newClasses[classIndex].samples.push(sampleData);
-                
-                processedCount++;
               }
               resolve();
             } catch (error) {
@@ -190,15 +130,9 @@ export const ModelTraining: React.FC<ModelTrainingProps> = ({
       }
       
       setClasses(newClasses);
-      console.log(`✅ Added ${processedCount} ${type} samples to class ${classIndex + 1}`);
       
     } catch (error) {
-      console.error('❌ Error processing files:', error);
-      toast({
-        title: "Upload Error",
-        description: "Failed to process some files. Please try again.",
-        variant: "destructive",
-      });
+      console.error('Error processing files:', error);
     }
     
     event.target.value = '';
@@ -218,36 +152,14 @@ export const ModelTraining: React.FC<ModelTrainingProps> = ({
     }));
     
     setClasses([...classes, ...newClasses]);
-    setCurrentClassIndex(classes.length);
-    
-    toast({
-      title: "Students Added",
-      description: `Added ${students.length} students to training setup.`,
-    });
   };
 
   // Remove class
   const removeClass = (index: number) => {
-    if (classes.length <= 1) {
-      toast({
-        title: "Cannot Remove Class",
-        description: "At least one class is required.",
-        variant: "destructive",
-      });
-      return;
-    }
+    if (classes.length <= 1) return;
     
     const newClasses = classes.filter((_, i) => i !== index);
     setClasses(newClasses);
-    
-    if (currentClassIndex >= newClasses.length) {
-      setCurrentClassIndex(newClasses.length - 1);
-    }
-    
-    toast({
-      title: "Class Removed",
-      description: "Class has been removed from training setup.",
-    });
   };
 
   // Update class name (student)
@@ -255,29 +167,18 @@ export const ModelTraining: React.FC<ModelTrainingProps> = ({
     const newClasses = [...classes];
     newClasses[index].student = student;
     setClasses(newClasses);
-    
-    toast({
-      title: "Student Updated",
-      description: `Class ${index + 1} is now assigned to ${student.firstname} ${student.surname}.`,
-    });
   };
 
-  // Train model (mock for now)
+  // Mock training function
   const trainModel = async () => {
     const validClasses = classes.filter(cls => cls.student && (cls.genuineSamples.length > 0 || cls.forgedSamples.length > 0));
     
     if (validClasses.length < 1) {
-      toast({
-        title: "Training Error",
-        description: "At least one class with samples is required for training.",
-        variant: "destructive",
-      });
       return;
     }
 
     setIsTraining(true);
     setTrainingProgress(0);
-    setTrainingStartTime(Date.now());
 
     try {
       // Mock training process
@@ -286,58 +187,24 @@ export const ModelTraining: React.FC<ModelTrainingProps> = ({
         setTrainingProgress(i);
       }
 
-      // Mock model creation
-      const mockModel: CustomModel = {
-        predict: async (image: HTMLCanvasElement | HTMLVideoElement) => {
-          return [
-            { className: 'Mock Student 1', confidence: 0.85 },
-            { className: 'Mock Student 2', confidence: 0.72 }
-          ];
-        }
-      };
-
-      setModel(mockModel);
       setIsModelLoaded(true);
-      setTrainingAccuracy(0.92); // Mock accuracy
-
-      toast({
-        title: "Training Complete",
-        description: "Siamese model has been trained successfully!",
-      });
-
-      if (onModelTrained) {
-        onModelTrained(mockModel);
-      }
 
     } catch (error) {
       console.error('Training failed:', error);
-      toast({
-        title: "Training Failed",
-        description: "An error occurred during training. Please try again.",
-        variant: "destructive",
-      });
     } finally {
       setIsTraining(false);
       setTrainingProgress(0);
     }
   };
 
-  // Export handlers (mock for now)
+  // Mock export functions
   const exportToS3Handler = async () => {
     setIsUploading(true);
     try {
-      await new Promise(resolve => setTimeout(resolve, 2000)); // Mock delay
+      await new Promise(resolve => setTimeout(resolve, 2000));
       setHasExportedToCloud(true);
-      toast({
-        title: "Export Successful",
-        description: "Model exported to cloud storage successfully!",
-      });
     } catch (error) {
-      toast({
-        title: "Export Failed",
-        description: "Failed to export model to cloud storage.",
-        variant: "destructive",
-      });
+      console.error('Export failed:', error);
     } finally {
       setIsUploading(false);
     }
@@ -346,18 +213,10 @@ export const ModelTraining: React.FC<ModelTrainingProps> = ({
   const exportToLocalHandler = async () => {
     setIsDownloading(true);
     try {
-      await new Promise(resolve => setTimeout(resolve, 1500)); // Mock delay
+      await new Promise(resolve => setTimeout(resolve, 1500));
       setHasDownloadedToPC(true);
-      toast({
-        title: "Download Complete",
-        description: "Model downloaded successfully!",
-      });
     } catch (error) {
-      toast({
-        title: "Download Failed",
-        description: "Failed to download model.",
-        variant: "destructive",
-      });
+      console.error('Download failed:', error);
     } finally {
       setIsDownloading(false);
     }
@@ -366,11 +225,6 @@ export const ModelTraining: React.FC<ModelTrainingProps> = ({
   // Toggle models display
   const toggleModels = () => {
     setShowModels(!showModels);
-  };
-
-  // Show more predictions
-  const showMorePredictions = () => {
-    setVisiblePredictions(prev => Math.min(prev + 3, 10));
   };
 
   // Change model handler
