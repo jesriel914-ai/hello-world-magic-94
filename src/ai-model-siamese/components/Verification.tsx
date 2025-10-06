@@ -63,8 +63,12 @@ const Verification: React.FC = () => {
   // Mock classes data - in real app this would come from props or context
   const [classes, setClasses] = useState<ClassData[]>([]);
 
-  // Get available classes for dropdown
-  const availableClasses = classes.filter(cls => cls.student);
+  // Mock student data for dropdown
+  const mockStudents = [
+    { id: '1', name: 'John Doe - BSIT 2024-1A' },
+    { id: '2', name: 'Jane Smith - BSCS 2024-1B' },
+    { id: '3', name: 'Mike Johnson - BSIT 2024-2A' }
+  ];
 
   // Verification handler - calls Python verification pipeline
   const handleVerifySignature = async (signatureData: any) => {
@@ -259,25 +263,35 @@ const Verification: React.FC = () => {
       <CardContent className="flex-1 overflow-hidden flex flex-col">
         {isMobile ? (
           <div className="flex flex-col space-y-4">
-            {/* Mode Selection */}
-            <div className="flex gap-2">
-              <Button
-                variant={activeMode === 'upload' ? 'default' : 'outline'}
-                onClick={() => setActiveMode('upload')}
-                className="flex-1"
-              >
-                <Upload className="w-4 h-4 mr-2" />
-                Upload
-              </Button>
-              <Button
-                variant={activeMode === 'webcam' ? 'default' : 'outline'}
-                onClick={() => setActiveMode('webcam')}
-                className="flex-1"
-              >
-                <Camera className="w-4 h-4 mr-2" />
-                Camera
-              </Button>
-            </div>
+            {/* Mode Selection Dropdown */}
+            <DropdownMenu>
+              <DropdownMenuTrigger asChild>
+                <Button variant="outline" className="w-full justify-between">
+                  {activeMode === 'upload' ? (
+                    <>
+                      <Upload className="w-4 h-4 mr-2" />
+                      Upload Image
+                    </>
+                  ) : (
+                    <>
+                      <Camera className="w-4 h-4 mr-2" />
+                      Use Camera
+                    </>
+                  )}
+                  <ChevronDown className="w-4 h-4" />
+                </Button>
+              </DropdownMenuTrigger>
+              <DropdownMenuContent className="w-full">
+                <DropdownMenuItem onClick={() => setActiveMode('upload')}>
+                  <Upload className="w-4 h-4 mr-2" />
+                  Upload Image
+                </DropdownMenuItem>
+                <DropdownMenuItem onClick={() => setActiveMode('webcam')}>
+                  <Camera className="w-4 h-4 mr-2" />
+                  Use Camera
+                </DropdownMenuItem>
+              </DropdownMenuContent>
+            </DropdownMenu>
 
             {/* Upload Mode */}
             {activeMode === 'upload' && (
@@ -330,19 +344,19 @@ const Verification: React.FC = () => {
                 <DropdownMenuTrigger asChild>
                   <Button variant="outline" className="flex-1 justify-start">
                     <User className="w-4 h-4 mr-2" />
-                    {selectedStudent ? availableClasses.find(cls => cls.student?.student_id === selectedStudent)?.student?.firstname + ' ' + availableClasses.find(cls => cls.student?.student_id === selectedStudent)?.student?.surname : 'Select Class'}
+                    {selectedStudent ? mockStudents.find(s => s.id === selectedStudent)?.name : 'Select Class'}
                     <ChevronDown className="w-4 h-4 ml-auto" />
                   </Button>
                 </DropdownMenuTrigger>
                 <DropdownMenuContent align="start" className="w-full">
-                  {availableClasses.map((cls) => (
+                  {mockStudents.map((student) => (
                     <DropdownMenuItem
-                      key={cls.student?.student_id}
-                      onClick={() => setSelectedStudent(cls.student?.student_id || '')}
+                      key={student.id}
+                      onClick={() => setSelectedStudent(student.id)}
                       className="flex items-center gap-2"
                     >
                       <User className="w-4 h-4" />
-                      {cls.student?.firstname} {cls.student?.surname}
+                      {student.name}
                     </DropdownMenuItem>
                   ))}
                 </DropdownMenuContent>
@@ -392,25 +406,35 @@ const Verification: React.FC = () => {
           </div>
         ) : (
           <div className="space-y-4">
-            {/* Mode Selection */}
-            <div className="flex gap-2">
-              <Button
-                variant={activeMode === 'upload' ? 'default' : 'outline'}
-                onClick={() => setActiveMode('upload')}
-                className="flex-1"
-              >
-                <Upload className="w-4 h-4 mr-2" />
-                Upload Image
-              </Button>
-              <Button
-                variant={activeMode === 'webcam' ? 'default' : 'outline'}
-                onClick={() => setActiveMode('webcam')}
-                className="flex-1"
-              >
-                <Camera className="w-4 h-4 mr-2" />
-                Use Camera
-              </Button>
-            </div>
+            {/* Mode Selection Dropdown */}
+            <DropdownMenu>
+              <DropdownMenuTrigger asChild>
+                <Button variant="outline" className="w-full justify-between">
+                  {activeMode === 'upload' ? (
+                    <>
+                      <Upload className="w-4 h-4 mr-2" />
+                      Upload Image
+                    </>
+                  ) : (
+                    <>
+                      <Camera className="w-4 h-4 mr-2" />
+                      Use Camera
+                    </>
+                  )}
+                  <ChevronDown className="w-4 h-4" />
+                </Button>
+              </DropdownMenuTrigger>
+              <DropdownMenuContent className="w-full">
+                <DropdownMenuItem onClick={() => setActiveMode('upload')}>
+                  <Upload className="w-4 h-4 mr-2" />
+                  Upload Image
+                </DropdownMenuItem>
+                <DropdownMenuItem onClick={() => setActiveMode('webcam')}>
+                  <Camera className="w-4 h-4 mr-2" />
+                  Use Camera
+                </DropdownMenuItem>
+              </DropdownMenuContent>
+            </DropdownMenu>
 
             {/* Upload Mode */}
             {activeMode === 'upload' && (
@@ -464,19 +488,19 @@ const Verification: React.FC = () => {
                 <DropdownMenuTrigger asChild>
                   <Button variant="outline" className="flex-1 justify-start">
                     <User className="w-4 h-4 mr-2" />
-                    {selectedStudent ? availableClasses.find(cls => cls.student?.student_id === selectedStudent)?.student?.firstname + ' ' + availableClasses.find(cls => cls.student?.student_id === selectedStudent)?.student?.surname : 'Select Class'}
+                    {selectedStudent ? mockStudents.find(s => s.id === selectedStudent)?.name : 'Select Class'}
                     <ChevronDown className="w-4 h-4 ml-auto" />
                   </Button>
                 </DropdownMenuTrigger>
                 <DropdownMenuContent align="start" className="w-full">
-                  {availableClasses.map((cls) => (
+                  {mockStudents.map((student) => (
                     <DropdownMenuItem
-                      key={cls.student?.student_id}
-                      onClick={() => setSelectedStudent(cls.student?.student_id || '')}
+                      key={student.id}
+                      onClick={() => setSelectedStudent(student.id)}
                       className="flex items-center gap-2"
                     >
                       <User className="w-4 h-4" />
-                      {cls.student?.firstname} {cls.student?.surname}
+                      {student.name}
                     </DropdownMenuItem>
                   ))}
                 </DropdownMenuContent>
