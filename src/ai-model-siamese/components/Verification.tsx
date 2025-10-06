@@ -30,6 +30,13 @@ interface VerificationProps {
   isLoadingModels: boolean;
   previewImage: string | null;
   isWebcamActive: boolean;
+  classes: Array<{
+    student: any;
+    color: string;
+    samples: any[];
+    genuineSamples: any[];
+    forgedSamples: any[];
+  }>;
   onToggleModels: () => void;
   onChangeModel: () => void;
   onCloudModelSelect?: () => void;
@@ -45,6 +52,7 @@ export const Verification: React.FC<VerificationProps> = ({
   previewImage,
   isWebcamActive,
   isLoadingModels,
+  classes,
   onChangeModel,
   onCloudModelSelect,
   onLocalModelSelect,
@@ -72,12 +80,8 @@ export const Verification: React.FC<VerificationProps> = ({
 
   const [isCameraReady, setIsCameraReady] = useState(false);
 
-  // Mock student data
-  const mockStudents = [
-    { id: '1', name: 'John Doe - BSIT 2024-1A' },
-    { id: '2', name: 'Jane Smith - BSCS 2024-1B' },
-    { id: '3', name: 'Mike Johnson - BSIT 2024-2A' }
-  ];
+  // Get available classes for dropdown
+  const availableClasses = classes.filter(cls => cls.student);
 
   // Mock verification handler
   const handleVerifySignature = async (signatureData: any) => {
@@ -394,19 +398,19 @@ return (
               <DropdownMenuTrigger asChild>
                 <Button variant="outline" className="flex-1 justify-start">
                   <User className="w-4 h-4 mr-2" />
-                  {selectedStudent ? mockStudents.find(s => s.id === selectedStudent)?.name : 'Select Student'}
+                  {selectedStudent ? availableClasses.find(cls => cls.student?.student_id === selectedStudent)?.student?.firstname + ' ' + availableClasses.find(cls => cls.student?.student_id === selectedStudent)?.student?.surname : 'Select Class'}
                   <ChevronDown className="w-4 h-4 ml-auto" />
                 </Button>
               </DropdownMenuTrigger>
               <DropdownMenuContent align="start" className="w-full">
-                {mockStudents.map((student) => (
+                {availableClasses.map((cls) => (
                   <DropdownMenuItem
-                    key={student.id}
-                    onClick={() => setSelectedStudent(student.id)}
+                    key={cls.student?.student_id}
+                    onClick={() => setSelectedStudent(cls.student?.student_id || '')}
                     className="flex items-center gap-2"
                   >
                     <User className="w-4 h-4" />
-                    {student.name}
+                    {cls.student?.firstname} {cls.student?.surname}
                   </DropdownMenuItem>
                 ))}
               </DropdownMenuContent>
@@ -439,7 +443,7 @@ return (
                     <p className={`font-medium ${
                       verificationResult.isVerified ? 'text-green-800' : 'text-red-800'
                     }`}>
-                      {verificationResult.isVerified ? 'Verified' : 'Not Verified'}
+                      {verificationResult.isVerified ? 'Matched' : 'Not Matched'}
                     </p>
                     <p className={`text-sm ${
                       verificationResult.isVerified ? 'text-green-600' : 'text-red-600'
@@ -587,27 +591,27 @@ return (
 
             {/* Student Selection and Verify Button Row */}
             <div className="flex items-center gap-3 pt-3">
-              <DropdownMenu>
-                <DropdownMenuTrigger asChild>
-                  <Button variant="outline" className="flex-1 justify-start">
-                    <User className="w-4 h-4 mr-2" />
-                    {selectedStudent ? mockStudents.find(s => s.id === selectedStudent)?.name : 'Select Student'}
-                    <ChevronDown className="w-4 h-4 ml-auto" />
-                  </Button>
-                </DropdownMenuTrigger>
-                <DropdownMenuContent align="start" className="w-full">
-                  {mockStudents.map((student) => (
-                    <DropdownMenuItem
-                      key={student.id}
-                      onClick={() => setSelectedStudent(student.id)}
-                      className="flex items-center gap-2"
-                    >
-                      <User className="w-4 h-4" />
-                      {student.name}
-                    </DropdownMenuItem>
-                  ))}
-                </DropdownMenuContent>
-              </DropdownMenu>
+            <DropdownMenu>
+              <DropdownMenuTrigger asChild>
+                <Button variant="outline" className="flex-1 justify-start">
+                  <User className="w-4 h-4 mr-2" />
+                  {selectedStudent ? availableClasses.find(cls => cls.student?.student_id === selectedStudent)?.student?.firstname + ' ' + availableClasses.find(cls => cls.student?.student_id === selectedStudent)?.student?.surname : 'Select Class'}
+                  <ChevronDown className="w-4 h-4 ml-auto" />
+                </Button>
+              </DropdownMenuTrigger>
+              <DropdownMenuContent align="start" className="w-full">
+                {availableClasses.map((cls) => (
+                  <DropdownMenuItem
+                    key={cls.student?.student_id}
+                    onClick={() => setSelectedStudent(cls.student?.student_id || '')}
+                    className="flex items-center gap-2"
+                  >
+                    <User className="w-4 h-4" />
+                    {cls.student?.firstname} {cls.student?.surname}
+                  </DropdownMenuItem>
+                ))}
+              </DropdownMenuContent>
+            </DropdownMenu>
               
               <Button
                 onClick={() => handleVerifySignature({ image: localPreviewImage || previewImage })}
@@ -633,11 +637,11 @@ return (
                       <XCircle className="w-5 h-5 text-red-600" />
                     )}
                     <div>
-                      <p className={`font-medium ${
-                        verificationResult.isVerified ? 'text-green-800' : 'text-red-800'
-                      }`}>
-                        {verificationResult.isVerified ? 'Verified' : 'Not Verified'}
-                      </p>
+                    <p className={`font-medium ${
+                      verificationResult.isVerified ? 'text-green-800' : 'text-red-800'
+                    }`}>
+                      {verificationResult.isVerified ? 'Matched' : 'Not Matched'}
+                    </p>
                       <p className={`text-sm ${
                         verificationResult.isVerified ? 'text-green-600' : 'text-red-600'
                       }`}>
