@@ -389,7 +389,7 @@ const Verification: React.FC = () => {
             )}
 
             <div className="space-y-3"></div>
-          </>
+          </div>
         ) : (
           <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 h-full">
             {/* Left Column - Image Input */}
@@ -459,72 +459,73 @@ const Verification: React.FC = () => {
               )}
             </div>
             
-            {renderCameraDisplay()}
-
-            {/* Student Selection and Verify Button Row */}
-            <div className="flex items-center gap-3 pt-3">
-            <DropdownMenu>
-              <DropdownMenuTrigger asChild>
-                <Button variant="outline" className="flex-1 justify-start">
-                  <User className="w-4 h-4 mr-2" />
-                  {selectedStudent ? availableClasses.find(cls => cls.student?.student_id === selectedStudent)?.student?.firstname + ' ' + availableClasses.find(cls => cls.student?.student_id === selectedStudent)?.student?.surname : 'Select Class'}
-                  <ChevronDown className="w-4 h-4 ml-auto" />
+            {/* Right Column - Verification Controls */}
+            <div className="space-y-4">
+              {/* Student Selection and Verify Button Row */}
+              <div className="flex items-center gap-3">
+                <DropdownMenu>
+                  <DropdownMenuTrigger asChild>
+                    <Button variant="outline" className="flex-1 justify-start">
+                      <User className="w-4 h-4 mr-2" />
+                      {selectedStudent ? availableClasses.find(cls => cls.student?.student_id === selectedStudent)?.student?.firstname + ' ' + availableClasses.find(cls => cls.student?.student_id === selectedStudent)?.student?.surname : 'Select Class'}
+                      <ChevronDown className="w-4 h-4 ml-auto" />
+                    </Button>
+                  </DropdownMenuTrigger>
+                  <DropdownMenuContent align="start" className="w-full">
+                    {availableClasses.map((cls) => (
+                      <DropdownMenuItem
+                        key={cls.student?.student_id}
+                        onClick={() => setSelectedStudent(cls.student?.student_id || '')}
+                        className="flex items-center gap-2"
+                      >
+                        <User className="w-4 h-4" />
+                        {cls.student?.firstname} {cls.student?.surname}
+                      </DropdownMenuItem>
+                    ))}
+                  </DropdownMenuContent>
+                </DropdownMenu>
+                
+                <Button
+                  onClick={() => handleVerifySignature({ image: localPreviewImage || previewImage })}
+                  disabled={isVerifying || !selectedStudent}
+                  className="px-6"
+                >
+                  {isVerifying ? 'Verifying...' : 'Verify'}
                 </Button>
-              </DropdownMenuTrigger>
-              <DropdownMenuContent align="start" className="w-full">
-                {availableClasses.map((cls) => (
-                  <DropdownMenuItem
-                    key={cls.student?.student_id}
-                    onClick={() => setSelectedStudent(cls.student?.student_id || '')}
-                    className="flex items-center gap-2"
-                  >
-                    <User className="w-4 h-4" />
-                    {cls.student?.firstname} {cls.student?.surname}
-                  </DropdownMenuItem>
-                ))}
-              </DropdownMenuContent>
-            </DropdownMenu>
-              
-              <Button
-                onClick={() => handleVerifySignature({ image: localPreviewImage || previewImage })}
-                disabled={isVerifying || !selectedStudent}
-                className="px-6"
-              >
-                {isVerifying ? 'Verifying...' : 'Verify'}
-              </Button>
-            </div>
+              </div>
 
-            {/* Verification Result Display */}
-            {verificationResult && (
-              <div className="pt-3">
-                <div className={`p-3 rounded-lg border ${
-                  verificationResult.isVerified 
-                    ? 'bg-green-50 border-green-200' 
-                    : 'bg-red-50 border-red-200'
-                }`}>
-                  <div className="flex items-center gap-2">
-                    {verificationResult.isVerified ? (
-                      <CheckCircle className="w-5 h-5 text-green-600" />
-                    ) : (
-                      <XCircle className="w-5 h-5 text-red-600" />
-                    )}
-                    <div>
-                    <p className={`font-medium ${
-                      verificationResult.isVerified ? 'text-green-800' : 'text-red-800'
-                    }`}>
-                      {verificationResult.isVerified ? 'Matched' : 'Not Matched'}
-                    </p>
-                      <p className={`text-sm ${
-                        verificationResult.isVerified ? 'text-green-600' : 'text-red-600'
-                      }`}>
-                        Confidence: {(verificationResult.confidence * 100).toFixed(0)}%
-                      </p>
+              {/* Verification Result Display */}
+              {verificationResult && (
+                <div className="pt-3">
+                  <div className={`p-3 rounded-lg border ${
+                    verificationResult.isVerified 
+                      ? 'bg-green-50 border-green-200' 
+                      : 'bg-red-50 border-red-200'
+                  }`}>
+                    <div className="flex items-center gap-2">
+                      {verificationResult.isVerified ? (
+                        <CheckCircle className="w-5 h-5 text-green-600" />
+                      ) : (
+                        <XCircle className="w-5 h-5 text-red-600" />
+                      )}
+                      <div>
+                        <p className={`font-medium ${
+                          verificationResult.isVerified ? 'text-green-800' : 'text-red-800'
+                        }`}>
+                          {verificationResult.isVerified ? 'Matched' : 'Not Matched'}
+                        </p>
+                        <p className={`text-sm ${
+                          verificationResult.isVerified ? 'text-green-600' : 'text-red-600'
+                        }`}>
+                          Confidence: {(verificationResult.confidence * 100).toFixed(0)}%
+                        </p>
+                      </div>
                     </div>
                   </div>
                 </div>
-              </div>
-            )}
-          </>
+              )}
+            </div>
+          </div>
         )}
       </CardContent>
     </Card>
