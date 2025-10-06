@@ -1,11 +1,25 @@
 //filepath: src\pages\SiameseSignatureModelTraining.tsx
-import React from 'react';
+import React, { useState } from 'react';
 import TrainingSetup from '@/ai-model-siamese/components/TrainingSetup';
 import Verification from '@/ai-model-siamese/components/Verification';
 import useMobileDetection from '@/hooks/use-mobile-detection';
 
+// Interface for shared state
+interface ClassData {
+  student: any | null;
+  color: string;
+  samples: any[];
+  genuineSamples: any[];
+  forgedSamples: any[];
+}
+
 const SiameseSignatureModelTraining: React.FC = () => {
   const isMobile = useMobileDetection();
+  
+  // Shared state for classes between TrainingSetup and Verification
+  const [classes, setClasses] = useState<ClassData[]>([
+    { student: null, color: '#FF6B6B', samples: [], genuineSamples: [], forgedSamples: [] }
+  ]);
 
   return (
     <div className="min-h-screen bg-gray-50">
@@ -16,12 +30,12 @@ const SiameseSignatureModelTraining: React.FC = () => {
         
         {isMobile ? (
           <div className="flex flex-col space-y-4">
-            <Verification />
+            <Verification classes={classes} setClasses={setClasses} />
           </div>
         ) : (
           <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-            <TrainingSetup />
-            <Verification />
+            <TrainingSetup classes={classes} setClasses={setClasses} />
+            <Verification classes={classes} setClasses={setClasses} />
           </div>
         )}
       </div>

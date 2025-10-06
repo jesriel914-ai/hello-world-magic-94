@@ -25,7 +25,12 @@ const formatDateTime = (date: Date): string => {
   });
 };
 
-const Verification: React.FC = () => {
+interface VerificationProps {
+  classes: any[];
+  setClasses: (classes: any[]) => void;
+}
+
+const Verification: React.FC<VerificationProps> = ({ classes, setClasses }) => {
   const isMobile = useMobileDetection();
   const [activeMode, setActiveMode] = useState<'webcam' | 'upload'>('upload');
   const [localPreviewImage, setLocalPreviewImage] = useState<string | null>(null);
@@ -50,12 +55,10 @@ const Verification: React.FC = () => {
   } | null>(null);
   const [selectedStudent, setSelectedStudent] = useState<string>('');
 
-  // Mock student data for dropdown
-  const mockStudents = [
-    { id: '1', name: 'John Doe - BSIT 2024-1A' },
-    { id: '2', name: 'Jane Smith - BSCS 2024-1B' },
-    { id: '3', name: 'Mike Johnson - BSIT 2024-2A' }
-  ];
+  // Format student display same as TrainingSetup
+  const formatStudentDisplay = (student: any): string => {
+    return `${student.student_id} - ${student.firstname} ${student.surname}`;
+  };
 
   // Verification handler - calls Python verification pipeline
   const handleVerifySignature = async (signatureData: any) => {
@@ -391,19 +394,19 @@ const Verification: React.FC = () => {
             <DropdownMenuTrigger asChild>
               <Button variant="outline" className="flex-1 justify-start">
                 <User className="w-4 h-4 mr-2" />
-                {selectedStudent ? mockStudents.find(s => s.id === selectedStudent)?.name : 'Select Class'}
+                {selectedStudent ? classes.find(c => c.student?.student_id === selectedStudent)?.student ? formatStudentDisplay(classes.find(c => c.student?.student_id === selectedStudent).student) : 'Select Class' : 'Select Class'}
                 <ChevronDown className="w-4 h-4 ml-auto" />
               </Button>
             </DropdownMenuTrigger>
             <DropdownMenuContent align="start" className="w-full">
-              {mockStudents.map((student) => (
+              {classes.filter(cls => cls.student).map((cls, index) => (
                 <DropdownMenuItem
-                  key={student.id}
-                  onClick={() => setSelectedStudent(student.id)}
+                  key={cls.student.student_id}
+                  onClick={() => setSelectedStudent(cls.student.student_id)}
                   className="flex items-center gap-2"
                 >
                   <User className="w-4 h-4" />
-                  {student.name}
+                  {formatStudentDisplay(cls.student)}
                 </DropdownMenuItem>
               ))}
             </DropdownMenuContent>
@@ -540,19 +543,19 @@ const Verification: React.FC = () => {
                 <DropdownMenuTrigger asChild>
                   <Button variant="outline" className="flex-1 justify-start">
                     <User className="w-4 h-4 mr-2" />
-                    {selectedStudent ? mockStudents.find(s => s.id === selectedStudent)?.name : 'Select Class'}
+                    {selectedStudent ? classes.find(c => c.student?.student_id === selectedStudent)?.student ? formatStudentDisplay(classes.find(c => c.student?.student_id === selectedStudent).student) : 'Select Class' : 'Select Class'}
                     <ChevronDown className="w-4 h-4 ml-auto" />
                   </Button>
                 </DropdownMenuTrigger>
                 <DropdownMenuContent align="start" className="w-full">
-                  {mockStudents.map((student) => (
+                  {classes.filter(cls => cls.student).map((cls, index) => (
                     <DropdownMenuItem
-                      key={student.id}
-                      onClick={() => setSelectedStudent(student.id)}
+                      key={cls.student.student_id}
+                      onClick={() => setSelectedStudent(cls.student.student_id)}
                       className="flex items-center gap-2"
                     >
                       <User className="w-4 h-4" />
-                      {student.name}
+                      {formatStudentDisplay(cls.student)}
                     </DropdownMenuItem>
                   ))}
                 </DropdownMenuContent>

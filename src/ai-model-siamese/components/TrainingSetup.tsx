@@ -59,11 +59,12 @@ const formatStudentDisplay = (student: Student): string => {
   return `${student.student_id} - ${student.firstname} ${student.surname}`;
 };
 
-const TrainingSetup: React.FC = () => {
-  // State management
-  const [classes, setClasses] = useState<ClassData[]>([
-    { student: null, color: '#FF6B6B', samples: [], genuineSamples: [], forgedSamples: [] }
-  ]);
+interface TrainingSetupProps {
+  classes: ClassData[];
+  setClasses: (classes: ClassData[]) => void;
+}
+
+const TrainingSetup: React.FC<TrainingSetupProps> = ({ classes, setClasses }) => {
   const [isTraining, setIsTraining] = useState(false);
   const [isModelLoaded, setIsModelLoaded] = useState(false);
   const [trainingProgress, setTrainingProgress] = useState(0);
