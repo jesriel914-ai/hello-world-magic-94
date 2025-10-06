@@ -8,7 +8,7 @@ import {
   DropdownMenuItem,
   DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu';
-import { FileImage, X, Loader2, Upload, Camera, FolderOpen, Cloud, ChevronDown, List, Shield, CheckCircle, XCircle } from 'lucide-react';
+import { FileImage, X, Loader2, Upload, Camera, FolderOpen, Cloud, ChevronDown, List, Shield, CheckCircle, XCircle, User } from 'lucide-react';
 import useMobileDetection from '@/hooks/use-mobile-detection';
 import { MobileWebcam } from '@/components/model-training-ui/services/mobileWebcam';
 import { toast } from '@/hooks/use-toast';
@@ -68,8 +68,16 @@ export const Verification: React.FC<VerificationProps> = ({
     confidence: number;
     studentId?: string;
   } | null>(null);
+  const [selectedStudent, setSelectedStudent] = useState<string>('');
 
   const [isCameraReady, setIsCameraReady] = useState(false);
+
+  // Mock student data
+  const mockStudents = [
+    { id: '1', name: 'John Doe - BSIT 2024-1A' },
+    { id: '2', name: 'Jane Smith - BSCS 2024-1B' },
+    { id: '3', name: 'Mike Johnson - BSIT 2024-2A' }
+  ];
 
   // Mock verification handler
   const handleVerifySignature = async (signatureData: any) => {
@@ -380,39 +388,69 @@ return (
           
           {renderCameraDisplay()}
 
-          {/* Verify Button - Always visible */}
-          <div className="flex justify-end pt-3">
+          {/* Student Selection and Verify Button Row */}
+          <div className="flex items-center gap-3 pt-3">
+            <DropdownMenu>
+              <DropdownMenuTrigger asChild>
+                <Button variant="outline" className="flex-1 justify-start">
+                  <User className="w-4 h-4 mr-2" />
+                  {selectedStudent ? mockStudents.find(s => s.id === selectedStudent)?.name : 'Select Student'}
+                  <ChevronDown className="w-4 h-4 ml-auto" />
+                </Button>
+              </DropdownMenuTrigger>
+              <DropdownMenuContent align="start" className="w-full">
+                {mockStudents.map((student) => (
+                  <DropdownMenuItem
+                    key={student.id}
+                    onClick={() => setSelectedStudent(student.id)}
+                    className="flex items-center gap-2"
+                  >
+                    <User className="w-4 h-4" />
+                    {student.name}
+                  </DropdownMenuItem>
+                ))}
+              </DropdownMenuContent>
+            </DropdownMenu>
+            
             <Button
-              size="sm"
-              variant="outline"
               onClick={() => handleVerifySignature({ image: localPreviewImage || previewImage })}
-              disabled={isVerifying}
+              disabled={isVerifying || !selectedStudent}
+              className="px-6"
             >
               {isVerifying ? 'Verifying...' : 'Verify'}
             </Button>
           </div>
 
-          {/* Match Display - Always visible below */}
-          <div className="flex items-center gap-4 pt-2">
-            <div className="text-sm">
-              <span className="text-gray-600">No Match:</span>
-              <span className="ml-1 font-medium">
-                {verificationResult 
-                  ? `${((1 - verificationResult.confidence) * 100).toFixed(0)}%`
-                  : '10%'
-                }
-              </span>
+          {/* Verification Result Display */}
+          {verificationResult && (
+            <div className="pt-3">
+              <div className={`p-3 rounded-lg border ${
+                verificationResult.isVerified 
+                  ? 'bg-green-50 border-green-200' 
+                  : 'bg-red-50 border-red-200'
+              }`}>
+                <div className="flex items-center gap-2">
+                  {verificationResult.isVerified ? (
+                    <CheckCircle className="w-5 h-5 text-green-600" />
+                  ) : (
+                    <XCircle className="w-5 h-5 text-red-600" />
+                  )}
+                  <div>
+                    <p className={`font-medium ${
+                      verificationResult.isVerified ? 'text-green-800' : 'text-red-800'
+                    }`}>
+                      {verificationResult.isVerified ? 'Verified' : 'Not Verified'}
+                    </p>
+                    <p className={`text-sm ${
+                      verificationResult.isVerified ? 'text-green-600' : 'text-red-600'
+                    }`}>
+                      Confidence: {(verificationResult.confidence * 100).toFixed(0)}%
+                    </p>
+                  </div>
+                </div>
+              </div>
             </div>
-            <div className="text-sm">
-              <span className="text-gray-600">Matched:</span>
-              <span className="ml-1 font-medium">
-                {verificationResult 
-                  ? `${(verificationResult.confidence * 100).toFixed(0)}%`
-                  : '90%'
-                }
-              </span>
-            </div>
-          </div>
+          )}
 
 <div className="space-y-3"></div>
         </>
@@ -547,39 +585,69 @@ return (
             
             {renderCameraDisplay()}
 
-            {/* Verify Button - Always visible */}
-            <div className="flex justify-end pt-3">
+            {/* Student Selection and Verify Button Row */}
+            <div className="flex items-center gap-3 pt-3">
+              <DropdownMenu>
+                <DropdownMenuTrigger asChild>
+                  <Button variant="outline" className="flex-1 justify-start">
+                    <User className="w-4 h-4 mr-2" />
+                    {selectedStudent ? mockStudents.find(s => s.id === selectedStudent)?.name : 'Select Student'}
+                    <ChevronDown className="w-4 h-4 ml-auto" />
+                  </Button>
+                </DropdownMenuTrigger>
+                <DropdownMenuContent align="start" className="w-full">
+                  {mockStudents.map((student) => (
+                    <DropdownMenuItem
+                      key={student.id}
+                      onClick={() => setSelectedStudent(student.id)}
+                      className="flex items-center gap-2"
+                    >
+                      <User className="w-4 h-4" />
+                      {student.name}
+                    </DropdownMenuItem>
+                  ))}
+                </DropdownMenuContent>
+              </DropdownMenu>
+              
               <Button
-                size="sm"
-                variant="outline"
                 onClick={() => handleVerifySignature({ image: localPreviewImage || previewImage })}
-                disabled={isVerifying}
+                disabled={isVerifying || !selectedStudent}
+                className="px-6"
               >
                 {isVerifying ? 'Verifying...' : 'Verify'}
               </Button>
             </div>
 
-            {/* Match Display - Always visible below */}
-            <div className="flex items-center gap-4 pt-2">
-              <div className="text-sm">
-                <span className="text-gray-600">No Match:</span>
-                <span className="ml-1 font-medium">
-                  {verificationResult 
-                    ? `${((1 - verificationResult.confidence) * 100).toFixed(0)}%`
-                    : '10%'
-                  }
-                </span>
+            {/* Verification Result Display */}
+            {verificationResult && (
+              <div className="pt-3">
+                <div className={`p-3 rounded-lg border ${
+                  verificationResult.isVerified 
+                    ? 'bg-green-50 border-green-200' 
+                    : 'bg-red-50 border-red-200'
+                }`}>
+                  <div className="flex items-center gap-2">
+                    {verificationResult.isVerified ? (
+                      <CheckCircle className="w-5 h-5 text-green-600" />
+                    ) : (
+                      <XCircle className="w-5 h-5 text-red-600" />
+                    )}
+                    <div>
+                      <p className={`font-medium ${
+                        verificationResult.isVerified ? 'text-green-800' : 'text-red-800'
+                      }`}>
+                        {verificationResult.isVerified ? 'Verified' : 'Not Verified'}
+                      </p>
+                      <p className={`text-sm ${
+                        verificationResult.isVerified ? 'text-green-600' : 'text-red-600'
+                      }`}>
+                        Confidence: {(verificationResult.confidence * 100).toFixed(0)}%
+                      </p>
+                    </div>
+                  </div>
+                </div>
               </div>
-              <div className="text-sm">
-                <span className="text-gray-600">Matched:</span>
-                <span className="ml-1 font-medium">
-                  {verificationResult 
-                    ? `${(verificationResult.confidence * 100).toFixed(0)}%`
-                    : '90%'
-                  }
-                </span>
-              </div>
-            </div>
+            )}
           </>
         )}
       </CardContent>
