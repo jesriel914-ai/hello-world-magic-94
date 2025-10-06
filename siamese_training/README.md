@@ -22,7 +22,39 @@ A Python-based Siamese network implementation for signature verification, optimi
    python siamese_model.py
    ```
 
-## Usage
+## Quick Start (Easiest Way)
+
+### 1. Run the Main Program
+```bash
+python main.py
+```
+
+This will show you a menu with all options. No need to remember commands!
+
+### 2. First Time Setup
+1. Run `python main.py`
+2. Choose option 1: "Setup Environment"
+3. Wait for dependencies to install
+4. Done!
+
+### 3. Train a Model
+1. Run `python main.py`
+2. Choose option 2: "Train Model for a Student"
+3. Follow the prompts to enter:
+   - Student ID
+   - Path to genuine signatures folder
+   - Path to forged signatures folder (optional)
+   - Training parameters
+
+### 4. Verify Signatures
+1. Run `python main.py`
+2. Choose option 3: "Verify Signatures"
+3. Follow the prompts to enter:
+   - Student ID
+   - Reference signature path
+   - Test signature path
+
+## Advanced Usage (Command Line)
 
 ### 1. Training a Model
 
@@ -37,14 +69,6 @@ python train_siamese.py \
   --batch_size 16
 ```
 
-**Parameters**:
-- `--student_id`: Unique identifier for the student
-- `--genuine_dir`: Directory containing genuine signature images
-- `--forged_dir`: Directory containing forged signature images
-- `--epochs`: Number of training epochs (default: 50)
-- `--batch_size`: Batch size for training (default: 16)
-- `--output_dir`: Output directory for models (default: ./models)
-
 ### 2. Verifying Signatures
 
 Verify if two signatures belong to the same person:
@@ -55,12 +79,6 @@ python verify_signature.py \
   --reference "./reference_signature.jpg" \
   --test "./test_signature.jpg"
 ```
-
-**Parameters**:
-- `--student_id`: Student ID (must match training)
-- `--reference`: Path to reference signature image
-- `--test`: Path to test signature image
-- `--model_dir`: Directory containing trained models (default: ./models)
 
 ## File Structure
 
