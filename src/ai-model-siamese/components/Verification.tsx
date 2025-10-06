@@ -224,7 +224,7 @@ const Verification: React.FC = () => {
           {isVideoPaused && (
             <div className="absolute inset-0 bg-black bg-opacity-50 flex items-center justify-center">
               <div className="text-white text-center">
-                <Pause className="w-8 h-8 mx-auto mb-2" />
+                <div className="w-8 h-8 mx-auto mb-2">⏸️</div>
                 <p>Video Paused</p>
               </div>
             </div>
@@ -391,140 +391,136 @@ const Verification: React.FC = () => {
             <div className="space-y-3"></div>
           </div>
         ) : (
-          <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 h-full">
-            {/* Left Column - Image Input */}
-            <div className="space-y-4">
-              {/* Mode Selection */}
-              <div className="flex gap-2">
-                <Button
-                  variant={activeMode === 'upload' ? 'default' : 'outline'}
-                  onClick={() => setActiveMode('upload')}
-                  className="flex-1"
-                >
-                  <Upload className="w-4 h-4 mr-2" />
-                  Upload Image
-                </Button>
-                <Button
-                  variant={activeMode === 'webcam' ? 'default' : 'outline'}
-                  onClick={() => setActiveMode('webcam')}
-                  className="flex-1"
-                >
-                  <Camera className="w-4 h-4 mr-2" />
-                  Use Camera
-                </Button>
-              </div>
-
-              {/* Upload Mode */}
-              {activeMode === 'upload' && (
-                <div className="border-2 border-dashed border-gray-300 rounded-lg p-6 text-center">
-                  <Upload className="w-12 h-12 text-gray-400 mx-auto mb-4" />
-                  <p className="text-gray-600 mb-4">Upload signature image</p>
-                  <input
-                    type="file"
-                    accept="image/*"
-                    onChange={handlePreviewFileUpload}
-                    className="hidden"
-                    id="desktop-upload"
-                  />
-                  <label
-                    htmlFor="desktop-upload"
-                    className="inline-flex items-center px-4 py-2 border border-gray-300 rounded-md shadow-sm text-sm font-medium text-gray-700 bg-white hover:bg-gray-50 cursor-pointer"
-                  >
-                    Choose File
-                  </label>
-                </div>
-              )}
-
-              {/* Camera Mode */}
-              {activeMode === 'webcam' && renderCameraDisplay()}
-
-              {/* Preview Image */}
-              {(localPreviewImage || previewImage) && (
-                <div className="relative">
-                  <img
-                    src={localPreviewImage || previewImage || ''}
-                    alt="Preview"
-                    className="w-full h-48 object-contain bg-gray-100 rounded-lg"
-                  />
-                  <button
-                    onClick={() => {
-                      setLocalPreviewImage(null);
-                      setPreviewImage(null);
-                    }}
-                    className="absolute top-2 right-2 bg-red-500 text-white rounded-full w-8 h-8 flex items-center justify-center"
-                  >
-                    <X className="w-4 h-4" />
-                  </button>
-                </div>
-              )}
+          <div className="space-y-4">
+            {/* Mode Selection */}
+            <div className="flex gap-2">
+              <Button
+                variant={activeMode === 'upload' ? 'default' : 'outline'}
+                onClick={() => setActiveMode('upload')}
+                className="flex-1"
+              >
+                <Upload className="w-4 h-4 mr-2" />
+                Upload Image
+              </Button>
+              <Button
+                variant={activeMode === 'webcam' ? 'default' : 'outline'}
+                onClick={() => setActiveMode('webcam')}
+                className="flex-1"
+              >
+                <Camera className="w-4 h-4 mr-2" />
+                Use Camera
+              </Button>
             </div>
-            
-            {/* Right Column - Verification Controls */}
-            <div className="space-y-4">
-              {/* Student Selection and Verify Button Row */}
-              <div className="flex items-center gap-3">
-                <DropdownMenu>
-                  <DropdownMenuTrigger asChild>
-                    <Button variant="outline" className="flex-1 justify-start">
-                      <User className="w-4 h-4 mr-2" />
-                      {selectedStudent ? availableClasses.find(cls => cls.student?.student_id === selectedStudent)?.student?.firstname + ' ' + availableClasses.find(cls => cls.student?.student_id === selectedStudent)?.student?.surname : 'Select Class'}
-                      <ChevronDown className="w-4 h-4 ml-auto" />
-                    </Button>
-                  </DropdownMenuTrigger>
-                  <DropdownMenuContent align="start" className="w-full">
-                    {availableClasses.map((cls) => (
-                      <DropdownMenuItem
-                        key={cls.student?.student_id}
-                        onClick={() => setSelectedStudent(cls.student?.student_id || '')}
-                        className="flex items-center gap-2"
-                      >
-                        <User className="w-4 h-4" />
-                        {cls.student?.firstname} {cls.student?.surname}
-                      </DropdownMenuItem>
-                    ))}
-                  </DropdownMenuContent>
-                </DropdownMenu>
-                
-                <Button
-                  onClick={() => handleVerifySignature({ image: localPreviewImage || previewImage })}
-                  disabled={isVerifying || !selectedStudent}
-                  className="px-6"
-                >
-                  {isVerifying ? 'Verifying...' : 'Verify'}
-                </Button>
-              </div>
 
-              {/* Verification Result Display */}
-              {verificationResult && (
-                <div className="pt-3">
-                  <div className={`p-3 rounded-lg border ${
-                    verificationResult.isVerified 
-                      ? 'bg-green-50 border-green-200' 
-                      : 'bg-red-50 border-red-200'
-                  }`}>
-                    <div className="flex items-center gap-2">
-                      {verificationResult.isVerified ? (
-                        <CheckCircle className="w-5 h-5 text-green-600" />
-                      ) : (
-                        <XCircle className="w-5 h-5 text-red-600" />
-                      )}
-                      <div>
-                        <p className={`font-medium ${
-                          verificationResult.isVerified ? 'text-green-800' : 'text-red-800'
-                        }`}>
-                          {verificationResult.isVerified ? 'Matched' : 'Not Matched'}
-                        </p>
-                        <p className={`text-sm ${
-                          verificationResult.isVerified ? 'text-green-600' : 'text-red-600'
-                        }`}>
-                          Confidence: {(verificationResult.confidence * 100).toFixed(0)}%
-                        </p>
-                      </div>
+            {/* Upload Mode */}
+            {activeMode === 'upload' && (
+              <div className="border-2 border-dashed border-gray-300 rounded-lg p-6 text-center">
+                <Upload className="w-12 h-12 text-gray-400 mx-auto mb-4" />
+                <p className="text-gray-600 mb-4">Upload signature image</p>
+                <input
+                  type="file"
+                  accept="image/*"
+                  onChange={handlePreviewFileUpload}
+                  className="hidden"
+                  id="desktop-upload"
+                />
+                <label
+                  htmlFor="desktop-upload"
+                  className="inline-flex items-center px-4 py-2 border border-gray-300 rounded-md shadow-sm text-sm font-medium text-gray-700 bg-white hover:bg-gray-50 cursor-pointer"
+                >
+                  Choose File
+                </label>
+              </div>
+            )}
+
+            {/* Camera Mode */}
+            {activeMode === 'webcam' && renderCameraDisplay()}
+
+            {/* Preview Image */}
+            {(localPreviewImage || previewImage) && (
+              <div className="relative">
+                <img
+                  src={localPreviewImage || previewImage || ''}
+                  alt="Preview"
+                  className="w-full h-48 object-contain bg-gray-100 rounded-lg"
+                />
+                <button
+                  onClick={() => {
+                    setLocalPreviewImage(null);
+                    setPreviewImage(null);
+                  }}
+                  className="absolute top-2 right-2 bg-red-500 text-white rounded-full w-8 h-8 flex items-center justify-center"
+                >
+                  <X className="w-4 h-4" />
+                </button>
+              </div>
+            )}
+            
+            {renderCameraDisplay()}
+
+            {/* Student Selection and Verify Button Row */}
+            <div className="flex items-center gap-3 pt-3">
+              <DropdownMenu>
+                <DropdownMenuTrigger asChild>
+                  <Button variant="outline" className="flex-1 justify-start">
+                    <User className="w-4 h-4 mr-2" />
+                    {selectedStudent ? availableClasses.find(cls => cls.student?.student_id === selectedStudent)?.student?.firstname + ' ' + availableClasses.find(cls => cls.student?.student_id === selectedStudent)?.student?.surname : 'Select Class'}
+                    <ChevronDown className="w-4 h-4 ml-auto" />
+                  </Button>
+                </DropdownMenuTrigger>
+                <DropdownMenuContent align="start" className="w-full">
+                  {availableClasses.map((cls) => (
+                    <DropdownMenuItem
+                      key={cls.student?.student_id}
+                      onClick={() => setSelectedStudent(cls.student?.student_id || '')}
+                      className="flex items-center gap-2"
+                    >
+                      <User className="w-4 h-4" />
+                      {cls.student?.firstname} {cls.student?.surname}
+                    </DropdownMenuItem>
+                  ))}
+                </DropdownMenuContent>
+              </DropdownMenu>
+              
+              <Button
+                onClick={() => handleVerifySignature({ image: localPreviewImage || previewImage })}
+                disabled={isVerifying || !selectedStudent}
+                className="px-6"
+              >
+                {isVerifying ? 'Verifying...' : 'Verify'}
+              </Button>
+            </div>
+
+            {/* Verification Result Display */}
+            {verificationResult && (
+              <div className="pt-3">
+                <div className={`p-3 rounded-lg border ${
+                  verificationResult.isVerified 
+                    ? 'bg-green-50 border-green-200' 
+                    : 'bg-red-50 border-red-200'
+                }`}>
+                  <div className="flex items-center gap-2">
+                    {verificationResult.isVerified ? (
+                      <CheckCircle className="w-5 h-5 text-green-600" />
+                    ) : (
+                      <XCircle className="w-5 h-5 text-red-600" />
+                    )}
+                    <div>
+                      <p className={`font-medium ${
+                        verificationResult.isVerified ? 'text-green-800' : 'text-red-800'
+                      }`}>
+                        {verificationResult.isVerified ? 'Matched' : 'Not Matched'}
+                      </p>
+                      <p className={`text-sm ${
+                        verificationResult.isVerified ? 'text-green-600' : 'text-red-600'
+                      }`}>
+                        Confidence: {(verificationResult.confidence * 100).toFixed(0)}%
+                      </p>
                     </div>
                   </div>
                 </div>
-              )}
-            </div>
+              </div>
+            )}
           </div>
         )}
       </CardContent>
