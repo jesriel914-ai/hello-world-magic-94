@@ -12,6 +12,17 @@ import { FileImage, X, Loader2, Upload, Camera, FolderOpen, Cloud, ChevronDown, 
 import useMobileDetection from '@/hooks/use-mobile-detection';
 import { MobileWebcam } from '@/components/model-training-ui/services/mobileWebcam';
 import { toast } from '@/hooks/use-toast';
+import { siameseModelService } from '../lib/AIModelService';
+import type { Student } from '@/types';
+
+// Interfaces
+export interface ClassData {
+  student: Student | null;
+  color: string;
+  samples: any[];
+  genuineSamples: any[];
+  forgedSamples: any[];
+}
 
 const formatDateTime = (date: Date): string => {
   return date.toLocaleString('en-US', {
@@ -24,43 +35,12 @@ const formatDateTime = (date: Date): string => {
   });
 };
 
-interface VerificationProps {
-  isMobile: boolean;
-  showModels: boolean;
-  isLoadingModels: boolean;
-  previewImage: string | null;
-  isWebcamActive: boolean;
-  classes: Array<{
-    student: any;
-    color: string;
-    samples: any[];
-    genuineSamples: any[];
-    forgedSamples: any[];
-  }>;
-  onToggleModels: () => void;
-  onChangeModel: () => void;
-  onCloudModelSelect?: () => void;
-  onLocalModelSelect?: () => void;
-  onHandlePreviewFileUpload: (event: React.ChangeEvent<HTMLInputElement>) => void;
-  onVerifySignature?: (signatureData: any) => void;
-}
-
-export const Verification: React.FC<VerificationProps> = ({
-  onToggleModels,
-  showModels,
-  isMobile = false,
-  previewImage,
-  isWebcamActive,
-  isLoadingModels,
-  classes,
-  onChangeModel,
-  onCloudModelSelect,
-  onLocalModelSelect,
-  onHandlePreviewFileUpload,
-  onVerifySignature
-}) => {
+const Verification: React.FC = () => {
+  const isMobile = useMobileDetection();
   const [activeMode, setActiveMode] = useState<'webcam' | 'upload'>('upload');
   const [localPreviewImage, setLocalPreviewImage] = useState<string | null>(null);
+  const [previewImage, setPreviewImage] = useState<string | null>(null);
+  const [isWebcamActive, setIsWebcamActive] = useState(false);
   
   const webcamRef = useRef<HTMLDivElement>(null);
   const mobileWebcam = useRef<MobileWebcam | null>(null);
@@ -80,12 +60,15 @@ export const Verification: React.FC<VerificationProps> = ({
 
   const [isCameraReady, setIsCameraReady] = useState(false);
 
+  // Mock classes data - in real app this would come from props or context
+  const [classes, setClasses] = useState<ClassData[]>([]);
+
   // Get available classes for dropdown
   const availableClasses = classes.filter(cls => cls.student);
 
   // Verification handler - calls Python verification pipeline
   const handleVerifySignature = async (signatureData: any) => {
-    if (!onVerifySignature || !selectedStudent) {
+    if (!selectedStudent) {
       alert('Please select a student first!');
       return;
     }
@@ -97,9 +80,6 @@ export const Verification: React.FC<VerificationProps> = ({
       console.log('Starting signature verification...');
       console.log('Student ID:', selectedStudent);
       console.log('Signature data:', signatureData);
-      
-      // Import the Siamese service
-      const { siameseModelService } = await import('../lib/AIModelService');
       
       // Call the verification service
       const result = await siameseModelService.verifySignature(selectedStudent, signatureData);
@@ -114,7 +94,6 @@ export const Verification: React.FC<VerificationProps> = ({
       };
       
       setVerificationResult(verificationResult);
-      onVerifySignature(verificationResult);
       
     } catch (error) {
       console.error('Verification failed:', error);
@@ -124,474 +103,358 @@ export const Verification: React.FC<VerificationProps> = ({
     }
   };
 
-// Update handleWebcamClick to track pause state:
-const handleWebcamClick = () => {
-  if (!mobileWebcam.current) return;
-  
-  if (isVideoPaused) {
-    mobileWebcam.current.resume();
-    setIsVideoPaused(false);
-  } else {
-    mobileWebcam.current.pause();
-    setIsVideoPaused(true);
-  }
-};
-
-// Handle file upload for verification
-const handleFileUpload = useCallback(async (event: React.ChangeEvent<HTMLInputElement>) => {
-  const files = event.target.files;
-  if (!files || files.length === 0) return;
-
-  try {
-    for (let i = 0; i < files.length; i++) {
-      const file = files[i];
-      const imageUrl = URL.createObjectURL(file);
-      
-      if (i === 0) {
-        if (localPreviewImage) {
-          URL.revokeObjectURL(localPreviewImage);
-        }
-        setLocalPreviewImage(imageUrl);
-      } else {
-        URL.revokeObjectURL(imageUrl);
-      }
-    }
-  } catch (error) {
-    console.error(`Error processing file: ${file.name}`, error);
-  }
-}, [localPreviewImage]);
-
-// Then update your startCamera function to set this state when ready:
-const startCamera = useCallback(async () => {
-  console.log('📷 startCamera called - isMobile:', isMobile);
-  if (!isMobile || !webcamRef.current) {
-    console.log('❌ startCamera blocked');
-    return;
-  }
-  
-  console.log('🚀 Starting camera process...');
-  setIsCameraStarting(true);
-  setCameraError(null);
-  
-  try {
-    if (!mobileWebcam.current) {
-      mobileWebcam.current = new MobileWebcam(webcamRef.current);
-    }
+  // Handle preview file upload
+  const handlePreviewFileUpload = (event: React.ChangeEvent<HTMLInputElement>) => {
+    const file = event.target.files?.[0];
+    if (!file) return;
     
-    await mobileWebcam.current.start();
-    console.log('✅ Camera started successfully');
-    setIsCameraReady(true);
-    setIsVideoPaused(false);
-  } catch (error) {
-    console.error('❌ Camera start failed:', error);
-    setCameraError(error instanceof Error ? error.message : 'Failed to start camera');
-  } finally {
-    setIsCameraStarting(false);
-  }
-}, [isMobile]);
+    const imageUrl = URL.createObjectURL(file);
+    setLocalPreviewImage(imageUrl);
+    event.target.value = '';
+  };
 
-const stopCamera = useCallback(() => {
-  if (mobileWebcam.current) {
-    mobileWebcam.current.stop();
-    mobileWebcam.current = null;
-    setIsCameraReady(false);
-    setIsVideoPaused(false);
-  }
-}, []);
-
-// Cleanup on unmount
-useEffect(() => {
-  return () => {
-    if (cameraPredictionIntervalRef.current) {
-      clearInterval(cameraPredictionIntervalRef.current);
-    }
-    if (mobileWebcam.current) {
-      mobileWebcam.current.stop();
-    }
-    if (localPreviewImage) {
-      URL.revokeObjectURL(localPreviewImage);
+  // Webcam functions
+  const handleWebcamClick = () => {
+    if (!mobileWebcam.current) return;
+    
+    if (isVideoPaused) {
+      mobileWebcam.current.resume();
+      setIsVideoPaused(false);
+    } else {
+      mobileWebcam.current.pause();
+      setIsVideoPaused(true);
     }
   };
-}, [localPreviewImage]);
 
-// Auto-start camera when switching to webcam mode
-useEffect(() => {
-  if (activeMode === 'webcam' && isMobile && !isCameraReady && !isCameraStarting) {
-    startCamera();
-  } else if (activeMode === 'upload' && isCameraReady) {
-    stopCamera();
-  }
-}, [activeMode, isMobile, isCameraReady, isCameraStarting, startCamera, stopCamera]);
-
-const renderCameraDisplay = () => (
-  <div className="relative border-2 border-dashed border-gray-300 rounded-lg aspect-video flex items-center justify-center bg-gray-50">
-    <div 
-      ref={webcamRef} 
-      className={`absolute inset-[2px] flex items-center justify-center ${activeMode === 'webcam' ? '' : 'hidden'} z-0 rounded-lg overflow-hidden cursor-pointer`}
-      onClick={handleWebcamClick}
-    />
-
-    {activeMode === 'webcam' && (
-      <div className="absolute top-2 left-2 bg-blue-500 text-white px-3 py-1.5 rounded text-xs font-medium z-20 flex items-center gap-2">
-        <div className="w-2 h-2 bg-white rounded-full animate-pulse"></div>
-        Analyzing...
-      </div>
-    )}
+  const startWebcam = async () => {
+    if (!webcamRef.current) return;
     
-    {isCameraStarting && (
-      <div className="absolute inset-[2px] flex items-center justify-center bg-gray-50 bg-opacity-75 z-20 rounded-lg">
-        <Loader2 className="w-8 h-8 animate-spin text-blue-600" />
-      </div>
-    )}
+    setIsCameraStarting(true);
+    setCameraError(null);
     
-    {cameraError && (
-      <div className="absolute inset-[2px] flex items-center justify-center bg-red-50 z-20 rounded-lg">
-        <div className="text-center p-4">
-          <div className="text-red-600 font-medium mb-2">Camera Error</div>
-          <div className="text-red-500 text-sm">{cameraError}</div>
-        </div>
-      </div>
-    )}
-    
-    {activeMode === 'upload' && (
-      (localPreviewImage || previewImage) ? (
-        <div className="absolute inset-[2px] flex items-center justify-center z-30 rounded-lg overflow-hidden">
-          <img 
-            src={localPreviewImage || previewImage} 
-            alt="Preview" 
-            className="max-w-full max-h-full object-contain"
-          />
-        </div>
-      ) : (
-        <div className="text-gray-500 text-center">
-          <Upload className="w-8 h-8 mx-auto mb-2 text-gray-400" />
-          Upload an image or use camera
-        </div>
-      )
-    )}
-  </div>
-);
-
-return (
-  isMobile ? (
-    <>
-      <div className="flex items-center justify-between">
-        <div className="flex items-center gap-2">
-          {showModels ? (
-            <>
-              <Shield className="w-6 h-6" />
-              <span className="text-base">Current Model</span>
-            </>
-          ) : (
-            <>
-              <FileImage className="w-6 h-6" />
-              <span className="text-base">Verification</span>
-            </>
-          )}
-        </div>
-        <Button 
-          variant="ghost" 
-          size="default"
-          onClick={onToggleModels}
-          className="h-10 w-10 p-0"
-          title={showModels ? "Back to Preview" : "Models"}
-        >
-          {showModels ? <X className="w-5 h-5" /> : <List className="w-5 h-5" />}
-        </Button>
-      </div>
+    try {
+      mobileWebcam.current = new MobileWebcam(webcamRef.current, {
+        width: 224,
+        height: 224,
+        facingMode: 'user'
+      });
       
-      {showModels ? (
-        <>
-          <div className="space-y-4">
-            <div className="text-center py-8">
-              <Shield className="w-12 h-12 mx-auto mb-4 text-gray-300" />
-              <h3 className="text-base font-medium text-gray-500 mb-2">No Siamese model loaded</h3>
-              <p className="text-gray-400 text-sm mb-4">Select a model to start verification</p>
-              <DropdownMenu>
-                <DropdownMenuTrigger asChild>
-                  <Button variant="outline">
-                    <Cloud className="mr-2 h-4 w-4" />
-                    Select Model
-                  </Button>
-                </DropdownMenuTrigger>
-                <DropdownMenuContent align="end" className="w-48">
-                  <DropdownMenuItem onClick={onCloudModelSelect || onChangeModel}>
-                    <Cloud className="mr-2 h-4 w-4" />
-                    <span>Cloud</span>
-                  </DropdownMenuItem>
-                  <DropdownMenuItem onClick={onLocalModelSelect || (() => {})}>
-                    <FolderOpen className="mr-2 h-4 w-4" />
-                    <span>Local</span>
-                  </DropdownMenuItem>
-                </DropdownMenuContent>
-              </DropdownMenu>
-            </div>
-          </div>
-        </>
-      ) : (
-        <>
-          <div className="flex flex-row gap-3">
-            <DropdownMenu>
-              <DropdownMenuTrigger asChild>
-                <Button variant="ghost" className="p-2 h-10 w-10">
-                  <ChevronDown className="w-4 h-4" />
-                </Button>
-              </DropdownMenuTrigger>
-              <DropdownMenuContent align="start" className="w-48">
-                <DropdownMenuItem onClick={() => setActiveMode('webcam')}>
-                  <Camera className="mr-2 h-4 w-4" />
-                  <span>Webcam</span>
-                  {activeMode === 'webcam' && (
-                    <div className="w-2 h-2 bg-green-500 rounded-full ml-auto"></div>
-                  )}
-                </DropdownMenuItem>
-                <DropdownMenuItem onClick={() => setActiveMode('upload')}>
-                  <FolderOpen className="mr-2 h-4 w-4" />
-                  <span>Upload</span>
-                  {activeMode === 'upload' && (
-                    <div className="w-2 h-2 bg-blue-500 rounded-full ml-auto"></div>
-                  )}
-                </DropdownMenuItem>
-              </DropdownMenuContent>
-            </DropdownMenu>
-            
-            {activeMode === 'webcam' ? (
-              <Button
-                variant={activeMode === 'webcam' ? 'default' : 'outline'}
-                className={`justify-center w-auto py-3 ${activeMode === 'webcam' ? 'bg-green-600 hover:bg-green-700' : ''}`}
-                onClick={handleWebcamClick}
-                disabled={!mobileWebcam.current}
-              >
-                <div className="flex items-center gap-2">
-                  <Camera className="w-5 h-5" />
-                  <span>{isVideoPaused ? 'Resume' : 'Pause'}</span>
-                  {activeMode === 'webcam' && !isVideoPaused && (
-                    <div className="w-2 h-2 bg-green-400 rounded-full animate-pulse ml-1"></div>
-                  )}
-                </div>
-              </Button>
+      await mobileWebcam.current.setup();
+      setIsWebcamActive(true);
+      setIsCameraReady(true);
+      
+    } catch (error) {
+      console.error('Camera setup failed:', error);
+      setCameraError('Failed to start camera. Please check permissions.');
+    } finally {
+      setIsCameraStarting(false);
+    }
+  };
+
+  const stopWebcam = () => {
+    if (mobileWebcam.current) {
+      mobileWebcam.current.stop();
+      mobileWebcam.current = null;
+    }
+    setIsWebcamActive(false);
+    setIsCameraReady(false);
+    setIsVideoPaused(false);
+  };
+
+  const captureFrame = () => {
+    if (!mobileWebcam.current) return;
+    
+    try {
+      const imageData = mobileWebcam.current.capture();
+      if (imageData) {
+        setPreviewImage(imageData);
+        setLocalPreviewImage(null);
+      }
+    } catch (error) {
+      console.error('Frame capture failed:', error);
+    }
+  };
+
+  // Cleanup on unmount
+  useEffect(() => {
+    return () => {
+      if (mobileWebcam.current) {
+        mobileWebcam.current.stop();
+      }
+      if (cameraPredictionIntervalRef.current) {
+        clearInterval(cameraPredictionIntervalRef.current);
+      }
+    };
+  }, []);
+
+  // Render camera display
+  const renderCameraDisplay = () => {
+    if (!isWebcamActive) {
+      return (
+        <div className="flex flex-col items-center justify-center h-64 bg-gray-100 rounded-lg border-2 border-dashed border-gray-300">
+          <Camera className="w-12 h-12 text-gray-400 mb-4" />
+          <p className="text-gray-500 mb-4">Camera not active</p>
+          <Button onClick={startWebcam} disabled={isCameraStarting}>
+            {isCameraStarting ? (
+              <>
+                <Loader2 className="w-4 h-4 mr-2 animate-spin" />
+                Starting Camera...
+              </>
             ) : (
-              <div className="relative w-auto">
-                <input 
-                  type="file" 
-                  accept="image/*" 
-                  multiple
-                  className="hidden"
-                  id="mobile-file-upload"
-                  onChange={handleFileUpload}
-                />
-                <label htmlFor="mobile-file-upload" className="cursor-pointer w-auto">
-                  <Button 
-                    variant={activeMode === 'upload' ? 'default' : 'outline'}
-                    className={`justify-center w-auto py-3 ${activeMode === 'upload' ? 'bg-blue-600 hover:bg-blue-700' : ''}`} 
-                    asChild
-                  >
-                    <span>
-                      <FolderOpen className="w-5 h-5 mr-2" />
-                      Upload
-                      {activeMode === 'upload' && (
-                        <div className="w-2 h-2 bg-blue-400 rounded-full ml-2"></div>
-                      )}
-                    </span>
-                  </Button>
-                </label>
-              </div>
+              <>
+                <Camera className="w-4 h-4 mr-2" />
+                Start Camera
+              </>
             )}
-          </div>
-          
-          {renderCameraDisplay()}
+          </Button>
+          {cameraError && (
+            <p className="text-red-500 text-sm mt-2">{cameraError}</p>
+          )}
+        </div>
+      );
+    }
 
-          {/* Student Selection and Verify Button Row */}
-          <div className="flex items-center gap-3 pt-3">
-            <DropdownMenu>
-              <DropdownMenuTrigger asChild>
-                <Button variant="outline" className="flex-1 justify-start">
-                  <User className="w-4 h-4 mr-2" />
-                  {selectedStudent ? availableClasses.find(cls => cls.student?.student_id === selectedStudent)?.student?.firstname + ' ' + availableClasses.find(cls => cls.student?.student_id === selectedStudent)?.student?.surname : 'Select Class'}
-                  <ChevronDown className="w-4 h-4 ml-auto" />
-                </Button>
-              </DropdownMenuTrigger>
-              <DropdownMenuContent align="start" className="w-full">
-                {availableClasses.map((cls) => (
-                  <DropdownMenuItem
-                    key={cls.student?.student_id}
-                    onClick={() => setSelectedStudent(cls.student?.student_id || '')}
-                    className="flex items-center gap-2"
-                  >
-                    <User className="w-4 h-4" />
-                    {cls.student?.firstname} {cls.student?.surname}
-                  </DropdownMenuItem>
-                ))}
-              </DropdownMenuContent>
-            </DropdownMenu>
-            
-            <Button
-              onClick={() => handleVerifySignature({ image: localPreviewImage || previewImage })}
-              disabled={isVerifying || !selectedStudent}
-              className="px-6"
-            >
-              {isVerifying ? 'Verifying...' : 'Verify'}
-            </Button>
-          </div>
-
-          {/* Verification Result Display */}
-          {verificationResult && (
-            <div className="pt-3">
-              <div className={`p-3 rounded-lg border ${
-                verificationResult.isVerified 
-                  ? 'bg-green-50 border-green-200' 
-                  : 'bg-red-50 border-red-200'
-              }`}>
-                <div className="flex items-center gap-2">
-                  {verificationResult.isVerified ? (
-                    <CheckCircle className="w-5 h-5 text-green-600" />
-                  ) : (
-                    <XCircle className="w-5 h-5 text-red-600" />
-                  )}
-                  <div>
-                    <p className={`font-medium ${
-                      verificationResult.isVerified ? 'text-green-800' : 'text-red-800'
-                    }`}>
-                      {verificationResult.isVerified ? 'Matched' : 'Not Matched'}
-                    </p>
-                    <p className={`text-sm ${
-                      verificationResult.isVerified ? 'text-green-600' : 'text-red-600'
-                    }`}>
-                      Confidence: {(verificationResult.confidence * 100).toFixed(0)}%
-                    </p>
-                  </div>
-                </div>
+    return (
+      <div className="space-y-4">
+        <div className="relative">
+          <div 
+            ref={webcamRef}
+            className="w-full h-64 bg-black rounded-lg overflow-hidden"
+          />
+          {isVideoPaused && (
+            <div className="absolute inset-0 bg-black bg-opacity-50 flex items-center justify-center">
+              <div className="text-white text-center">
+                <Pause className="w-8 h-8 mx-auto mb-2" />
+                <p>Video Paused</p>
               </div>
             </div>
           )}
-
-<div className="space-y-3"></div>
-        </>
-      )}
-    </>
-  ) : (
-    <Card className="h-[605px] w-full lg:col-span-1 flex flex-col">
-      <CardHeader className="pb-2">
-        <CardTitle className="flex items-center justify-between">
-          <div className="flex items-center gap-2">
-            {showModels ? (
-              <>
-                <Shield className="w-5 h-5" />
-                <span>Current Model</span>
-              </>
-            ) : (
-              <>
-                <FileImage className="w-5 h-5" />
-                <span>Verification</span>
-              </>
-            )}
-          </div>
-          <Button 
-            variant="ghost" 
-            size="default"
-            onClick={onToggleModels}
-            className="h-8 w-8 p-0"
-            title={showModels ? "Back to Preview" : "Models"}
-          >
-            {showModels ? <X className="w-4 h-4" /> : <List className="w-4 h-4" />}
+        </div>
+        
+        <div className="flex gap-2">
+          <Button onClick={handleWebcamClick} variant="outline" className="flex-1">
+            {isVideoPaused ? 'Resume' : 'Pause'} Video
           </Button>
+          <Button onClick={captureFrame} className="flex-1">
+            <Camera className="w-4 h-4 mr-2" />
+            Capture Frame
+          </Button>
+          <Button onClick={stopWebcam} variant="destructive">
+            <X className="w-4 h-4 mr-2" />
+            Stop
+          </Button>
+        </div>
+      </div>
+    );
+  };
+
+  return (
+    <Card className="h-[605px] w-full flex flex-col">
+      <CardHeader className="pb-2">
+        <CardTitle className="flex items-center gap-2">
+          <FileImage className="w-5 h-5" />
+          Verification
         </CardTitle>
       </CardHeader>
-      
       <CardContent className="flex-1 overflow-hidden flex flex-col">
-        {showModels ? (
-          <div className="space-y-4">
-            <div className="text-center py-8">
-              <Shield className="w-12 h-12 mx-auto mb-4 text-gray-300" />
-              <h3 className="text-base font-medium text-gray-500 mb-2">No Siamese model loaded</h3>
-              <p className="text-gray-400 text-sm mb-4">Select a model to start verification</p>
-              <DropdownMenu>
-                <DropdownMenuTrigger asChild>
-                  <Button variant="outline">
-                    <Cloud className="mr-2 h-4 w-4" />
-                    Select Model
-                  </Button>
-                </DropdownMenuTrigger>
-                <DropdownMenuContent align="end" className="w-48">
-                  <DropdownMenuItem onClick={onCloudModelSelect || onChangeModel}>
-                    <Cloud className="mr-2 h-4 w-4" />
-                    <span>Cloud</span>
-                  </DropdownMenuItem>
-                  <DropdownMenuItem onClick={onLocalModelSelect || (() => {})}>
-                    <FolderOpen className="mr-2 h-4 w-4" />
-                    <span>Local</span>
-                  </DropdownMenuItem>
-                </DropdownMenuContent>
-              </DropdownMenu>
+        {isMobile ? (
+          <div className="flex flex-col space-y-4">
+            {/* Mode Selection */}
+            <div className="flex gap-2">
+              <Button
+                variant={activeMode === 'upload' ? 'default' : 'outline'}
+                onClick={() => setActiveMode('upload')}
+                className="flex-1"
+              >
+                <Upload className="w-4 h-4 mr-2" />
+                Upload
+              </Button>
+              <Button
+                variant={activeMode === 'webcam' ? 'default' : 'outline'}
+                onClick={() => setActiveMode('webcam')}
+                className="flex-1"
+              >
+                <Camera className="w-4 h-4 mr-2" />
+                Camera
+              </Button>
             </div>
-          </div>
-        ) : (
-          <>
-            <div className="flex flex-row gap-3 mb-4">
+
+            {/* Upload Mode */}
+            {activeMode === 'upload' && (
+              <div className="space-y-4">
+                <div className="border-2 border-dashed border-gray-300 rounded-lg p-6 text-center">
+                  <Upload className="w-12 h-12 text-gray-400 mx-auto mb-4" />
+                  <p className="text-gray-600 mb-4">Upload signature image</p>
+                  <input
+                    type="file"
+                    accept="image/*"
+                    onChange={handlePreviewFileUpload}
+                    className="hidden"
+                    id="mobile-upload"
+                  />
+                  <label
+                    htmlFor="mobile-upload"
+                    className="inline-flex items-center px-4 py-2 border border-gray-300 rounded-md shadow-sm text-sm font-medium text-gray-700 bg-white hover:bg-gray-50 cursor-pointer"
+                  >
+                    Choose File
+                  </label>
+                </div>
+                
+                {(localPreviewImage || previewImage) && (
+                  <div className="relative">
+                    <img
+                      src={localPreviewImage || previewImage || ''}
+                      alt="Preview"
+                      className="w-full h-48 object-contain bg-gray-100 rounded-lg"
+                    />
+                    <button
+                      onClick={() => {
+                        setLocalPreviewImage(null);
+                        setPreviewImage(null);
+                      }}
+                      className="absolute top-2 right-2 bg-red-500 text-white rounded-full w-8 h-8 flex items-center justify-center"
+                    >
+                      <X className="w-4 h-4" />
+                    </button>
+                  </div>
+                )}
+              </div>
+            )}
+
+            {/* Camera Mode */}
+            {activeMode === 'webcam' && renderCameraDisplay()}
+
+            {/* Student Selection and Verify Button Row */}
+            <div className="flex items-center gap-3 pt-3">
               <DropdownMenu>
                 <DropdownMenuTrigger asChild>
-                  <Button variant="ghost" className="p-2 h-10 w-10">
-                    <ChevronDown className="w-4 h-4" />
+                  <Button variant="outline" className="flex-1 justify-start">
+                    <User className="w-4 h-4 mr-2" />
+                    {selectedStudent ? availableClasses.find(cls => cls.student?.student_id === selectedStudent)?.student?.firstname + ' ' + availableClasses.find(cls => cls.student?.student_id === selectedStudent)?.student?.surname : 'Select Class'}
+                    <ChevronDown className="w-4 h-4 ml-auto" />
                   </Button>
                 </DropdownMenuTrigger>
-                <DropdownMenuContent align="start" className="w-48">
-                  <DropdownMenuItem onClick={() => setActiveMode('webcam')}>
-                    <Camera className="mr-2 h-4 w-4" />
-                    <span>Webcam</span>
-                    {activeMode === 'webcam' && (
-                      <div className="w-2 h-2 bg-green-500 rounded-full ml-auto"></div>
-                    )}
-                  </DropdownMenuItem>
-                  <DropdownMenuItem onClick={() => setActiveMode('upload')}>
-                    <FolderOpen className="mr-2 h-4 w-4" />
-                    <span>Upload</span>
-                    {activeMode === 'upload' && (
-                      <div className="w-2 h-2 bg-blue-500 rounded-full ml-auto"></div>
-                    )}
-                  </DropdownMenuItem>
+                <DropdownMenuContent align="start" className="w-full">
+                  {availableClasses.map((cls) => (
+                    <DropdownMenuItem
+                      key={cls.student?.student_id}
+                      onClick={() => setSelectedStudent(cls.student?.student_id || '')}
+                      className="flex items-center gap-2"
+                    >
+                      <User className="w-4 h-4" />
+                      {cls.student?.firstname} {cls.student?.surname}
+                    </DropdownMenuItem>
+                  ))}
                 </DropdownMenuContent>
               </DropdownMenu>
               
-              {activeMode === 'webcam' ? (
-<Button
-  variant={activeMode === 'webcam' ? 'default' : 'outline'}
-  className={`justify-center w-auto py-3 ${activeMode === 'webcam' ? 'bg-green-600 hover:bg-green-700' : ''}`}
-  onClick={handleWebcamClick}
-  disabled={!mobileWebcam.current}
->
-  <div className="flex items-center gap-2">
-    <Camera className="w-5 h-5" />
-    <span>{isVideoPaused ? 'Resume' : 'Pause'}</span>
-    {activeMode === 'webcam' && !isVideoPaused && (
-      <div className="w-2 h-2 bg-green-400 rounded-full animate-pulse ml-1"></div>
-    )}
-  </div>
-</Button>
-              ) : (
-                <div className="relative w-auto">
-                  <input 
-                    type="file" 
-                    accept="image/*" 
-                    multiple
+              <Button
+                onClick={() => handleVerifySignature({ image: localPreviewImage || previewImage })}
+                disabled={isVerifying || !selectedStudent}
+                className="px-6"
+              >
+                {isVerifying ? 'Verifying...' : 'Verify'}
+              </Button>
+            </div>
+
+            {/* Verification Result Display */}
+            {verificationResult && (
+              <div className="pt-3">
+                <div className={`p-3 rounded-lg border ${
+                  verificationResult.isVerified 
+                    ? 'bg-green-50 border-green-200' 
+                    : 'bg-red-50 border-red-200'
+                }`}>
+                  <div className="flex items-center gap-2">
+                    {verificationResult.isVerified ? (
+                      <CheckCircle className="w-5 h-5 text-green-600" />
+                    ) : (
+                      <XCircle className="w-5 h-5 text-red-600" />
+                    )}
+                    <div>
+                      <p className={`font-medium ${
+                        verificationResult.isVerified ? 'text-green-800' : 'text-red-800'
+                      }`}>
+                        {verificationResult.isVerified ? 'Matched' : 'Not Matched'}
+                      </p>
+                      <p className={`text-sm ${
+                        verificationResult.isVerified ? 'text-green-600' : 'text-red-600'
+                      }`}>
+                        Confidence: {(verificationResult.confidence * 100).toFixed(0)}%
+                      </p>
+                    </div>
+                  </div>
+                </div>
+              </div>
+            )}
+
+            <div className="space-y-3"></div>
+          </>
+        ) : (
+          <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 h-full">
+            {/* Left Column - Image Input */}
+            <div className="space-y-4">
+              {/* Mode Selection */}
+              <div className="flex gap-2">
+                <Button
+                  variant={activeMode === 'upload' ? 'default' : 'outline'}
+                  onClick={() => setActiveMode('upload')}
+                  className="flex-1"
+                >
+                  <Upload className="w-4 h-4 mr-2" />
+                  Upload Image
+                </Button>
+                <Button
+                  variant={activeMode === 'webcam' ? 'default' : 'outline'}
+                  onClick={() => setActiveMode('webcam')}
+                  className="flex-1"
+                >
+                  <Camera className="w-4 h-4 mr-2" />
+                  Use Camera
+                </Button>
+              </div>
+
+              {/* Upload Mode */}
+              {activeMode === 'upload' && (
+                <div className="border-2 border-dashed border-gray-300 rounded-lg p-6 text-center">
+                  <Upload className="w-12 h-12 text-gray-400 mx-auto mb-4" />
+                  <p className="text-gray-600 mb-4">Upload signature image</p>
+                  <input
+                    type="file"
+                    accept="image/*"
+                    onChange={handlePreviewFileUpload}
                     className="hidden"
-                    id="stored-model-file-upload"
-                    onChange={onHandlePreviewFileUpload}
+                    id="desktop-upload"
                   />
-                  <label htmlFor="stored-model-file-upload" className="cursor-pointer w-auto">
-                    <Button 
-                      variant={activeMode === 'upload' ? 'default' : 'outline'}
-                      className={`justify-center w-auto py-3 ${activeMode === 'upload' ? 'bg-blue-600 hover:bg-blue-700' : ''}`} 
-                      asChild
-                    >
-                      <span>
-                        <FolderOpen className="w-5 h-5 mr-2" />
-                        Upload
-                        {activeMode === 'upload' && (
-                          <div className="w-2 h-2 bg-blue-400 rounded-full ml-2"></div>
-                        )}
-                      </span>
-                    </Button>
+                  <label
+                    htmlFor="desktop-upload"
+                    className="inline-flex items-center px-4 py-2 border border-gray-300 rounded-md shadow-sm text-sm font-medium text-gray-700 bg-white hover:bg-gray-50 cursor-pointer"
+                  >
+                    Choose File
                   </label>
+                </div>
+              )}
+
+              {/* Camera Mode */}
+              {activeMode === 'webcam' && renderCameraDisplay()}
+
+              {/* Preview Image */}
+              {(localPreviewImage || previewImage) && (
+                <div className="relative">
+                  <img
+                    src={localPreviewImage || previewImage || ''}
+                    alt="Preview"
+                    className="w-full h-48 object-contain bg-gray-100 rounded-lg"
+                  />
+                  <button
+                    onClick={() => {
+                      setLocalPreviewImage(null);
+                      setPreviewImage(null);
+                    }}
+                    className="absolute top-2 right-2 bg-red-500 text-white rounded-full w-8 h-8 flex items-center justify-center"
+                  >
+                    <X className="w-4 h-4" />
+                  </button>
                 </div>
               )}
             </div>
@@ -665,8 +528,7 @@ return (
         )}
       </CardContent>
     </Card>
-  )
-);
+  );
 };
 
 export default Verification;

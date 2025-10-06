@@ -30,8 +30,8 @@ import {
 import StudentSelectionModal from '@/components/model-training-ui/components/StudentSelectionModal';
 import BatchUpload from './BatchUpload';
 import type { Student } from '@/types';
-import type { ClassData } from './ModelTraining';
 import { fetchStudents } from '@/lib/supabaseService';
+import { siameseModelService } from '../lib/AIModelService';
 import {
   Dialog,
   DialogContent,
@@ -40,49 +40,38 @@ import {
   DialogTitle,
 } from '@/components/ui/dialog';
 
-interface TrainingSetupProps {
-  classes: ClassData[];
-  isTraining: boolean;
-  isModelLoaded: boolean;
-  trainingProgress: number;
-  isUploading: boolean;
-  hasUploaded: boolean;
-  isDownloading: boolean;
-  hasExportedToCloud: boolean;
-  hasDownloadedToPC: boolean;
-  onRemoveClass: (index: number) => void;
-  onUpdateClassName: (index: number, student: Student) => void;
-  onAddMultipleStudents: (students: Student[], samplesMap?: Map<string, any[]>) => void;
-  onTrainModel: () => void;
-  onUploadModelToS3: () => void;
-  onDownloadModelToLocal: () => void;
-  onHandleFileUpload: (classIndex: number, event: React.ChangeEvent<HTMLInputElement>, type: 'genuine' | 'forged') => void;
-  formatStudentDisplay: (student: Student) => string;
+// Interfaces
+export interface ClassData {
+  student: Student | null;
+  color: string;
+  samples: SampleData[];
+  genuineSamples: SampleData[];
+  forgedSamples: SampleData[];
+}
+
+export interface SampleData {
+  thumbnail: string;
+  timestamp: number;
+  type?: 'genuine' | 'forged';
 }
 
 const formatStudentDisplay = (student: Student): string => {
   return `${student.student_id} - ${student.firstname} ${student.surname}`;
 };
 
-const TrainingSetup: React.FC<TrainingSetupProps> = ({
-  classes,
-  isTraining,
-  isModelLoaded,
-  trainingProgress,
-  isUploading,
-  hasUploaded,
-  isDownloading,
-  hasExportedToCloud,
-  hasDownloadedToPC,
-  onRemoveClass,
-  onUpdateClassName,
-  onAddMultipleStudents,
-  onHandleFileUpload,
-  onTrainModel,
-  onUploadModelToS3,
-  onDownloadModelToLocal,
-  formatStudentDisplay
-}) => {
+const TrainingSetup: React.FC = () => {
+  // State management
+  const [classes, setClasses] = useState<ClassData[]>([
+    { student: null, color: '#FF6B6B', samples: [], genuineSamples: [], forgedSamples: [] }
+  ]);
+  const [isTraining, setIsTraining] = useState(false);
+  const [isModelLoaded, setIsModelLoaded] = useState(false);
+  const [trainingProgress, setTrainingProgress] = useState(0);
+  const [isUploading, setIsUploading] = useState(false);
+  const [hasUploaded, setHasUploaded] = useState(false);
+  const [isDownloading, setIsDownloading] = useState(false);
+  const [hasExportedToCloud, setHasExportedToCloud] = useState(false);
+  const [hasDownloadedToPC, setHasDownloadedToPC] = useState(false);
   const [batchUploadOpen, setBatchUploadOpen] = useState(false);
   const [allStudents, setAllStudents] = useState<Student[]>([]);
   const [isProcessingUpload, setIsProcessingUpload] = useState(false);
@@ -92,6 +81,7 @@ const TrainingSetup: React.FC<TrainingSetupProps> = ({
   const [processedFiles, setProcessedFiles] = useState(0);
   const [sampleDisplayMode, setSampleDisplayMode] = useState<'genuine' | 'forged'>('genuine');
 
+  // Load students for batch upload
   const loadStudentsForBatchUpload = async () => {
     try {
       const students = await fetchStudents();
@@ -103,6 +93,7 @@ const TrainingSetup: React.FC<TrainingSetupProps> = ({
     }
   };
 
+  // Handle batch upload confirmation
   const handleBatchUploadConfirm = async (validFolders: any[]) => {
     try {
       setBatchUploadOpen(false);
@@ -114,13 +105,13 @@ const TrainingSetup: React.FC<TrainingSetupProps> = ({
       const total = validFolders.reduce((sum, folder) => sum + folder.genuineFiles.length + folder.forgedFiles.length, 0);
       setTotalFiles(total);
       
-      const samplesMap = new Map<string, { genuine: any[], forged: any[] }>();
+      const samplesMap = new Map<string, { genuine: SampleData[], forged: SampleData[] }>();
       let filesProcessed = 0;
       
       for (const folder of validFolders) {
         const { matchedStudent, genuineFiles, forgedFiles } = folder;
-        const genuineSamples: any[] = [];
-        const forgedSamples: any[] = [];
+        const genuineSamples: SampleData[] = [];
+        const forgedSamples: SampleData[] = [];
         
         setCurrentProcessingStudent(formatStudentDisplay(matchedStudent));
         
@@ -161,7 +152,7 @@ const TrainingSetup: React.FC<TrainingSetupProps> = ({
               img.src = URL.createObjectURL(file);
             });
           } catch (error) {
-            console.error('Error processing genuine file:', error);
+            console.error('Error processing file:', error);
           }
         }
         
@@ -202,18 +193,15 @@ const TrainingSetup: React.FC<TrainingSetupProps> = ({
               img.src = URL.createObjectURL(file);
             });
           } catch (error) {
-            console.error('Error processing forged file:', error);
+            console.error('Error processing file:', error);
           }
         }
         
-        samplesMap.set(matchedStudent.student_id, { 
-          genuine: genuineSamples, 
-          forged: forgedSamples 
-        });
+        samplesMap.set(matchedStudent.student_id, { genuine: genuineSamples, forged: forgedSamples });
       }
       
       const students = validFolders.map(folder => folder.matchedStudent);
-      onAddMultipleStudents(students, samplesMap);
+      addMultipleStudents(students, samplesMap);
       
       setIsProcessingUpload(false);
       setUploadProgress(0);
@@ -223,6 +211,174 @@ const TrainingSetup: React.FC<TrainingSetupProps> = ({
       console.error('Error processing batch upload:', error);
       setIsProcessingUpload(false);
       alert('Failed to process batch upload: ' + (error instanceof Error ? error.message : 'Unknown error'));
+    }
+  };
+
+  // Add multiple students
+  const addMultipleStudents = (students: Student[], samplesMap?: Map<string, { genuine: SampleData[], forged: SampleData[] }>) => {
+    if (students.length === 0) return;
+    
+    const colors = ['#FF6B6B', '#4ECDC4', '#45B7D1', '#96CEB4', '#FECA57', '#FF9FF3', '#54A0FF'];
+    const newClasses = students.map((student, index) => {
+      const studentSamples = samplesMap?.get(student.student_id);
+      const allSamples = studentSamples ? [...studentSamples.genuine, ...studentSamples.forged] : [];
+      
+      return {
+        student,
+        color: colors[(classes.length + index) % colors.length],
+        samples: allSamples,
+        genuineSamples: studentSamples?.genuine || [],
+        forgedSamples: studentSamples?.forged || []
+      };
+    });
+    
+    setClasses([...classes, ...newClasses]);
+  };
+
+  // Remove class
+  const removeClass = (index: number) => {
+    if (classes.length <= 1) return;
+    
+    const newClasses = classes.filter((_, i) => i !== index);
+    setClasses(newClasses);
+  };
+
+  // Update class name (student)
+  const updateClassName = (index: number, student: Student) => {
+    const newClasses = [...classes];
+    newClasses[index].student = student;
+    setClasses(newClasses);
+  };
+
+  // Handle file upload for specific class
+  const handleFileUpload = async (classIndex: number, event: React.ChangeEvent<HTMLInputElement>, type: 'genuine' | 'forged' = 'genuine') => {
+    const files = event.target.files;
+    if (!files || files.length === 0) return;
+
+    const newClasses = [...classes];
+
+    try {
+      for (let i = 0; i < files.length; i++) {
+        const file = files[i];
+        
+        const img = new Image();
+        await new Promise<void>((resolve, reject) => {
+          img.onload = async () => {
+            try {
+              const canvas = document.createElement('canvas');
+              canvas.width = 224;
+              canvas.height = 224;
+              const ctx = canvas.getContext('2d');
+              
+              if (ctx) {
+                ctx.drawImage(img, 0, 0, 224, 224);
+                const thumbnail = canvas.toDataURL('image/jpeg', 0.8);
+                
+                const sampleData = {
+                  thumbnail,
+                  timestamp: Date.now(),
+                  type
+                };
+                
+                if (type === 'genuine') {
+                  newClasses[classIndex].genuineSamples.push(sampleData);
+                } else {
+                  newClasses[classIndex].forgedSamples.push(sampleData);
+                }
+                
+                // Also add to main samples array for backward compatibility
+                newClasses[classIndex].samples.push(sampleData);
+              }
+              resolve();
+            } catch (error) {
+              reject(error);
+            }
+          };
+          
+          img.onerror = () => reject(new Error(`Failed to load image: ${file.name}`));
+          img.src = URL.createObjectURL(file);
+        });
+      }
+      
+      setClasses(newClasses);
+      
+    } catch (error) {
+      console.error('Error processing files:', error);
+    }
+    
+    event.target.value = '';
+  };
+
+  // Training function - calls Python training pipeline
+  const trainModel = async () => {
+    const validClasses = classes.filter(cls => cls.student && (cls.genuineSamples.length > 0 || cls.forgedSamples.length > 0));
+    
+    if (validClasses.length < 1) {
+      alert('Please add students and upload samples before training!');
+      return;
+    }
+
+    setIsTraining(true);
+    setTrainingProgress(0);
+
+    try {
+      console.log('Starting Siamese training for all students...');
+      
+      // Train model for each student
+      for (let i = 0; i < validClasses.length; i++) {
+        const cls = validClasses[i];
+        const studentId = cls.student?.student_id || `student_${i}`;
+        
+        console.log(`Training model for student: ${studentId}`);
+        
+        // Call the Siamese training service
+        const metadata = await siameseModelService.trainModel(
+          studentId,
+          cls.genuineSamples,
+          cls.forgedSamples
+        );
+        
+        console.log('Training completed for student:', metadata);
+        
+        // Update progress
+        const progress = ((i + 1) / validClasses.length) * 100;
+        setTrainingProgress(progress);
+      }
+
+      setIsModelLoaded(true);
+      console.log('All models trained successfully!');
+
+    } catch (error) {
+      console.error('Training failed:', error);
+      alert(`Training failed: ${error}`);
+    } finally {
+      setIsTraining(false);
+      setTrainingProgress(0);
+    }
+  };
+
+  // Mock export functions
+  const exportToS3Handler = async () => {
+    setIsUploading(true);
+    try {
+      await new Promise(resolve => setTimeout(resolve, 2000));
+      setHasExportedToCloud(true);
+    } catch (error) {
+      console.error('Export failed:', error);
+    } finally {
+      setIsUploading(false);
+    }
+  };
+
+  const exportToLocalHandler = async () => {
+    setIsDownloading(true);
+    try {
+      await new Promise(resolve => setTimeout(resolve, 1500));
+      setHasDownloadedToPC(true);
+    } catch (error) {
+      console.error('Download failed:', error);
+    } finally {
+      setIsDownloading(false);
     }
   };
 
@@ -278,14 +434,14 @@ const TrainingSetup: React.FC<TrainingSetupProps> = ({
                           selectedStudent={cls.student}
                           excludeStudents={classes.filter(c => c.student && c.student?.student_id !== cls.student?.student_id).map(c => c.student!).filter(Boolean)}
                           selectionContext="classCard"
-                          onStudentSelect={(student) => onUpdateClassName(index, student)}
+                          onStudentSelect={(student) => updateClassName(index, student)}
                           trigger={
                             <DropdownMenuItem onSelect={(e) => e.preventDefault()}>
                               Change Student
                             </DropdownMenuItem>
                           }
                         />
-                        <DropdownMenuItem onClick={() => onRemoveClass(index)}>
+                        <DropdownMenuItem onClick={() => removeClass(index)}>
                           Delete Class
                         </DropdownMenuItem>
                       </DropdownMenuContent>
@@ -295,12 +451,13 @@ const TrainingSetup: React.FC<TrainingSetupProps> = ({
                   <div className="border-t border-gray-200 my-3"></div>
                   
                   <div className="space-y-3">
+                    {/* Upload Buttons */}
                     <div className="flex items-center justify-between">
                       <div className="flex gap-2">
                         <label className="cursor-pointer">
                           <Button variant="secondary" size="sm" className="bg-green-100 hover:bg-green-200 text-green-800 border-green-200" asChild>
                             <span>
-                              <Upload className="w-3 h-3 mr-1" />
+                              <Upload className="w-4 h-4 mr-1" />
                               Genuine
                             </span>
                           </Button>
@@ -308,14 +465,14 @@ const TrainingSetup: React.FC<TrainingSetupProps> = ({
                             type="file" 
                             accept="image/*" 
                             multiple
-                            onChange={(e) => onHandleFileUpload(index, e, 'genuine')} 
+                            onChange={(e) => handleFileUpload(index, e, 'genuine')} 
                             className="hidden"
                           />
                         </label>
                         <label className="cursor-pointer">
                           <Button variant="secondary" size="sm" className="bg-red-100 hover:bg-red-200 text-red-800 border-red-200" asChild>
                             <span>
-                              <Upload className="w-3 h-3 mr-1" />
+                              <Upload className="w-4 h-4 mr-1" />
                               Forged
                             </span>
                           </Button>
@@ -323,98 +480,67 @@ const TrainingSetup: React.FC<TrainingSetupProps> = ({
                             type="file" 
                             accept="image/*" 
                             multiple
-                            onChange={(e) => onHandleFileUpload(index, e, 'forged')} 
+                            onChange={(e) => handleFileUpload(index, e, 'forged')} 
                             className="hidden"
                           />
                         </label>
                       </div>
                       <div className="text-sm text-gray-600">
-                        <div>Genuine: {cls.genuineSamples?.length || 0}</div>
-                        <div>Forged: {cls.forgedSamples?.length || 0}</div>
+                        <div>Genuine: {cls.genuineSamples.length}</div>
+                        <div>Forged: {cls.forgedSamples.length}</div>
                       </div>
                     </div>
                     
-                    <div className="border-solid border-gray-300 rounded-lg p-1 min-h-[100px] bg-gray-50 overflow-x-auto overlay-scrollbar-container border-[0.5px] relative group">
-                      {/* Sample Type Navigation */}
-                      {(cls.genuineSamples?.length > 0 || cls.forgedSamples?.length > 0) && (
-                        <div className="absolute top-2 right-2 opacity-0 group-hover:opacity-100 transition-opacity duration-200 flex items-center gap-1 z-10">
-                          <button
-                            onClick={() => setSampleDisplayMode('genuine')}
-                            className={`p-1 rounded ${
-                              sampleDisplayMode === 'genuine' 
-                                ? 'bg-green-500 text-white' 
-                                : 'bg-white text-gray-600 hover:bg-gray-100'
-                            }`}
-                            title="Show genuine samples"
-                          >
-                            <Upload className="w-3 h-3" />
-                          </button>
-                          <button
-                            onClick={() => setSampleDisplayMode('forged')}
-                            className={`p-1 rounded ${
-                              sampleDisplayMode === 'forged' 
-                                ? 'bg-red-500 text-white' 
-                                : 'bg-white text-gray-600 hover:bg-gray-100'
-                            }`}
-                            title="Show forged samples"
-                          >
-                            <AlertTriangle className="w-3 h-3" />
-                          </button>
+                    {/* Sample Display */}
+                    <div className="border-solid border-gray-300 rounded-lg p-1 min-h-[100px] bg-gray-50 overflow-x-auto overlay-scrollbar-container border-[0.5px]">
+                      {cls.samples.length > 0 ? (
+                        <div className="flex gap-1">
+                          {cls.samples.map((sample, sampleIndex) => (
+                            <div 
+                              key={sampleIndex} 
+                              className="flex-shrink-0 w-16 h-16 border border-gray-300 rounded overflow-hidden relative group"
+                            >
+                              <img 
+                                src={sample.thumbnail} 
+                                alt={`${cls.student ? formatStudentDisplay(cls.student) : 'Unassigned'} sample ${sampleIndex + 1}`} 
+                                className="w-full h-full object-cover filter grayscale"
+                              />
+                              <div className="absolute top-0 left-0 bg-black bg-opacity-50 text-white text-xs px-1 rounded-br">
+                                {sample.type === 'genuine' ? 'G' : 'F'}
+                              </div>
+                              <button
+                                className="absolute top-0 right-0 bg-red-500 text-white rounded-full w-5 h-5 flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity transform scale-90 group-hover:scale-100"
+                                onClick={(e) => {
+                                  e.stopPropagation();
+                                  const newClasses = [...classes];
+                                  newClasses[index].samples.splice(sampleIndex, 1);
+                                  if (sample.type === 'genuine') {
+                                    const genuineIndex = newClasses[index].genuineSamples.findIndex(s => s.thumbnail === sample.thumbnail);
+                                    if (genuineIndex !== -1) {
+                                      newClasses[index].genuineSamples.splice(genuineIndex, 1);
+                                    }
+                                  } else {
+                                    const forgedIndex = newClasses[index].forgedSamples.findIndex(s => s.thumbnail === sample.thumbnail);
+                                    if (forgedIndex !== -1) {
+                                      newClasses[index].forgedSamples.splice(forgedIndex, 1);
+                                    }
+                                  }
+                                  setClasses(newClasses);
+                                }}
+                                title="Remove sample"
+                              >
+                                <Trash2 className="w-3 h-3" />
+                              </button>
+                            </div>
+                          ))}
+                        </div>
+                      ) : (
+                        <div className="flex items-center justify-center h-full min-h-[92px]">
+                          <div className="text-gray-500 text-sm">
+                            No samples yet
+                          </div>
                         </div>
                       )}
-                      
-                      {/* Sample Display */}
-                      {(() => {
-                        const currentSamples = sampleDisplayMode === 'genuine' 
-                          ? (cls.genuineSamples || []) 
-                          : (cls.forgedSamples || []);
-                        const sampleType = sampleDisplayMode === 'genuine' ? 'genuine' : 'forged';
-                        
-                        return currentSamples.length > 0 ? (
-                          <div className="flex gap-1">
-                            {currentSamples.map((sample, sampleIndex) => (
-                              <div 
-                                key={sampleIndex} 
-                                className="flex-shrink-0 w-16 h-16 border border-gray-300 rounded overflow-hidden relative group"
-                              >
-                                <img 
-                                  src={sample.thumbnail} 
-                                  alt={`${cls.student ? formatStudentDisplay(cls.student) : 'Unassigned'} ${sampleType} sample ${sampleIndex + 1}`} 
-                                  className="w-full h-full object-cover filter grayscale"
-                                />
-                                <div className={`absolute top-0 left-0 px-1 py-0.5 text-xs font-medium ${
-                                  sampleType === 'genuine' 
-                                    ? 'bg-green-500 text-white' 
-                                    : 'bg-red-500 text-white'
-                                }`}>
-                                  {sampleType === 'genuine' ? 'G' : 'F'}
-                                </div>
-                                <button
-                                  className="absolute top-0 right-0 bg-red-500 text-white rounded-full w-5 h-5 flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity transform scale-90 group-hover:scale-100"
-                                  onClick={(e) => {
-                                    e.stopPropagation();
-                                    const newClasses = [...classes];
-                                    if (sampleType === 'genuine') {
-                                      newClasses[index].genuineSamples.splice(sampleIndex, 1);
-                                    } else {
-                                      newClasses[index].forgedSamples.splice(sampleIndex, 1);
-                                    }
-                                  }}
-                                  title="Remove sample"
-                                >
-                                  <Trash2 className="w-3 h-3" />
-                                </button>
-                              </div>
-                            ))}
-                          </div>
-                        ) : (
-                          <div className="flex items-center justify-center h-full min-h-[92px]">
-                            <div className="text-gray-500 text-sm">
-                              No {sampleType} samples yet
-                            </div>
-                          </div>
-                        );
-                      })()}
                     </div>
                   </div>
                 </CardContent>
@@ -426,7 +552,7 @@ const TrainingSetup: React.FC<TrainingSetupProps> = ({
             <StudentSelectionModal
               mode="multiple"
               excludeStudents={classes.map(c => c.student).filter(Boolean)}
-              onStudentsSelect={onAddMultipleStudents}
+              onStudentsSelect={addMultipleStudents}
               trigger={
                 <Button 
                   variant="outline" 
@@ -471,8 +597,8 @@ const TrainingSetup: React.FC<TrainingSetupProps> = ({
           
           <div className="flex gap-3">
             <Button 
-              onClick={onTrainModel}
-              disabled={classes.filter(cls => cls.samples.length > 0).length < 2 || isTraining}
+              onClick={trainModel}
+              disabled={classes.filter(cls => cls.samples.length > 0).length < 1 || isTraining}
               className="flex-1"
             >
               <User className="w-4 h-4 mr-2" />
@@ -498,7 +624,7 @@ const TrainingSetup: React.FC<TrainingSetupProps> = ({
               </DropdownMenuTrigger>
               <DropdownMenuContent align="end" className="w-48">
                 <DropdownMenuItem 
-                  onClick={onUploadModelToS3}
+                  onClick={exportToS3Handler}
                   disabled={isUploading || isDownloading || hasExportedToCloud}
                   className="flex items-center gap-2"
                 >
@@ -510,7 +636,7 @@ const TrainingSetup: React.FC<TrainingSetupProps> = ({
                   <span>{hasExportedToCloud ? 'Exported to Cloud' : 'Cloud Storage'}</span>
                 </DropdownMenuItem>
                 <DropdownMenuItem 
-                  onClick={onDownloadModelToLocal}
+                  onClick={exportToLocalHandler}
                   disabled={isUploading || isDownloading}
                   className="flex items-center gap-2"
                 >
