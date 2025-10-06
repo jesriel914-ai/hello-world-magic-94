@@ -18,6 +18,7 @@ import ExcuseApplication from "./pages/ExcuseApplication";
 import AllowedTerms from "./pages/AllowedTerms";
 import Subjects from "./pages/Subjects";
 import AISignatureModelTraining from "./pages/AISignatureModelTraining";
+import SiameseSignatureModelTraining from "./pages/SiameseSignatureModelTraining";
 import { AuthProvider } from "./contexts/AuthContext";
 import { SidebarProvider } from "./contexts/SidebarContext";
 import { useAuth } from "./hooks/useAuth";
@@ -166,6 +167,16 @@ const AppRoutes = () => {
         <ProtectedRoute>
           <RoleProtectedRoute allowedRoles={['admin']}>
             <AISignatureModelTraining />
+          </RoleProtectedRoute>
+        </ProtectedRoute>
+      }
+    />
+    <Route
+      path="/SiameseSignatureModelTraining"
+      element={
+        <ProtectedRoute>
+          <RoleProtectedRoute allowedRoles={['admin']}>
+            <SiameseSignatureModelTraining />
           </RoleProtectedRoute>
         </ProtectedRoute>
       }
