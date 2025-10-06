@@ -13,7 +13,11 @@ import {
   CloudUpload,
   Download,
   ChevronDown,
-  MoreVertical
+  MoreVertical,
+  Shield,
+  AlertTriangle,
+  ChevronLeft,
+  ChevronRight
 } from 'lucide-react';
 import {
   DropdownMenu,
@@ -44,13 +48,15 @@ interface TrainingSetupProps {
   isDownloading: boolean;
   hasExportedToCloud: boolean;
   hasDownloadedToPC: boolean;
+  trainingMode: 'classifier' | 'siamese';
   onRemoveClass: (index: number) => void;
   onUpdateClassName: (index: number, student: Student) => void;
   onAddMultipleStudents: (students: Student[], samplesMap?: Map<string, any[]>) => void;
   onTrainModel: () => void;
   onUploadModelToS3: () => void;
   onDownloadModelToLocal: () => void;
-  onHandleFileUpload: (classIndex: number, event: React.ChangeEvent<HTMLInputElement>) => void;
+  onHandleFileUpload: (classIndex: number, event: React.ChangeEvent<HTMLInputElement>, type: 'genuine' | 'forged') => void;
+  onSetTrainingMode: (mode: 'classifier' | 'siamese') => void;
   formatStudentDisplay: (student: Student) => string;
 }
 
@@ -68,6 +74,7 @@ const TrainingSetup: React.FC<TrainingSetupProps> = ({
   isDownloading,
   hasExportedToCloud,
   hasDownloadedToPC,
+  trainingMode,
   onRemoveClass,
   onUpdateClassName,
   onAddMultipleStudents,
@@ -75,6 +82,7 @@ const TrainingSetup: React.FC<TrainingSetupProps> = ({
   onTrainModel,
   onUploadModelToS3,
   onDownloadModelToLocal,
+  onSetTrainingMode,
   formatStudentDisplay
 }) => {
   const [batchUploadOpen, setBatchUploadOpen] = useState(false);
@@ -84,6 +92,7 @@ const TrainingSetup: React.FC<TrainingSetupProps> = ({
   const [currentProcessingStudent, setCurrentProcessingStudent] = useState('');
   const [totalFiles, setTotalFiles] = useState(0);
   const [processedFiles, setProcessedFiles] = useState(0);
+  const [sampleDisplayMode, setSampleDisplayMode] = useState<'genuine' | 'forged'>('genuine');
 
   const loadStudentsForBatchUpload = async () => {
     try {
@@ -193,6 +202,37 @@ const TrainingSetup: React.FC<TrainingSetupProps> = ({
             </DropdownMenuContent>
           </DropdownMenu>
         </CardTitle>
+        
+        {/* Training Mode Selector */}
+        <div className="mt-3">
+          <div className="flex items-center gap-2">
+            <span className="text-sm font-medium text-gray-700">Training Mode:</span>
+            <div className="flex bg-gray-100 rounded-lg p-1">
+              <button
+                onClick={() => onSetTrainingMode('classifier')}
+                className={`px-3 py-1 text-xs rounded-md transition-colors ${
+                  trainingMode === 'classifier'
+                    ? 'bg-white text-gray-900 shadow-sm'
+                    : 'text-gray-600 hover:text-gray-900'
+                }`}
+              >
+                <Brain className="w-3 h-3 inline mr-1" />
+                Classifier
+              </button>
+              <button
+                onClick={() => onSetTrainingMode('siamese')}
+                className={`px-3 py-1 text-xs rounded-md transition-colors ${
+                  trainingMode === 'siamese'
+                    ? 'bg-white text-gray-900 shadow-sm'
+                    : 'text-gray-600 hover:text-gray-900'
+                }`}
+              >
+                <Shield className="w-3 h-3 inline mr-1" />
+                Siamese
+              </button>
+            </div>
+          </div>
+        </div>
       </CardHeader>
       <CardContent className="flex-1 overflow-hidden flex flex-col">
         <div className="flex-1 overflow-y-auto overlay-scrollbar-container space-y-4 pb-4">
@@ -242,62 +282,125 @@ const TrainingSetup: React.FC<TrainingSetupProps> = ({
                   
                   <div className="space-y-3">
                     <div className="flex items-center justify-between">
-                      <div>
+                      <div className="flex gap-2">
                         <label className="cursor-pointer">
-                          <Button variant="secondary" size="sm" className="bg-blue-100 hover:bg-blue-200 text-blue-800 border-blue-200" asChild>
+                          <Button variant="secondary" size="sm" className="bg-green-100 hover:bg-green-200 text-green-800 border-green-200" asChild>
                             <span>
                               <Upload className="w-4 h-4 mr-2" />
-                              Upload
+                              Genuine Upload
                             </span>
                           </Button>
                           <input 
                             type="file" 
                             accept="image/*" 
                             multiple
-                            onChange={(e) => onHandleFileUpload(index, e)} 
+                            onChange={(e) => onHandleFileUpload(index, e, 'genuine')} 
+                            className="hidden"
+                          />
+                        </label>
+                        <label className="cursor-pointer">
+                          <Button variant="secondary" size="sm" className="bg-red-100 hover:bg-red-200 text-red-800 border-red-200" asChild>
+                            <span>
+                              <AlertTriangle className="w-4 h-4 mr-2" />
+                              Forged Upload
+                            </span>
+                          </Button>
+                          <input 
+                            type="file" 
+                            accept="image/*" 
+                            multiple
+                            onChange={(e) => onHandleFileUpload(index, e, 'forged')} 
                             className="hidden"
                           />
                         </label>
                       </div>
                       <div className="text-sm text-gray-600">
-                        {cls.samples.length} sample{cls.samples.length !== 1 ? 's' : ''}
+                        <div>Genuine: {cls.genuineSamples?.length || 0}</div>
+                        <div>Forged: {cls.forgedSamples?.length || 0}</div>
                       </div>
                     </div>
                     
-                    <div className="border-solid border-gray-300 rounded-lg p-1 min-h-[100px] bg-gray-50 overflow-x-auto overlay-scrollbar-container border-[0.5px]">
-                      {cls.samples.length > 0 ? (
-                        <div className="flex gap-1">
-                          {cls.samples.map((sample, sampleIndex) => (
-                            <div 
-                              key={sampleIndex} 
-                              className="flex-shrink-0 w-16 h-16 border border-gray-300 rounded overflow-hidden relative group"
-                            >
-                              <img 
-                                src={sample.thumbnail} 
-                                alt={`${cls.student ? formatStudentDisplay(cls.student) : 'Unassigned'} sample ${sampleIndex + 1}`} 
-                                className="w-full h-full object-cover filter grayscale"
-                              />
-                              <button
-                                className="absolute top-0 right-0 bg-red-500 text-white rounded-full w-5 h-5 flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity transform scale-90 group-hover:scale-100"
-                                onClick={(e) => {
-                                  e.stopPropagation();
-                                  const newClasses = [...classes];
-                                  newClasses[index].samples.splice(sampleIndex, 1);
-                                }}
-                                title="Remove sample"
-                              >
-                                <Trash2 className="w-3 h-3" />
-                              </button>
-                            </div>
-                          ))}
-                        </div>
-                      ) : (
-                        <div className="flex items-center justify-center h-full min-h-[92px]">
-                          <div className="text-gray-500 text-sm">
-                            No samples yet
-                          </div>
+                    <div className="border-solid border-gray-300 rounded-lg p-1 min-h-[100px] bg-gray-50 overflow-x-auto overlay-scrollbar-container border-[0.5px] relative group">
+                      {/* Sample Type Navigation */}
+                      {(cls.genuineSamples?.length > 0 || cls.forgedSamples?.length > 0) && (
+                        <div className="absolute top-2 right-2 opacity-0 group-hover:opacity-100 transition-opacity duration-200 flex items-center gap-1 z-10">
+                          <button
+                            onClick={() => setSampleDisplayMode('genuine')}
+                            className={`p-1 rounded ${
+                              sampleDisplayMode === 'genuine' 
+                                ? 'bg-green-500 text-white' 
+                                : 'bg-white text-gray-600 hover:bg-gray-100'
+                            }`}
+                            title="Show genuine samples"
+                          >
+                            <Upload className="w-3 h-3" />
+                          </button>
+                          <button
+                            onClick={() => setSampleDisplayMode('forged')}
+                            className={`p-1 rounded ${
+                              sampleDisplayMode === 'forged' 
+                                ? 'bg-red-500 text-white' 
+                                : 'bg-white text-gray-600 hover:bg-gray-100'
+                            }`}
+                            title="Show forged samples"
+                          >
+                            <AlertTriangle className="w-3 h-3" />
+                          </button>
                         </div>
                       )}
+                      
+                      {/* Sample Display */}
+                      {(() => {
+                        const currentSamples = sampleDisplayMode === 'genuine' 
+                          ? (cls.genuineSamples || []) 
+                          : (cls.forgedSamples || []);
+                        const sampleType = sampleDisplayMode === 'genuine' ? 'genuine' : 'forged';
+                        
+                        return currentSamples.length > 0 ? (
+                          <div className="flex gap-1">
+                            {currentSamples.map((sample, sampleIndex) => (
+                              <div 
+                                key={sampleIndex} 
+                                className="flex-shrink-0 w-16 h-16 border border-gray-300 rounded overflow-hidden relative group"
+                              >
+                                <img 
+                                  src={sample.thumbnail} 
+                                  alt={`${cls.student ? formatStudentDisplay(cls.student) : 'Unassigned'} ${sampleType} sample ${sampleIndex + 1}`} 
+                                  className="w-full h-full object-cover filter grayscale"
+                                />
+                                <div className={`absolute top-0 left-0 px-1 py-0.5 text-xs font-medium ${
+                                  sampleType === 'genuine' 
+                                    ? 'bg-green-500 text-white' 
+                                    : 'bg-red-500 text-white'
+                                }`}>
+                                  {sampleType === 'genuine' ? 'G' : 'F'}
+                                </div>
+                                <button
+                                  className="absolute top-0 right-0 bg-red-500 text-white rounded-full w-5 h-5 flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity transform scale-90 group-hover:scale-100"
+                                  onClick={(e) => {
+                                    e.stopPropagation();
+                                    const newClasses = [...classes];
+                                    if (sampleType === 'genuine') {
+                                      newClasses[index].genuineSamples.splice(sampleIndex, 1);
+                                    } else {
+                                      newClasses[index].forgedSamples.splice(sampleIndex, 1);
+                                    }
+                                  }}
+                                  title="Remove sample"
+                                >
+                                  <Trash2 className="w-3 h-3" />
+                                </button>
+                              </div>
+                            ))}
+                          </div>
+                        ) : (
+                          <div className="flex items-center justify-center h-full min-h-[92px]">
+                            <div className="text-gray-500 text-sm">
+                              No {sampleType} samples yet
+                            </div>
+                          </div>
+                        );
+                      })()}
                     </div>
                   </div>
                 </CardContent>

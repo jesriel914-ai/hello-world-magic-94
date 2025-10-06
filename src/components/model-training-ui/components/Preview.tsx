@@ -11,7 +11,7 @@ import {
   DropdownMenuItem,
   DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu';
-import { FileImage, Brain, X, Loader2, Upload, Camera, FolderOpen, Cloud, ChevronDown, List } from 'lucide-react';
+import { FileImage, Brain, X, Loader2, Upload, Camera, FolderOpen, Cloud, ChevronDown, List, Shield, CheckCircle, XCircle } from 'lucide-react';
 import useMobileDetection from '@/hooks/use-mobile-detection';
 import type { TrainedModel } from '../../ModelTraining';
 import type { PredictionResult } from '../../ModelTraining';
@@ -48,6 +48,7 @@ interface PreviewProps {
   onCloudModelSelect?: () => void;
   onLocalModelSelect?: () => void;
   onHandlePreviewFileUpload: (event: React.ChangeEvent<HTMLInputElement>) => void;
+  onVerifySignature?: (prediction: PredictionResult) => void;
 }
 
 export const Preview: React.FC<PreviewProps> = ({
@@ -80,11 +81,51 @@ export const Preview: React.FC<PreviewProps> = ({
   const [localPredictions, setLocalPredictions] = useState<PredictionResult[]>([]);
   const [isVideoPaused, setIsVideoPaused] = useState(false);
   const cameraPredictionIntervalRef = useRef<NodeJS.Timeout | null>(null);
+  
+  // Verification state
+  const [isVerifying, setIsVerifying] = useState(false);
+  const [verificationResult, setVerificationResult] = useState<{
+    isVerified: boolean;
+    confidence: number;
+    studentId?: string;
+  } | null>(null);
 
   const [isCameraReady, setIsCameraReady] = useState(false);
 
   // Use local predictions if available, otherwise use props predictions
   const displayPredictions = localPredictions.length > 0 ? localPredictions : predictions;
+
+  // Mock verification handler
+  const handleVerifySignature = async (prediction: PredictionResult) => {
+    if (!onVerifySignature) return;
+    
+    setIsVerifying(true);
+    setVerificationResult(null);
+    
+    try {
+      // Simulate verification delay
+      await new Promise(resolve => setTimeout(resolve, 1500));
+      
+      // Mock verification result
+      const mockResult = {
+        isVerified: Math.random() > 0.3, // 70% chance of being verified
+        confidence: Math.random() * 0.4 + 0.6, // 60-100% confidence
+        studentId: prediction.className
+      };
+      
+      setVerificationResult(mockResult);
+      onVerifySignature(prediction);
+    } catch (error) {
+      console.error('Verification failed:', error);
+      setVerificationResult({
+        isVerified: false,
+        confidence: 0,
+        studentId: prediction.className
+      });
+    } finally {
+      setIsVerifying(false);
+    }
+  };
 
 // Update handleWebcamClick to track pause state:
 const handleWebcamClick = () => {
@@ -688,6 +729,44 @@ useEffect(() => {
                             className="bg-green-600 h-2 rounded-full transition-all duration-300" 
                             style={{ width: `${displayPredictions[0].confidence * 100}%` }}
                           />
+                        </div>
+                        
+                        {/* Verify Button */}
+                        <div className="flex items-center justify-between pt-2">
+                          <Button
+                            size="sm"
+                            variant="outline"
+                            onClick={() => handleVerifySignature(displayPredictions[0])}
+                            disabled={isVerifying}
+                            className="flex items-center gap-2"
+                          >
+                            {isVerifying ? (
+                              <Loader2 className="w-4 h-4 animate-spin" />
+                            ) : (
+                              <Shield className="w-4 h-4" />
+                            )}
+                            {isVerifying ? 'Verifying...' : 'Verify'}
+                          </Button>
+                          
+                          {/* Verification Result */}
+                          {verificationResult && verificationResult.studentId === displayPredictions[0].className && (
+                            <div className="flex items-center gap-2">
+                              {verificationResult.isVerified ? (
+                                <div className="flex items-center gap-1 text-green-600">
+                                  <CheckCircle className="w-4 h-4" />
+                                  <span className="text-sm font-medium">Verified</span>
+                                </div>
+                              ) : (
+                                <div className="flex items-center gap-1 text-red-600">
+                                  <XCircle className="w-4 h-4" />
+                                  <span className="text-sm font-medium">Rejected</span>
+                                </div>
+                              )}
+                              <span className="text-xs text-gray-500">
+                                {(verificationResult.confidence * 100).toFixed(0)}%
+                              </span>
+                            </div>
+                          )}
                         </div>
                       </div>
                     )}
