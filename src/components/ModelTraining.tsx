@@ -59,14 +59,11 @@ export interface ClassData {
   student: Student | null;
   color: string;
   samples: SampleData[];
-  genuineSamples: SampleData[];
-  forgedSamples: SampleData[];
 }
 
 export interface SampleData {
   thumbnail: string;
   timestamp: number;
-  type?: 'genuine' | 'forged';
 }
 
 export const ModelTraining: React.FC<ModelTrainingProps> = ({
@@ -86,9 +83,8 @@ export const ModelTraining: React.FC<ModelTrainingProps> = ({
   const [previousPredictions, setPreviousPredictions] = useState<PredictionResult[]>([]);
   const [isPredicting, setIsPredicting] = useState(false);
   const [isExporting, setIsExporting] = useState(false);
-  const [trainingMode, setTrainingMode] = useState<'classifier' | 'siamese'>('classifier');
   const [classes, setClasses] = useState<ClassData[]>([
-    { student: null, color: '#FF6B6B', samples: [], genuineSamples: [], forgedSamples: [] }
+    { student: null, color: '#FF6B6B', samples: [] }
   ]);
   const [currentClassIndex, setCurrentClassIndex] = useState(0);
   const [newClassName, setNewClassName] = useState('');
@@ -488,9 +484,7 @@ async function testModelPrediction(model: CustomModel) {
     const newClasses = newStudents.map((student, index) => ({
       student,
       color: colors[(classes.length + index) % colors.length],
-      samples: samplesMap?.get(student.student_id) || [],
-      genuineSamples: [],
-      forgedSamples: []
+      samples: samplesMap?.get(student.student_id) || []
     }));
     
     setClasses([...classes, ...newClasses]);
@@ -629,7 +623,7 @@ async function testModelPrediction(model: CustomModel) {
   }, [model]);
 
   // Handle file upload for specific class
-  const handleFileUpload = async (classIndex: number, event: React.ChangeEvent<HTMLInputElement>, type: 'genuine' | 'forged' = 'genuine') => {
+  const handleFileUpload = async (classIndex: number, event: React.ChangeEvent<HTMLInputElement>) => {
     const files = event.target.files;
     if (!files || files.length === 0) return;
 
@@ -653,20 +647,10 @@ async function testModelPrediction(model: CustomModel) {
                 ctx.drawImage(img, 0, 0, 224, 224);
                 const thumbnail = canvas.toDataURL('image/jpeg', 0.8);
                 
-                const sampleData = {
+                newClasses[classIndex].samples.push({
                   thumbnail,
-                  timestamp: Date.now(),
-                  type
-                };
-                
-                if (type === 'genuine') {
-                  newClasses[classIndex].genuineSamples.push(sampleData);
-                } else {
-                  newClasses[classIndex].forgedSamples.push(sampleData);
-                }
-                
-                // Also add to main samples array for backward compatibility
-                newClasses[classIndex].samples.push(sampleData);
+                  timestamp: Date.now()
+                });
                 
                 processedCount++;
               }
@@ -1107,15 +1091,11 @@ async function testModelPrediction(model: CustomModel) {
   };
 
   const resetTraining = () => {
-    setClasses(classes.map(cls => ({ ...cls, samples: [], genuineSamples: [], forgedSamples: [] })));
+    setClasses(classes.map(cls => ({ ...cls, samples: [] })));
     setModel(null);
     setIsModelLoaded(false);
     setPredictions([]);
     setTrainingProgress(0);
-  };
-
-  const handleSetTrainingMode = (mode: 'classifier' | 'siamese') => {
-    setTrainingMode(mode);
   };
 
   const resetModel = () => {
@@ -1208,9 +1188,7 @@ async function testModelPrediction(model: CustomModel) {
         const importedClasses = metadata.classes.map((cls: {name: string, color?: string}) => ({
           student: null,
           color: cls.color || `#${Math.floor(Math.random()*16777215).toString(16)}`,
-          samples: [],
-          genuineSamples: [],
-          forgedSamples: []
+          samples: []
         }));
         
         setClasses(importedClasses);
@@ -1258,10 +1236,6 @@ async function testModelPrediction(model: CustomModel) {
             onChangeModel={handleChangeModel}
             onCloudModelSelect={handleCloudModelSelect}
             onLocalModelSelect={handleLocalModelSelect}
-            onVerifySignature={(prediction) => {
-              console.log('Verifying signature for:', prediction.className);
-              // This will be implemented when we add the actual Siamese verification
-            }}
           />
         </div>
       ) : (
@@ -1276,7 +1250,6 @@ async function testModelPrediction(model: CustomModel) {
             isDownloading={isDownloading}
             hasExportedToCloud={hasExportedToCloud}
             hasDownloadedToPC={hasDownloadedToPC}
-            trainingMode={trainingMode}
             onRemoveClass={removeClass}
             onUpdateClassName={updateClassName}
             onAddMultipleStudents={addMultipleStudents}
@@ -1284,7 +1257,6 @@ async function testModelPrediction(model: CustomModel) {
             onTrainModel={trainModel}
             onUploadModelToS3={exportToS3Handler}
             onDownloadModelToLocal={exportToLocalHandler}
-            onSetTrainingMode={handleSetTrainingMode}
             formatStudentDisplay={formatStudentDisplay}
           />
           
@@ -1306,10 +1278,6 @@ async function testModelPrediction(model: CustomModel) {
             onChangeModel={handleChangeModel}
             onCloudModelSelect={handleCloudModelSelect}
             onLocalModelSelect={handleLocalModelSelect}
-            onVerifySignature={(prediction) => {
-              console.log('Verifying signature for:', prediction.className);
-              // This will be implemented when we add the actual Siamese verification
-            }}
           />
         </div>
       )}

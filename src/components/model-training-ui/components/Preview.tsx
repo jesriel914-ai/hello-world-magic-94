@@ -11,7 +11,7 @@ import {
   DropdownMenuItem,
   DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu';
-import { FileImage, Brain, X, Loader2, Upload, Camera, FolderOpen, Cloud, ChevronDown, List, Shield, CheckCircle, XCircle } from 'lucide-react';
+import { FileImage, Brain, X, Loader2, Upload, Camera, FolderOpen, Cloud, ChevronDown, List } from 'lucide-react';
 import useMobileDetection from '@/hooks/use-mobile-detection';
 import type { TrainedModel } from '../../ModelTraining';
 import type { PredictionResult } from '../../ModelTraining';
@@ -48,7 +48,6 @@ interface PreviewProps {
   onCloudModelSelect?: () => void;
   onLocalModelSelect?: () => void;
   onHandlePreviewFileUpload: (event: React.ChangeEvent<HTMLInputElement>) => void;
-  onVerifySignature?: (prediction: PredictionResult) => void;
 }
 
 export const Preview: React.FC<PreviewProps> = ({
@@ -81,51 +80,11 @@ export const Preview: React.FC<PreviewProps> = ({
   const [localPredictions, setLocalPredictions] = useState<PredictionResult[]>([]);
   const [isVideoPaused, setIsVideoPaused] = useState(false);
   const cameraPredictionIntervalRef = useRef<NodeJS.Timeout | null>(null);
-  
-  // Verification state
-  const [isVerifying, setIsVerifying] = useState(false);
-  const [verificationResult, setVerificationResult] = useState<{
-    isVerified: boolean;
-    confidence: number;
-    studentId?: string;
-  } | null>(null);
 
   const [isCameraReady, setIsCameraReady] = useState(false);
 
   // Use local predictions if available, otherwise use props predictions
   const displayPredictions = localPredictions.length > 0 ? localPredictions : predictions;
-
-  // Mock verification handler
-  const handleVerifySignature = async (prediction: PredictionResult) => {
-    if (!onVerifySignature) return;
-    
-    setIsVerifying(true);
-    setVerificationResult(null);
-    
-    try {
-      // Simulate verification delay
-      await new Promise(resolve => setTimeout(resolve, 1500));
-      
-      // Mock verification result - always show some result
-      const mockResult = {
-        isVerified: Math.random() > 0.3, // 70% chance of being verified
-        confidence: Math.random() * 0.4 + 0.6, // 60-100% confidence
-        studentId: prediction.className
-      };
-      
-      setVerificationResult(mockResult);
-      onVerifySignature(prediction);
-    } catch (error) {
-      console.error('Verification failed:', error);
-      setVerificationResult({
-        isVerified: false,
-        confidence: 0.2, // Show 20% confidence for failed verification
-        studentId: prediction.className
-      });
-    } finally {
-      setIsVerifying(false);
-    }
-  };
 
 // Update handleWebcamClick to track pause state:
 const handleWebcamClick = () => {
@@ -685,39 +644,31 @@ useEffect(() => {
             
             {renderCameraDisplay()}
 
-            {/* Verify Button and Match Display */}
-            {displayPredictions.length > 0 && displayPredictions[0] && (
-              <div className="flex items-center justify-between pt-3">
-                <div className="flex items-center gap-4">
-                  <div className="text-sm">
-                    <span className="text-gray-600">No Match:</span>
-                    <span className="ml-1 font-medium">
-                      {verificationResult && verificationResult.studentId === displayPredictions[0].className 
-                        ? `${((1 - verificationResult.confidence) * 100).toFixed(0)}%`
-                        : '00%'
-                      }
-                    </span>
-                  </div>
-                  <div className="text-sm">
-                    <span className="text-gray-600">Matched:</span>
-                    <span className="ml-1 font-medium">
-                      {verificationResult && verificationResult.studentId === displayPredictions[0].className 
-                        ? `${(verificationResult.confidence * 100).toFixed(0)}%`
-                        : '00%'
-                      }
-                    </span>
-                  </div>
-                </div>
-                <Button
-                  size="sm"
-                  variant="outline"
-                  onClick={() => handleVerifySignature(displayPredictions[0])}
-                  disabled={isVerifying}
-                >
-                  {isVerifying ? 'Verifying...' : 'Verify'}
-                </Button>
-              </div>
-            )}
+            {/* TEMPORARY DEBUG BUTTON */}
+{activeMode === 'webcam' && mobileWebcam.current && (
+  <Button 
+    onClick={() => {
+      if (mobileWebcam.current) {
+        const canvas = mobileWebcam.current.captureFrame();
+        if (canvas) {
+          const dataUrl = canvas.toDataURL();
+          console.log('✅ Test capture successful:', dataUrl.substring(0, 50) + '...');
+          const a = document.createElement('a');
+          a.href = dataUrl;
+          a.download = 'test-capture.png';
+          a.click();
+        } else {
+          console.error('❌ captureFrame returned null');
+        }
+      }
+    }}
+    variant="outline"
+    size="sm"
+    className="w-full"
+  >
+    🧪 Test Frame Capture
+  </Button>
+)}
 
 <div className="space-y-3"></div>
             
@@ -952,39 +903,6 @@ useEffect(() => {
               
               {renderCameraDisplay()}
 
-              {/* Verify Button and Match Display */}
-              {displayPredictions.length > 0 && displayPredictions[0] && (
-                <div className="flex items-center justify-between pt-3">
-                  <div className="flex items-center gap-4">
-                    <div className="text-sm">
-                      <span className="text-gray-600">No Match:</span>
-                      <span className="ml-1 font-medium">
-                        {verificationResult && verificationResult.studentId === displayPredictions[0].className 
-                          ? `${((1 - verificationResult.confidence) * 100).toFixed(0)}%`
-                          : '00%'
-                        }
-                      </span>
-                    </div>
-                    <div className="text-sm">
-                      <span className="text-gray-600">Matched:</span>
-                      <span className="ml-1 font-medium">
-                        {verificationResult && verificationResult.studentId === displayPredictions[0].className 
-                          ? `${(verificationResult.confidence * 100).toFixed(0)}%`
-                          : '00%'
-                        }
-                      </span>
-                    </div>
-                  </div>
-                  <Button
-                    size="sm"
-                    variant="outline"
-                    onClick={() => handleVerifySignature(displayPredictions[0])}
-                    disabled={isVerifying}
-                  >
-                    {isVerifying ? 'Verifying...' : 'Verify'}
-                  </Button>
-                </div>
-              )}
               
               <div className="space-y-3">
                 <h4 className="font-medium">Prediction Results</h4>
