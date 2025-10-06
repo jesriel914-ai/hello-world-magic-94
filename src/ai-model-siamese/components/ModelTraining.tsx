@@ -2,8 +2,10 @@
 import React, { useState } from 'react';
 import TrainingSetup from './TrainingSetup';
 import Verification from './Verification';
+import StudentSelectionModal from '@/components/model-training-ui/components/StudentSelectionModal';
 import useMobileDetection from '@/hooks/use-mobile-detection';
 import type { Student } from '@/types';
+import { siameseModelService } from '../lib/AIModelService';
 
 interface ModelTrainingProps {
   onModelTrained?: (model: any) => void;
