@@ -403,14 +403,6 @@ export const ModelTraining: React.FC<ModelTrainingProps> = ({
 
   return (
     <div className="space-y-6">
-      <input
-        type="file"
-        accept="image/*"
-        multiple
-        onChange={loadLocalModel}
-        className="hidden"
-        {...({ webkitdirectory: '' } as React.InputHTMLAttributes<HTMLInputElement>)}
-      />
       {isMobile ? (
         <div className="flex flex-col space-y-4">
           <Verification
