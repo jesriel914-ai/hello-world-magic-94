@@ -45,7 +45,6 @@ export const Verification: React.FC<VerificationProps> = ({
   previewImage,
   isWebcamActive,
   isLoadingModels,
-  onShowMorePredictions,
   onChangeModel,
   onCloudModelSelect,
   onLocalModelSelect,

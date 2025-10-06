@@ -1,6 +1,6 @@
 //filepath: src\pages\SiameseSignatureModelTraining.tsx
 import React from 'react';
-import SiameseModelTraining from '@/components/ai-model-siamese/components/ModelTraining';
+import SiameseModelTraining from '@/ai-model-siamese/components/ModelTraining';
 
 const SiameseSignatureModelTraining: React.FC = () => {
   return (
