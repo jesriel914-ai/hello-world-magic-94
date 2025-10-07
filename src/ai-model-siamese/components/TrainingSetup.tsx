@@ -1,4 +1,4 @@
-//filepath: ai-model-siamese/components/TrainingSetup.tsx - this is the old which gives that erros
+//filepath: ai-model-siamese/components/TrainingSetup.tsx
 import React, { useState } from 'react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';

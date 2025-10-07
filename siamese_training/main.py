@@ -1,9 +1,9 @@
-# filepath: siamese_training/main.py
 """
+google drive filepath: siamese_training/main.py
 Flask API Server for Siamese Signature Training & Verification
-Run with: python main.py
+Optimized for Google Colab with Ngrok tunneling
+Run in Colab with: python main.py
 """
-
 
 from flask import Flask, request, jsonify
 from flask_cors import CORS
@@ -45,7 +45,7 @@ def train_model():
     Body: {
         "student_id": "2021-0001",
         "genuine_samples": ["base64_image1", ...],
-        "forged_samples": ["base64_image1", ...]  // Optional
+        "forged_samples": ["base64_image1", ...]
     }
     """
     try:
@@ -75,7 +75,7 @@ def train_model():
                 cv2.imwrite(str(path), img)
                 genuine_paths.append(str(path))
             
-            # Save forged samples if provided
+            # Save forged samples
             forged_paths = []
             if forged_samples:
                 for i, base64_img in enumerate(forged_samples):
@@ -84,12 +84,12 @@ def train_model():
                     cv2.imwrite(str(path), img)
                     forged_paths.append(str(path))
             
-            # Train model
+            # Train model with GPU
             metadata = trainer.train_student_model(
                 student_id=student_id,
                 genuine_samples=genuine_paths,
                 forged_samples=forged_paths if forged_paths else None,
-                epochs=50
+                epochs=100  # More epochs for better accuracy
             )
             
             # Save reference embeddings
@@ -106,40 +106,20 @@ def train_model():
             
     except Exception as e:
         print(f"[ERROR] Training failed: {str(e)}")
+        import traceback
+        traceback.print_exc()
         return jsonify({'error': str(e)}), 500
-
-@app.route('/api/models/list', methods=['GET'])
-def list_trained_models():
-    """
-    List all students with trained models
-    GET /api/models/list
-    """
-    try:
-        models_dir = Path('models')
-        if not models_dir.exists():
-            return jsonify({'students': []})
-        
-        trained_students = []
-        for student_dir in models_dir.iterdir():
-            if student_dir.is_dir():
-                metadata_file = student_dir / 'metadata.json'
-                if metadata_file.exists():
-                    with open(metadata_file, 'r') as f:
-                        metadata = json.load(f)
-                        trained_students.append({
-                            'student_id': student_dir.name,
-                            'metadata': metadata
-                        })
-        
-        return jsonify({'students': trained_students})
-        
-    except Exception as e:
-        print(f"[ERROR] Failed to list models: {str(e)}")
-        return jsonify({'error': str(e)}), 500
-# In your Flask app.py, update the verify endpoint:
 
 @app.route('/api/verify', methods=['POST'])
 def verify_signature():
+    """
+    Verify signature against trained model
+    POST /api/verify
+    Body: {
+        "student_id": "2021-0001",
+        "signature_image": "base64_image"
+    }
+    """
     try:
         data = request.json
         student_id = data.get('student_id')
@@ -167,7 +147,6 @@ def verify_signature():
         cv2.imwrite(temp_path, img)
         
         # Verify using the verifier
-        verifier = SiameseSignatureVerifier()
         result = verifier.verify_signature(student_id, temp_path)
         
         # Clean up temp file
@@ -182,12 +161,36 @@ def verify_signature():
         import traceback
         traceback.print_exc()
         return jsonify({'error': str(e)}), 500
+
+@app.route('/api/models/list', methods=['GET'])
+def list_trained_models():
+    """List all students with trained models"""
+    try:
+        models_dir = Path('models')
+        if not models_dir.exists():
+            return jsonify({'students': []})
+        
+        trained_students = []
+        for student_dir in models_dir.iterdir():
+            if student_dir.is_dir():
+                metadata_file = student_dir / 'metadata.json'
+                if metadata_file.exists():
+                    with open(metadata_file, 'r') as f:
+                        metadata = json.load(f)
+                        trained_students.append({
+                            'student_id': student_dir.name,
+                            'metadata': metadata
+                        })
+        
+        return jsonify({'students': trained_students})
+        
+    except Exception as e:
+        print(f"[ERROR] Failed to list models: {str(e)}")
+        return jsonify({'error': str(e)}), 500
+
 @app.route('/api/model/status/<student_id>', methods=['GET'])
 def model_status(student_id):
-    """
-    Check if model exists for student
-    GET /api/model/status/{student_id}
-    """
+    """Check if model exists for student"""
     try:
         exists, metadata = verifier.check_model_exists(student_id)
         
@@ -205,24 +208,62 @@ def model_status(student_id):
 @app.route('/api/health', methods=['GET'])
 def health_check():
     """Health check endpoint"""
+    import tensorflow as tf
+    
+    gpu_available = len(tf.config.list_physical_devices('GPU')) > 0
+    
     return jsonify({
         'status': 'healthy',
         'service': 'siamese-signature-training',
-        'version': '1.0'
+        'version': '2.0-gpu',
+        'gpu_available': gpu_available,
+        'tensorflow_version': tf.__version__
     })
 
 if __name__ == '__main__':
     print("\n" + "="*60)
-    print("  SIAMESE SIGNATURE TRAINING API")
+    print("  SIAMESE SIGNATURE TRAINING API (GPU-OPTIMIZED)")
     print("="*60)
-    print(f"  Server: http://localhost:5000")
+    
+    # Check if running in Colab
+    try:
+        import google.colab
+        IN_COLAB = True
+        print("  Environment: Google Colab")
+        
+        # Setup ngrok for Colab
+        from pyngrok import ngrok
+        
+        # Get ngrok auth token from environment
+        NGROK_TOKEN = os.environ.get('NGROK_AUTH_TOKEN')
+        if not NGROK_TOKEN:
+            print("\n⚠️  WARNING: NGROK_AUTH_TOKEN not set!")
+            print("Please set it with:")
+            print('  os.environ["NGROK_AUTH_TOKEN"] = "your_token_here"')
+            print("\nOr get a free token from: https://dashboard.ngrok.com/get-started/your-authtoken")
+        else:
+            ngrok.set_auth_token(NGROK_TOKEN)
+        
+        # Start ngrok tunnel
+        public_url = ngrok.connect(5000)
+        print(f"  Public URL: {public_url}")
+        print(f"\n  🌍 UPDATE YOUR FRONTEND .env WITH:")
+        print(f"  VITE_SIAMESE_API_URL={public_url}")
+        
+    except ImportError:
+        IN_COLAB = False
+        print("  Environment: Local")
+        print(f"  Server: http://localhost:5000")
+    
     print(f"  Status: Starting...")
     print("="*60)
     print("\nAvailable Endpoints:")
     print("  POST /api/train              - Train student model")
     print("  POST /api/verify             - Verify signature")
+    print("  GET  /api/models/list        - List trained models")
     print("  GET  /api/model/status/:id   - Check model status")
     print("  GET  /api/health             - Health check")
     print("\n" + "="*60 + "\n")
     
-    app.run(host='0.0.0.0', port=5000, debug=True)
+    # Run Flask - CRITICAL: debug=False for production/ngrok
+    app.run(host='0.0.0.0', port=5000, debug=False)

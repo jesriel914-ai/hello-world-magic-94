@@ -1,6 +1,7 @@
 """
-Siamese Network Verification Module
-Works with contrastive loss trained models
+google drive filepath: siamese_training/siamese_verifier.py
+Siamese Network Verification Module - GPU-Optimized
+Enhanced preprocessing matching training pipeline
 """
 
 import numpy as np
@@ -16,18 +17,28 @@ class SiameseSignatureVerifier:
         self.img_size = (224, 224)
         
     def preprocess_image(self, image_path):
-        """Load and preprocess image"""
+        """
+        Load and preprocess image - MUST MATCH TRAINING PREPROCESSING
+        """
         img = cv2.imread(str(image_path))
         if img is None:
             raise ValueError(f"Failed to load image from: {image_path}")
+        
         img = cv2.resize(img, self.img_size)
+        
+        # Apply same preprocessing as training
+        gray = cv2.cvtColor(img, cv2.COLOR_BGR2GRAY)
+        thresh = cv2.adaptiveThreshold(gray, 255, cv2.ADAPTIVE_THRESH_GAUSSIAN_C, 
+                                      cv2.THRESH_BINARY_INV, 11, 2)
+        img = cv2.cvtColor(thresh, cv2.COLOR_GRAY2BGR)
+        
         img = img.astype('float32') / 255.0
         return img
     
     def verify_signature(self, student_id, test_image_path):
         """
-        Verify signature using distance-based matching
-        Lower distance = more similar
+        Verify signature using enhanced distance-based matching
+        Uses stricter thresholds for higher precision
         """
         print(f"\n{'='*60}")
         print(f"Verifying Signature for Student: {student_id}")
@@ -59,7 +70,7 @@ class SiameseSignatureVerifier:
         with open(metadata_path, 'r') as f:
             metadata = json.load(f)
         
-        threshold = metadata.get('threshold', 0.5)
+        threshold = metadata.get('threshold', 0.45)
         
         # Load reference embeddings
         if not reference_path.exists():
@@ -67,6 +78,7 @@ class SiameseSignatureVerifier:
             return {
                 'is_verified': False,
                 'confidence': 0.0,
+                'min_distance': 0.0,
                 'average_distance': 0.0,
                 'threshold_used': threshold,
                 'student_id': student_id,
@@ -75,7 +87,7 @@ class SiameseSignatureVerifier:
         
         reference_embeddings = np.load(reference_path)
         
-        # Preprocess test image
+        # Preprocess test image with same pipeline as training
         test_img = self.preprocess_image(test_image_path)
         
         # Generate test embedding
@@ -93,37 +105,72 @@ class SiameseSignatureVerifier:
             distance = np.linalg.norm(test_embedding - ref_emb)
             distances.append(distance)
         
-        # Use minimum distance (closest match)
+        # Statistics
         min_distance = float(np.min(distances))
         avg_distance = float(np.mean(distances))
         max_distance = float(np.max(distances))
+        std_distance = float(np.std(distances))
         
-        # Decision: if distance < threshold, it's verified
-        is_verified = min_distance < threshold
+        # Enhanced decision logic
+        # 1. Minimum distance must be below threshold
+        # 2. Average distance should also be reasonable
+        # 3. Standard deviation should be low (consistent matching)
         
-        # Convert distance to confidence score (0-1, higher = more confident)
-        # Confidence inversely proportional to distance
-        confidence = max(0, 1 - (min_distance / threshold))
+        is_verified = (
+            min_distance < threshold and 
+            avg_distance < (threshold * 1.3) and
+            std_distance < 0.3
+        )
+        
+        # Enhanced confidence calculation
+        # Consider multiple factors
+        distance_confidence = max(0, 1 - (min_distance / threshold))
+        avg_confidence = max(0, 1 - (avg_distance / (threshold * 1.3)))
+        consistency_confidence = max(0, 1 - (std_distance / 0.3))
+        
+        # Weighted combination
+        confidence = (
+            distance_confidence * 0.5 + 
+            avg_confidence * 0.3 + 
+            consistency_confidence * 0.2
+        )
         
         print(f"\n📊 Verification Metrics:")
         print(f"  Min Distance: {min_distance:.4f}")
         print(f"  Avg Distance: {avg_distance:.4f}")
         print(f"  Max Distance: {max_distance:.4f}")
+        print(f"  Std Distance: {std_distance:.4f}")
         print(f"  Threshold: {threshold:.4f}")
-        print(f"  Comparisons: {len(distances)} reference signatures")
+        print(f"  References: {len(distances)} samples")
         print(f"\n🎯 Decision: {'✅ VERIFIED' if is_verified else '❌ NOT VERIFIED'}")
         print(f"  Confidence: {confidence*100:.1f}%")
         
-        # Warnings
-        if is_verified and min_distance > (threshold * 0.8):
-            print("  ⚠️  Borderline match - distance close to threshold")
-        elif not is_verified and min_distance < (threshold * 1.2):
-            print("  ⚠️  Borderline rejection - consider manual review")
+        # Enhanced warnings and diagnostics
+        if is_verified:
+            if min_distance > (threshold * 0.85):
+                print("  ⚠️  Borderline match - close to threshold")
+            elif min_distance < (threshold * 0.3):
+                print("  ✅ Strong match - very close to references")
+            else:
+                print("  ✅ Good match - within acceptable range")
+        else:
+            if min_distance < (threshold * 1.15):
+                print("  ⚠️  Borderline rejection - consider manual review")
+            elif avg_distance > 1.0:
+                print("  ❌ Significant difference from training samples")
+            elif std_distance > 0.4:
+                print("  ❌ Inconsistent matching across references")
         
-        if avg_distance < 0.3:
-            print("  ℹ️  Very close match across all references")
-        elif avg_distance > 1.0:
-            print("  ℹ️  Significantly different from training samples")
+        # Additional diagnostics
+        if avg_distance < 0.25:
+            print("  ℹ️  Very close match to all references")
+        
+        # Precision/Recall info from training
+        if 'precision' in metadata and 'recall' in metadata:
+            print(f"\n📈 Model Performance (from training):")
+            print(f"  Precision: {metadata['precision']*100:.1f}%")
+            print(f"  Recall: {metadata['recall']*100:.1f}%")
+            print(f"  F1 Score: {metadata.get('f1_score', 0)*100:.1f}%")
         
         print(f"{'='*60}\n")
         
@@ -133,9 +180,13 @@ class SiameseSignatureVerifier:
             'min_distance': float(min_distance),
             'average_distance': float(avg_distance),
             'max_distance': float(max_distance),
+            'std_distance': float(std_distance),
             'threshold_used': float(threshold),
             'student_id': student_id,
-            'num_references': len(distances)
+            'num_references': len(distances),
+            'model_accuracy': metadata.get('final_accuracy', 0),
+            'model_precision': metadata.get('precision', 0),
+            'model_recall': metadata.get('recall', 0)
         }
     
     def check_model_exists(self, student_id):
