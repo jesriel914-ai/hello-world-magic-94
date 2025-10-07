@@ -16,7 +16,7 @@ interface ClassData {
 const SiameseSignatureModelTraining: React.FC = () => {
   const isMobile = useMobileDetection();
   
-  // Shared state for classes between TrainingSetup and Verification
+  // Shared state only needed for TrainingSetup now
   const [classes, setClasses] = useState<ClassData[]>([
     { student: null, color: '#FF6B6B', samples: [], genuineSamples: [], forgedSamples: [] }
   ]);
@@ -30,12 +30,12 @@ const SiameseSignatureModelTraining: React.FC = () => {
         
         {isMobile ? (
           <div className="flex flex-col space-y-4">
-            <Verification classes={classes} setClasses={setClasses} />
+            <Verification />  {/* No props */}
           </div>
         ) : (
           <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
             <TrainingSetup classes={classes} setClasses={setClasses} />
-            <Verification classes={classes} setClasses={setClasses} />
+            <Verification />  {/* No props */}
           </div>
         )}
       </div>

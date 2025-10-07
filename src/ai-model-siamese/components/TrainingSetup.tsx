@@ -1,4 +1,4 @@
-//filepath: ai-model-siamese/components/TrainingSetup.tsx
+//filepath: ai-model-siamese/components/TrainingSetup.tsx - this is the old which gives that erros
 import React, { useState } from 'react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
@@ -31,7 +31,7 @@ import StudentSelectionModal from '@/components/model-training-ui/components/Stu
 import BatchUpload from './BatchUpload';
 import type { Student } from '@/types';
 import { fetchStudents } from '@/lib/supabaseService';
-import { siameseModelService } from '../lib/AIModelService';
+import { siameseModelService } from '../lib/SiameseAIModelService';
 import {
   Dialog,
   DialogContent,

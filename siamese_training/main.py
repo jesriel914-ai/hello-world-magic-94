@@ -1,276 +1,228 @@
+# filepath: siamese_training/main.py
 """
-Main entry point for Siamese Signature Verification System
-Run: python main.py
+Flask API Server for Siamese Signature Training & Verification
+Run with: python main.py
 """
 
+
+from flask import Flask, request, jsonify
+from flask_cors import CORS
+import time
 import os
-import sys
-import subprocess
-import argparse
+import base64
+import numpy as np
+import json
+import cv2
 from pathlib import Path
+import tempfile
+import shutil
 
-def setup_environment():
-    """Setup the environment and install dependencies"""
-    print("🔧 Setting up Siamese Signature Verification System...")
-    print("=" * 60)
+from siamese_trainer import SiameseSignatureTrainer
+from siamese_verifier import SiameseSignatureVerifier
+
+app = Flask(__name__)
+CORS(app)
+
+# Initialize trainer and verifier
+trainer = SiameseSignatureTrainer(base_dir='models')
+verifier = SiameseSignatureVerifier(base_dir='models')
+
+def base64_to_image(base64_str):
+    """Convert base64 string to OpenCV image"""
+    if base64_str.startswith('data:image'):
+        base64_str = base64_str.split(',')[1]
     
-    # Check if requirements are installed
-    try:
-        import tensorflow as tf
-        import numpy as np
-        import cv2
-        from PIL import Image
-        import sklearn
-        print("✅ All dependencies are already installed!")
-        return True
-    except ImportError:
-        print("📦 Installing required packages...")
-        try:
-            subprocess.check_call([sys.executable, "-m", "pip", "install", "-r", "requirements.txt"])
-            print("✅ Dependencies installed successfully!")
-            return True
-        except subprocess.CalledProcessError as e:
-            print(f"❌ Error installing dependencies: {e}")
-            return False
+    img_bytes = base64.b64decode(base64_str)
+    nparr = np.frombuffer(img_bytes, np.uint8)
+    img = cv2.imdecode(nparr, cv2.IMREAD_COLOR)
+    return img
 
-def create_directories():
-    """Create necessary directories"""
-    print("\n📁 Creating directories...")
-    directories = [
-        'models',
-        'data',
-        'data/example_student/genuine',
-        'data/example_student/forged'
-    ]
-    
-    for directory in directories:
-        os.makedirs(directory, exist_ok=True)
-        print(f"✅ Created: {directory}")
-
-def show_menu():
-    """Show the main menu"""
-    print("\n" + "=" * 60)
-    print("🎯 SIAMESE SIGNATURE VERIFICATION SYSTEM")
-    print("=" * 60)
-    print("1. Setup Environment (First time only)")
-    print("2. Train Model for a Student")
-    print("3. Verify Signatures")
-    print("4. Test with Example Data")
-    print("5. Show Help")
-    print("6. Exit")
-    print("=" * 60)
-
+@app.route('/api/train', methods=['POST'])
 def train_model():
-    """Train a model for a student"""
-    print("\n🎓 TRAINING A MODEL")
-    print("-" * 30)
-    
-    student_id = input("Enter Student ID: ").strip()
-    if not student_id:
-        print("❌ Student ID cannot be empty!")
-        return
-    
-    genuine_dir = input("Enter path to genuine signatures folder: ").strip()
-    if not genuine_dir or not os.path.exists(genuine_dir):
-        print("❌ Genuine signatures folder not found!")
-        return
-    
-    forged_dir = input("Enter path to forged signatures folder (or press Enter to skip): ").strip()
-    if not forged_dir:
-        forged_dir = genuine_dir  # Use same folder if no forged images
-    
-    if not os.path.exists(forged_dir):
-        print("❌ Forged signatures folder not found!")
-        return
-    
-    epochs = input("Enter number of epochs (default 50): ").strip()
-    epochs = int(epochs) if epochs.isdigit() else 50
-    
-    batch_size = input("Enter batch size (default 16): ").strip()
-    batch_size = int(batch_size) if batch_size.isdigit() else 16
-    
-    print(f"\n🚀 Starting training for student: {student_id}")
-    print(f"Genuine folder: {genuine_dir}")
-    print(f"Forged folder: {forged_dir}")
-    print(f"Epochs: {epochs}")
-    print(f"Batch size: {batch_size}")
-    
-    # Run training
-    cmd = [
-        sys.executable, "train_siamese.py",
-        "--student_id", student_id,
-        "--genuine_dir", genuine_dir,
-        "--forged_dir", forged_dir,
-        "--epochs", str(epochs),
-        "--batch_size", str(batch_size)
-    ]
-    
+    """
+    Train Siamese model for a student
+    POST /api/train
+    Body: {
+        "student_id": "2021-0001",
+        "genuine_samples": ["base64_image1", ...],
+        "forged_samples": ["base64_image1", ...]  // Optional
+    }
+    """
     try:
-        subprocess.run(cmd, check=True)
-        print(f"\n✅ Training completed successfully!")
-        print(f"Model saved to: models/siamese_{student_id}.h5")
-    except subprocess.CalledProcessError as e:
-        print(f"\n❌ Training failed: {e}")
-
-def verify_signatures():
-    """Verify signatures"""
-    print("\n🔍 VERIFYING SIGNATURES")
-    print("-" * 30)
-    
-    student_id = input("Enter Student ID: ").strip()
-    if not student_id:
-        print("❌ Student ID cannot be empty!")
-        return
-    
-    reference = input("Enter path to reference signature: ").strip()
-    if not reference or not os.path.exists(reference):
-        print("❌ Reference signature not found!")
-        return
-    
-    test = input("Enter path to test signature: ").strip()
-    if not test or not os.path.exists(test):
-        print("❌ Test signature not found!")
-        return
-    
-    print(f"\n🔍 Verifying signatures...")
-    print(f"Student: {student_id}")
-    print(f"Reference: {reference}")
-    print(f"Test: {test}")
-    
-    # Run verification
-    cmd = [
-        sys.executable, "verify_signature.py",
-        "--student_id", student_id,
-        "--reference", reference,
-        "--test", test
-    ]
-    
-    try:
-        subprocess.run(cmd, check=True)
-    except subprocess.CalledProcessError as e:
-        print(f"\n❌ Verification failed: {e}")
-
-def test_with_example():
-    """Test with example data"""
-    print("\n🧪 TESTING WITH EXAMPLE DATA")
-    print("-" * 30)
-    
-    print("This will create some example signature images for testing.")
-    print("You can add your own images to the data/example_student/ folders.")
-    
-    # Create example images (simple colored rectangles)
-    from PIL import Image, ImageDraw
-    import random
-    
-    # Create genuine examples
-    genuine_dir = "data/example_student/genuine"
-    for i in range(5):
-        img = Image.new('RGB', (224, 224), 'white')
-        draw = ImageDraw.Draw(img)
-        # Draw a simple signature-like pattern
-        for _ in range(3):
-            x1 = random.randint(20, 180)
-            y1 = random.randint(20, 180)
-            x2 = random.randint(20, 180)
-            y2 = random.randint(20, 180)
-            draw.line([(x1, y1), (x2, y2)], fill='black', width=3)
-        img.save(f"{genuine_dir}/genuine_{i+1}.png")
-    
-    # Create forged examples
-    forged_dir = "data/example_student/forged"
-    for i in range(3):
-        img = Image.new('RGB', (224, 224), 'white')
-        draw = ImageDraw.Draw(img)
-        # Draw a different signature-like pattern
-        for _ in range(2):
-            x1 = random.randint(30, 190)
-            y1 = random.randint(30, 190)
-            x2 = random.randint(30, 190)
-            y2 = random.randint(30, 190)
-            draw.line([(x1, y1), (x2, y2)], fill='black', width=2)
-        img.save(f"{forged_dir}/forged_{i+1}.png")
-    
-    print(f"✅ Created example images in {genuine_dir} and {forged_dir}")
-    print("\nNow you can:")
-    print("1. Replace these with real signature images")
-    print("2. Train a model: python main.py (choose option 2)")
-    print("3. Verify signatures: python main.py (choose option 3)")
-
-def show_help():
-    """Show help information"""
-    print("\n📚 HELP & USAGE GUIDE")
-    print("=" * 40)
-    print("""
-🎯 WHAT THIS SYSTEM DOES:
-- Trains AI models to verify if two signatures belong to the same person
-- Uses Siamese neural networks for high accuracy
-- Optimized for your hardware (Ryzen 5 3400G, 16GB RAM)
-
-📁 FOLDER STRUCTURE:
-siamese_training/
-├── data/
-│   └── student_name/
-│       ├── genuine/     # Real signatures from the student
-│       └── forged/      # Fake signatures (optional)
-├── models/              # Trained models (created after training)
-└── main.py             # This file
-
-🚀 HOW TO USE:
-1. First run: python main.py (choose option 1 to setup)
-2. Add signature images to data/student_name/genuine/ folder
-3. Add forged images to data/student_name/forged/ folder (optional)
-4. Train model: python main.py (choose option 2)
-5. Verify signatures: python main.py (choose option 3)
-
-📸 SUPPORTED IMAGE FORMATS:
-- JPG, JPEG, PNG, BMP, TIFF
-- Any size (will be resized to 224x224)
-
-⚡ PERFORMANCE:
-- Training time: 2-5 minutes per student
-- Verification speed: 100-200ms
-- Memory usage: 2-4GB during training
-
-🔧 TROUBLESHOOTING:
-- Out of memory? Reduce batch size to 8 or 4
-- No images found? Check file paths and formats
-- Model not found? Make sure training completed successfully
-    """)
-
-def main():
-    """Main function"""
-    print("🎯 Welcome to Siamese Signature Verification System!")
-    
-    # Check if we're in the right directory
-    if not os.path.exists("siamese_model.py"):
-        print("❌ Please run this script from the siamese_training directory!")
-        print("   cd siamese_training")
-        print("   python main.py")
-        return
-    
-    while True:
-        show_menu()
-        choice = input("\nEnter your choice (1-6): ").strip()
+        data = request.json
+        student_id = data.get('student_id')
+        genuine_samples = data.get('genuine_samples', [])
+        forged_samples = data.get('forged_samples', [])
         
-        if choice == "1":
-            if setup_environment():
-                create_directories()
-                print("\n✅ Setup completed! You can now train models.")
-        elif choice == "2":
-            train_model()
-        elif choice == "3":
-            verify_signatures()
-        elif choice == "4":
-            test_with_example()
-        elif choice == "5":
-            show_help()
-        elif choice == "6":
-            print("\n👋 Goodbye!")
-            break
+        if not student_id:
+            return jsonify({'error': 'student_id is required'}), 400
+        
+        if len(genuine_samples) < 2:
+            return jsonify({'error': 'At least 2 genuine samples required'}), 400
+        
+        print(f"\n[TRAINING] Student: {student_id}")
+        print(f"[TRAINING] Genuine: {len(genuine_samples)}, Forged: {len(forged_samples)}")
+        
+        # Create temp directory
+        temp_dir = Path(tempfile.mkdtemp())
+        
+        try:
+            # Save genuine samples
+            genuine_paths = []
+            for i, base64_img in enumerate(genuine_samples):
+                img = base64_to_image(base64_img)
+                path = temp_dir / f"genuine_{i}.jpg"
+                cv2.imwrite(str(path), img)
+                genuine_paths.append(str(path))
+            
+            # Save forged samples if provided
+            forged_paths = []
+            if forged_samples:
+                for i, base64_img in enumerate(forged_samples):
+                    img = base64_to_image(base64_img)
+                    path = temp_dir / f"forged_{i}.jpg"
+                    cv2.imwrite(str(path), img)
+                    forged_paths.append(str(path))
+            
+            # Train model
+            metadata = trainer.train_student_model(
+                student_id=student_id,
+                genuine_samples=genuine_paths,
+                forged_samples=forged_paths if forged_paths else None,
+                epochs=50
+            )
+            
+            # Save reference embeddings
+            trainer.save_reference_embeddings(student_id, genuine_paths)
+            
+            return jsonify({
+                'success': True,
+                'metadata': metadata,
+                'message': f'Model trained successfully for {student_id}'
+            })
+            
+        finally:
+            shutil.rmtree(temp_dir, ignore_errors=True)
+            
+    except Exception as e:
+        print(f"[ERROR] Training failed: {str(e)}")
+        return jsonify({'error': str(e)}), 500
+
+@app.route('/api/models/list', methods=['GET'])
+def list_trained_models():
+    """
+    List all students with trained models
+    GET /api/models/list
+    """
+    try:
+        models_dir = Path('models')
+        if not models_dir.exists():
+            return jsonify({'students': []})
+        
+        trained_students = []
+        for student_dir in models_dir.iterdir():
+            if student_dir.is_dir():
+                metadata_file = student_dir / 'metadata.json'
+                if metadata_file.exists():
+                    with open(metadata_file, 'r') as f:
+                        metadata = json.load(f)
+                        trained_students.append({
+                            'student_id': student_dir.name,
+                            'metadata': metadata
+                        })
+        
+        return jsonify({'students': trained_students})
+        
+    except Exception as e:
+        print(f"[ERROR] Failed to list models: {str(e)}")
+        return jsonify({'error': str(e)}), 500
+# In your Flask app.py, update the verify endpoint:
+
+@app.route('/api/verify', methods=['POST'])
+def verify_signature():
+    try:
+        data = request.json
+        student_id = data.get('student_id')
+        signature_base64 = data.get('signature_image')
+        
+        if not student_id or not signature_base64:
+            return jsonify({'error': 'Missing student_id or signature_image'}), 400
+        
+        print(f"[VERIFICATION] Student: {student_id}")
+        
+        # Remove data URL prefix if present
+        if ',' in signature_base64:
+            signature_base64 = signature_base64.split(',')[1]
+        
+        # Decode base64 to image
+        img_data = base64.b64decode(signature_base64)
+        nparr = np.frombuffer(img_data, np.uint8)
+        img = cv2.imdecode(nparr, cv2.IMREAD_COLOR)
+        
+        if img is None:
+            return jsonify({'error': 'Failed to decode image'}), 400
+        
+        # Save temporarily for verification
+        temp_path = f'temp_{student_id}_{int(time.time())}.jpg'
+        cv2.imwrite(temp_path, img)
+        
+        # Verify using the verifier
+        verifier = SiameseSignatureVerifier()
+        result = verifier.verify_signature(student_id, temp_path)
+        
+        # Clean up temp file
+        if os.path.exists(temp_path):
+            os.remove(temp_path)
+        
+        print(f"[VERIFICATION] Result: {result}")
+        return jsonify({'result': result})
+        
+    except Exception as e:
+        print(f"[ERROR] Verification failed: {str(e)}")
+        import traceback
+        traceback.print_exc()
+        return jsonify({'error': str(e)}), 500
+@app.route('/api/model/status/<student_id>', methods=['GET'])
+def model_status(student_id):
+    """
+    Check if model exists for student
+    GET /api/model/status/{student_id}
+    """
+    try:
+        exists, metadata = verifier.check_model_exists(student_id)
+        
+        if exists:
+            return jsonify({
+                'exists': True,
+                'metadata': metadata
+            })
         else:
-            print("❌ Invalid choice! Please enter 1-6.")
-        
-        input("\nPress Enter to continue...")
+            return jsonify({'exists': False})
+            
+    except Exception as e:
+        return jsonify({'error': str(e)}), 500
 
-if __name__ == "__main__":
-    main()
+@app.route('/api/health', methods=['GET'])
+def health_check():
+    """Health check endpoint"""
+    return jsonify({
+        'status': 'healthy',
+        'service': 'siamese-signature-training',
+        'version': '1.0'
+    })
+
+if __name__ == '__main__':
+    print("\n" + "="*60)
+    print("  SIAMESE SIGNATURE TRAINING API")
+    print("="*60)
+    print(f"  Server: http://localhost:5000")
+    print(f"  Status: Starting...")
+    print("="*60)
+    print("\nAvailable Endpoints:")
+    print("  POST /api/train              - Train student model")
+    print("  POST /api/verify             - Verify signature")
+    print("  GET  /api/model/status/:id   - Check model status")
+    print("  GET  /api/health             - Health check")
+    print("\n" + "="*60 + "\n")
+    
+    app.run(host='0.0.0.0', port=5000, debug=True)
