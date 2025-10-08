@@ -13,6 +13,7 @@ import useMobileDetection from '@/hooks/use-mobile-detection';
 import * as tf from '@tensorflow/tfjs';
 import { getAIModelService } from '@/lib/AIModelService';
 import { predictFromCanvas, forceMemoryCleanup } from '@/components/model-training-ui/utils/modelPrediction';
+import { fetchSessionStudents } from '@/lib/supabaseService';
 
 interface PredictionResult {
   className: string;
@@ -244,24 +245,27 @@ const TakeAttendanceSession = () => {
   }, []);
 
   // Fetch students registered for this session
-  const fetchSessionStudents = useCallback(async () => {
+  const loadSessionStudents = useCallback(async () => {
     if (!session) return;
     
     try {
       setLoadingStudents(true);
-      const { data, error } = await supabase
-        .from('students')
-        .select('id, student_id, firstname, surname, program, year, section')
-        .eq('program', session.program)
-        .eq('year', session.year)
-        .eq('section', session.section)
-        .order('firstname');
-
-      if (error) throw error;
-      setSessionStudents(data || []);
+      console.log('Fetching students for session:', session.id);
+      
+      const response = await fetchSessionStudents(session.id);
+      
+      if (!response || !response.students) {
+        console.log('No students found in response');
+        setSessionStudents([]);
+        return;
+      }
+      
+      console.log('Students loaded:', response.students.length);
+      setSessionStudents(response.students);
     } catch (error) {
       console.error('Error fetching session students:', error);
       toast.error('Failed to load students');
+      setSessionStudents([]);
     } finally {
       setLoadingStudents(false);
     }
@@ -868,7 +872,7 @@ const TakeAttendanceSession = () => {
                   const newValue = !showStudentList;
                   setShowStudentList(newValue);
                   if (newValue && sessionStudents.length === 0) {
-                    fetchSessionStudents();
+                    loadSessionStudents();
                   }
                 }}
                 className="h-10 w-10 p-0"
@@ -895,10 +899,10 @@ const TakeAttendanceSession = () => {
                           </div>
                           <div className="flex-1">
                             <div className="font-medium text-sm text-gray-900">
-                              {student.firstname} {student.surname}
+                              {student.full_name || `${student.firstname} ${student.surname}`}
                             </div>
                             <div className="text-xs text-gray-500">
-                              ID: {student.student_id} • {student.program} {student.year}-{student.section}
+                              ID: {student.student_id}
                             </div>
                           </div>
                         </div>
