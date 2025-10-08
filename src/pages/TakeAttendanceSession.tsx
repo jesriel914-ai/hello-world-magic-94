@@ -886,30 +886,32 @@ const TakeAttendanceSession = () => {
               <div className="space-y-4">
                 {/* Session Details */}
                 {session && (
-                  <div className="p-4 bg-white rounded-lg border shadow-sm">
+                  <div>
                     <h3 className="text-sm font-semibold text-gray-700 mb-3">Session Information</h3>
-                    <div className="space-y-1.5">
-                      <p className="text-sm">
-                        <span className="text-gray-500">Title:</span> <span className="font-medium text-gray-900">{session.title}</span>
-                      </p>
-                      <p className="text-sm">
-                        <span className="text-gray-500">Program:</span> <span className="font-medium text-gray-900">{session.program}</span>
-                      </p>
-                      <p className="text-sm">
-                        <span className="text-gray-500">Year{session.section && ' & Section'}:</span> <span className="font-medium text-gray-900">{session.year}{session.section && ` - ${session.section}`}</span>
-                      </p>
-                      <p className="text-sm">
-                        <span className="text-gray-500">Date:</span> <span className="font-medium text-gray-900">
-                          {new Date(session.date).toLocaleDateString('en-US', {
-                            month: 'short',
-                            day: 'numeric',
-                            year: 'numeric'
-                          })}
-                        </span>
-                      </p>
-                      <p className="text-sm">
-                        <span className="text-gray-500">Time:</span> <span className="font-medium text-gray-900">{session.time_in} - {session.time_out}</span>
-                      </p>
+                    <div className="p-4 bg-white rounded-lg border shadow-sm">
+                      <div className="space-y-1.5">
+                        <p className="text-sm">
+                          <span className="text-gray-500">Title:</span> <span className="font-medium text-gray-900">{session.title}</span>
+                        </p>
+                        <p className="text-sm">
+                          <span className="text-gray-500">Program:</span> <span className="font-medium text-gray-900">{session.program}</span>
+                        </p>
+                        <p className="text-sm">
+                          <span className="text-gray-500">Year{session.section && ' & Section'}:</span> <span className="font-medium text-gray-900">{session.year}{session.section && ` - ${session.section}`}</span>
+                        </p>
+                        <p className="text-sm">
+                          <span className="text-gray-500">Date:</span> <span className="font-medium text-gray-900">
+                            {new Date(session.date).toLocaleDateString('en-US', {
+                              month: 'short',
+                              day: 'numeric',
+                              year: 'numeric'
+                            })}
+                          </span>
+                        </p>
+                        <p className="text-sm">
+                          <span className="text-gray-500">Time:</span> <span className="font-medium text-gray-900">{session.time_in} - {session.time_out}</span>
+                        </p>
+                      </div>
                     </div>
                   </div>
                 )}
@@ -923,7 +925,7 @@ const TakeAttendanceSession = () => {
                       <p className="text-sm text-gray-500">Loading students...</p>
                     </div>
                   ) : sessionStudents.length > 0 ? (
-                    <div className="space-y-2 max-h-64 overflow-y-auto">
+                    <div className="space-y-1 max-h-64 overflow-y-auto">
                       {sessionStudents.map((student, index) => (
                         <div key={student.id} className="p-3 bg-white rounded-lg border shadow-sm hover:bg-gray-50 transition-colors">
                           <div className="flex items-center gap-3">
