@@ -99,10 +99,123 @@ const TakeAttendanceSession = () => {
         });
         streamRef.current = null;
       }
+      if (mobileWebcam.current) {
+        mobileWebcam.current.stop();
+        mobileWebcam.current = null;
+      }
       permissionGranted.current = false;
       setCameraActive(false);
     };
   }, [sessionId]);
+
+  // Camera functions from Preview.tsx
+  const startCamera = useCallback(async () => {
+    console.log('📷 startCamera called - isMobile:', isMobile);
+    if (!isMobile || !webcamRef.current) {
+      console.log('❌ startCamera blocked');
+      return;
+    }
+    
+    console.log('🚀 Starting camera process...');
+    setIsCameraStarting(true);
+    setCameraError(null);
+    setIsCameraReady(false);
+    
+    try {
+      const permissions = await navigator.permissions.query({ name: 'camera' as PermissionName });
+      console.log('📋 Camera permission status:', permissions.state);
+      
+      if (permissions.state === 'denied') {
+        throw new Error('Camera permission denied. Please enable camera permissions in your browser settings.');
+      }
+      
+      if (mobileWebcam.current) {
+        mobileWebcam.current.stop();
+        mobileWebcam.current = null;
+      }
+      
+      webcamRef.current.innerHTML = '<div class="flex flex-col items-center justify-center h-full text-gray-500"><div class="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-500 mb-2"></div><div class="text-sm">Starting camera...</div></div>';
+      
+      mobileWebcam.current = new MobileWebcam({
+        width: 300,
+        height: 300,
+        facingMode: 'environment',
+        timeout: 20000,
+        zoom: 2.0
+      });
+      
+      console.log('📷 Initializing camera with 2x zoom...');
+      const videoElement = await mobileWebcam.current.start();
+      
+      webcamRef.current.innerHTML = '';
+      webcamRef.current.appendChild(videoElement);
+      
+      setTimeout(() => {
+        if (webcamRef.current && mobileWebcam.current) {
+          const outerContainer = webcamRef.current.parentElement;
+          if (outerContainer) {
+            const rect = outerContainer.getBoundingClientRect();
+            console.log('📱 Mobile preview container dimensions:', {
+              width: rect.width,
+              height: rect.height,
+              aspectRatio: (rect.width / rect.height).toFixed(2)
+            });
+            
+            mobileWebcam.current.setPreviewDimensions(rect.width, rect.height);
+          }
+        }
+      }, 1000);
+      
+      setIsCameraReady(true);
+      console.log('✅ Camera started successfully with zoom and marked as ready');
+      
+    } catch (error) {
+      console.error('❌ Error starting camera:', error);
+      
+      let userErrorMessage = 'Failed to start camera';
+      
+      if (error instanceof Error) {
+        if (error.message.includes('permission denied')) {
+          userErrorMessage = 'Camera permission denied. Please allow camera access.';
+        } else if (error.message.includes('timeout')) {
+          userErrorMessage = 'Camera startup timed out. Please try again.';
+        } else {
+          userErrorMessage = error.message;
+        }
+      }
+      
+      setCameraError(userErrorMessage);
+      setIsCameraReady(false);
+      
+      if (webcamRef.current) {
+        webcamRef.current.innerHTML = `<div class="flex flex-col items-center justify-center h-full text-red-500 p-4 text-center"><div class="text-lg mb-2">❌ Camera Error</div><div class="text-sm">${userErrorMessage}</div></div>`;
+      }
+      
+      if (mobileWebcam.current) {
+        mobileWebcam.current.stop();
+        mobileWebcam.current = null;
+      }
+    } finally {
+      setIsCameraStarting(false);
+    }
+  }, [isMobile]);
+
+  const stopCamera = useCallback(() => {
+    console.log('🛑 Stopping camera...');
+    
+    if (mobileWebcam.current) {
+      mobileWebcam.current.stop();
+      mobileWebcam.current = null;
+    }
+    
+    setIsCameraReady(false);
+    
+    if (webcamRef.current) {
+      webcamRef.current.innerHTML = '<div class="flex flex-col items-center justify-center h-full text-gray-400"><div class="text-lg mb-2">📷</div><div class="text-sm">Camera stopped</div></div>';
+    }
+    
+    console.log('✅ Camera stopped successfully');
+  }, []);
 
   // Check for basic MediaDevices API support on component mount
   useEffect(() => {
@@ -583,27 +696,36 @@ const TakeAttendanceSession = () => {
             </div>
             
             {/* Start Camera Button */}
-            <Button 
-              onClick={() => {
-                console.log('Start Camera button clicked');
-                // Camera start logic will be added
-              }}
-              disabled={isCameraStarting}
-              className="w-full bg-teal-300 text-white hover:bg-teal-200 hover:text-teal-900 py-2 h-auto text-base transition-all duration-200"
-              size="lg"
-            >
-              {isCameraStarting ? (
-                <>
-                  <Loader2 className="w-5 h-5 mr-2 animate-spin" />
-                  <span>Starting Camera...</span>
-                </>
-              ) : (
-                <>
-                  <Camera className="w-5 h-5 mr-2 text-white" />
-                  <span className="text-white">Start Camera</span>
-                </>
-              )}
-            </Button>
+            {!isCameraReady ? (
+              <Button 
+                onClick={startCamera}
+                disabled={isCameraStarting}
+                className="w-full bg-teal-300 text-white hover:bg-teal-200 hover:text-teal-900 py-2 h-auto text-base transition-all duration-200"
+                size="lg"
+              >
+                {isCameraStarting ? (
+                  <>
+                    <Loader2 className="w-5 h-5 mr-2 animate-spin" />
+                    <span>Starting Camera...</span>
+                  </>
+                ) : (
+                  <>
+                    <Camera className="w-5 h-5 mr-2 text-white" />
+                    <span className="text-white">Start Camera</span>
+                  </>
+                )}
+              </Button>
+            ) : (
+              <Button 
+                onClick={stopCamera}
+                variant="destructive"
+                className="w-full py-2 h-auto text-base"
+                size="lg"
+              >
+                <StopCircle className="w-5 h-5 mr-2" />
+                Stop Camera
+              </Button>
+            )}
           </div>
 
           {/* Right Section: Attendance Log */}
