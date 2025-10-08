@@ -31,7 +31,10 @@ export default function Login() {
     setIsLoading(true);
 
     try {
-      const { error } = await signIn(email, password);
+      // Normalize email: append @gmail.com if no @ symbol is present
+      const normalizedEmail = email.includes('@') ? email : `${email}@gmail.com`;
+      
+      const { error } = await signIn(normalizedEmail, password);
       
       if (error) {
         throw error;
@@ -42,7 +45,7 @@ export default function Login() {
       const { data: adminRec } = await supabase
         .from('admin')
         .select('id')
-        .eq('email', email)
+        .eq('email', normalizedEmail)
         .maybeSingle();
       if (adminRec) {
         actualRole = 'admin';
@@ -50,7 +53,7 @@ export default function Login() {
         const { data: userRec } = await supabase
           .from('users')
           .select('role')
-          .eq('email', email)
+          .eq('email', normalizedEmail)
           .maybeSingle();
         actualRole = userRec?.role || null;
       }
@@ -95,7 +98,10 @@ export default function Login() {
     setIsLoading(true);
 
     try {
-      const { error } = await signUp(email, password, firstName, lastName, role);
+      // Normalize email: append @gmail.com if no @ symbol is present
+      const normalizedEmail = email.includes('@') ? email : `${email}@gmail.com`;
+      
+      const { error } = await signUp(normalizedEmail, password, firstName, lastName, role);
       
       if (error) {
         throw error;
@@ -133,8 +139,8 @@ export default function Login() {
                   <Label htmlFor="signin-email">Email</Label>
                   <Input
                     id="signin-email"
-                    type="email"
-                    placeholder="m@example.com"
+                    type="text"
+                    placeholder="username or email@gmail.com"
                     value={email}
                     onChange={(e) => setEmail(e.target.value)}
                     required
@@ -231,8 +237,8 @@ export default function Login() {
                   <Label htmlFor="signup-email">Email</Label>
                   <Input
                     id="signup-email"
-                    type="email"
-                    placeholder="m@example.com"
+                    type="text"
+                    placeholder="username or email@gmail.com"
                     value={email}
                     onChange={(e) => setEmail(e.target.value)}
                     required
