@@ -535,7 +535,7 @@ const TakeAttendanceSession = () => {
 
   return (
     <Layout>
-      <div className="px-6 py-4 space-y-6">
+      <div className="w-full space-y-6">
         {/* Session Header - Left Aligned */}
         <div className="text-left space-y-1">
           <h1 className="text-3xl font-bold text-education-navy">{session.title}</h1>
