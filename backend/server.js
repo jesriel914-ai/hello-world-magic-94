@@ -16,19 +16,19 @@ let s3Client = null;
 let BUCKET_NAME = 'signatureai-uploads';
 
 // Check if AWS credentials are available
-const hasAwsCredentials = process.env.NEXT_PUBLIC_AWS_ACCESS_KEY_ID && 
-                         process.env.NEXT_PUBLIC_AWS_SECRET_ACCESS_KEY;
+const hasAwsCredentials = process.env.VITE_AWS_ACCESS_KEY_ID && 
+                         process.env.VITE_AWS_SECRET_ACCESS_KEY;
 
 if (hasAwsCredentials) {
   try {
     s3Client = new S3Client({
-      region: process.env.NEXT_PUBLIC_AWS_REGION || 'us-east-1',
+      region: process.env.VITE_AWS_REGION || 'us-east-1',
       credentials: {
-        accessKeyId: process.env.NEXT_PUBLIC_AWS_ACCESS_KEY_ID,
-        secretAccessKey: process.env.NEXT_PUBLIC_AWS_SECRET_ACCESS_KEY,
+        accessKeyId: process.env.VITE_AWS_ACCESS_KEY_ID,
+        secretAccessKey: process.env.VITE_AWS_SECRET_ACCESS_KEY,
       },
     });
-    BUCKET_NAME = process.env.NEXT_PUBLIC_S3_BUCKET || 'signatureai-uploads';
+    BUCKET_NAME = process.env.VITE_S3_BUCKET || 'signatureai-uploads';
     console.log('✅ S3 client initialized successfully');
   } catch (error) {
     console.error('❌ Failed to initialize S3 client:', error);
@@ -36,7 +36,7 @@ if (hasAwsCredentials) {
   }
 } else {
   console.warn('⚠️ AWS credentials not found. S3 uploads will be disabled.');
-  console.warn('   Please set NEXT_PUBLIC_AWS_ACCESS_KEY_ID and NEXT_PUBLIC_AWS_SECRET_ACCESS_KEY');
+  console.warn('   Please set VITE_AWS_ACCESS_KEY_ID and VITE_AWS_SECRET_ACCESS_KEY');
 }
 
 // Helper functions for S3
@@ -67,7 +67,7 @@ app.get('/health', (req, res) => {
     s3: {
       configured: !!s3Client,
       bucket: BUCKET_NAME,
-      region: process.env.NEXT_PUBLIC_AWS_REGION
+      region: process.env.VITE_AWS_REGION
     }
   });
 });
@@ -146,12 +146,12 @@ app.post('/api/upload-model-to-s3', async (req, res) => {
       // Return success
       res.json({
         success: true,
-        location: `https://${BUCKET_NAME}.s3.${process.env.NEXT_PUBLIC_AWS_REGION}.amazonaws.com/${modelJsonKey}`,
+        location: `https://${BUCKET_NAME}.s3.${process.env.VITE_AWS_REGION}.amazonaws.com/${modelJsonKey}`,
         metadata: {
           storage: {
             location: 's3',
             bucket: BUCKET_NAME,
-            region: process.env.NEXT_PUBLIC_AWS_REGION,
+            region: process.env.VITE_AWS_REGION,
             modelKey: modelJsonKey,
             weightsKey: weightsKey,
             metadataKey: metadataKey

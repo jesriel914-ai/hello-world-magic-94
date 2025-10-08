@@ -1,8 +1,7 @@
 """
-google drive filepath: siamese_training/main.py
-Flask API Server for Siamese Signature Training & Verification
-Optimized for Google Colab with Ngrok tunneling
-Run in Colab with: python main.py
+Verification-Only Flask API - Local Deployment
+No training capabilities, just signature verification
+Optimized for R5 3400G (CPU only)
 """
 
 from flask import Flask, request, jsonify
@@ -13,18 +12,24 @@ import base64
 import numpy as np
 import json
 import cv2
-from pathlib import Path
-import tempfile
-import shutil
+import gc
 
-from siamese_trainer import SiameseSignatureTrainer
 from siamese_verifier import SiameseSignatureVerifier
 
 app = Flask(__name__)
-CORS(app)
 
-# Initialize trainer and verifier
-trainer = SiameseSignatureTrainer(base_dir='models')
+# Universal CORS - works for both ngrok and localhost
+CORS(app, resources={
+    r"/api/*": {
+        "origins": ["http://localhost:3000", "http://localhost:5173", "http://localhost:5174"],
+        "methods": ["GET", "POST", "OPTIONS"],
+        "allow_headers": ["Content-Type", "ngrok-skip-browser-warning"],
+        "expose_headers": ["Content-Type"],
+        "supports_credentials": False,
+        "max_age": 3600
+    }
+})
+# Initialize verifier only
 verifier = SiameseSignatureVerifier(base_dir='models')
 
 def base64_to_image(base64_str):
@@ -37,86 +42,13 @@ def base64_to_image(base64_str):
     img = cv2.imdecode(nparr, cv2.IMREAD_COLOR)
     return img
 
-@app.route('/api/train', methods=['POST'])
-def train_model():
-    """
-    Train Siamese model for a student
-    POST /api/train
-    Body: {
-        "student_id": "2021-0001",
-        "genuine_samples": ["base64_image1", ...],
-        "forged_samples": ["base64_image1", ...]
-    }
-    """
-    try:
-        data = request.json
-        student_id = data.get('student_id')
-        genuine_samples = data.get('genuine_samples', [])
-        forged_samples = data.get('forged_samples', [])
-        
-        if not student_id:
-            return jsonify({'error': 'student_id is required'}), 400
-        
-        if len(genuine_samples) < 2:
-            return jsonify({'error': 'At least 2 genuine samples required'}), 400
-        
-        print(f"\n[TRAINING] Student: {student_id}")
-        print(f"[TRAINING] Genuine: {len(genuine_samples)}, Forged: {len(forged_samples)}")
-        
-        # Create temp directory
-        temp_dir = Path(tempfile.mkdtemp())
-        
-        try:
-            # Save genuine samples
-            genuine_paths = []
-            for i, base64_img in enumerate(genuine_samples):
-                img = base64_to_image(base64_img)
-                path = temp_dir / f"genuine_{i}.jpg"
-                cv2.imwrite(str(path), img)
-                genuine_paths.append(str(path))
-            
-            # Save forged samples
-            forged_paths = []
-            if forged_samples:
-                for i, base64_img in enumerate(forged_samples):
-                    img = base64_to_image(base64_img)
-                    path = temp_dir / f"forged_{i}.jpg"
-                    cv2.imwrite(str(path), img)
-                    forged_paths.append(str(path))
-            
-            # Train model with GPU
-            metadata = trainer.train_student_model(
-                student_id=student_id,
-                genuine_samples=genuine_paths,
-                forged_samples=forged_paths if forged_paths else None,
-                epochs=100  # More epochs for better accuracy
-            )
-            
-            # Save reference embeddings
-            trainer.save_reference_embeddings(student_id, genuine_paths)
-            
-            return jsonify({
-                'success': True,
-                'metadata': metadata,
-                'message': f'Model trained successfully for {student_id}'
-            })
-            
-        finally:
-            shutil.rmtree(temp_dir, ignore_errors=True)
-            
-    except Exception as e:
-        print(f"[ERROR] Training failed: {str(e)}")
-        import traceback
-        traceback.print_exc()
-        return jsonify({'error': str(e)}), 500
-
 @app.route('/api/verify', methods=['POST'])
 def verify_signature():
     """
     Verify signature against trained model
     POST /api/verify
     Body: {
-        "student_id": "2021-0001",
+        "student_id": "STU0000389",
         "signature_image": "base64_image"
     }
     """
@@ -130,11 +62,11 @@ def verify_signature():
         
         print(f"[VERIFICATION] Student: {student_id}")
         
-        # Remove data URL prefix if present
+        # Remove data URL prefix
         if ',' in signature_base64:
             signature_base64 = signature_base64.split(',')[1]
         
-        # Decode base64 to image
+        # Decode to image
         img_data = base64.b64decode(signature_base64)
         nparr = np.frombuffer(img_data, np.uint8)
         img = cv2.imdecode(nparr, cv2.IMREAD_COLOR)
@@ -142,31 +74,34 @@ def verify_signature():
         if img is None:
             return jsonify({'error': 'Failed to decode image'}), 400
         
-        # Save temporarily for verification
+        # Save temporarily
         temp_path = f'temp_{student_id}_{int(time.time())}.jpg'
         cv2.imwrite(temp_path, img)
         
-        # Verify using the verifier
+        # Verify
         result = verifier.verify_signature(student_id, temp_path)
         
-        # Clean up temp file
+        # Cleanup
         if os.path.exists(temp_path):
             os.remove(temp_path)
         
-        print(f"[VERIFICATION] Result: {result}")
+        del img, nparr
+        gc.collect()
+        
+        print(f"[VERIFICATION] Result: {result['is_verified']}")
         return jsonify({'result': result})
         
     except Exception as e:
         print(f"[ERROR] Verification failed: {str(e)}")
-        import traceback
-        traceback.print_exc()
         return jsonify({'error': str(e)}), 500
 
 @app.route('/api/models/list', methods=['GET'])
 def list_trained_models():
     """List all students with trained models"""
     try:
+        from pathlib import Path
         models_dir = Path('models')
+        
         if not models_dir.exists():
             return jsonify({'students': []})
         
@@ -195,10 +130,7 @@ def model_status(student_id):
         exists, metadata = verifier.check_model_exists(student_id)
         
         if exists:
-            return jsonify({
-                'exists': True,
-                'metadata': metadata
-            })
+            return jsonify({'exists': True, 'metadata': metadata})
         else:
             return jsonify({'exists': False})
             
@@ -208,62 +140,26 @@ def model_status(student_id):
 @app.route('/api/health', methods=['GET'])
 def health_check():
     """Health check endpoint"""
-    import tensorflow as tf
-    
-    gpu_available = len(tf.config.list_physical_devices('GPU')) > 0
-    
     return jsonify({
         'status': 'healthy',
-        'service': 'siamese-signature-training',
-        'version': '2.0-gpu',
-        'gpu_available': gpu_available,
-        'tensorflow_version': tf.__version__
+        'service': 'siamese-signature-verification',
+        'version': '1.0-local',
+        'mode': 'verification-only'
     })
 
 if __name__ == '__main__':
     print("\n" + "="*60)
-    print("  SIAMESE SIGNATURE TRAINING API (GPU-OPTIMIZED)")
+    print("  SIAMESE SIGNATURE VERIFICATION (LOCAL)")
     print("="*60)
-    
-    # Check if running in Colab
-    try:
-        import google.colab
-        IN_COLAB = True
-        print("  Environment: Google Colab")
-        
-        # Setup ngrok for Colab
-        from pyngrok import ngrok
-        
-        # Get ngrok auth token from environment
-        NGROK_TOKEN = os.environ.get('NGROK_AUTH_TOKEN')
-        if not NGROK_TOKEN:
-            print("\n⚠️  WARNING: NGROK_AUTH_TOKEN not set!")
-            print("Please set it with:")
-            print('  os.environ["NGROK_AUTH_TOKEN"] = "your_token_here"')
-            print("\nOr get a free token from: https://dashboard.ngrok.com/get-started/your-authtoken")
-        else:
-            ngrok.set_auth_token(NGROK_TOKEN)
-        
-        # Start ngrok tunnel
-        public_url = ngrok.connect(5000)
-        print(f"  Public URL: {public_url}")
-        print(f"\n  🌍 UPDATE YOUR FRONTEND .env WITH:")
-        print(f"  VITE_SIAMESE_API_URL={public_url}")
-        
-    except ImportError:
-        IN_COLAB = False
-        print("  Environment: Local")
-        print(f"  Server: http://localhost:5000")
-    
-    print(f"  Status: Starting...")
+    print("  Environment: Local (CPU Only)")
+    print("  Server: http://localhost:5000")
+    print("  Mode: Verification Only")
     print("="*60)
     print("\nAvailable Endpoints:")
-    print("  POST /api/train              - Train student model")
     print("  POST /api/verify             - Verify signature")
     print("  GET  /api/models/list        - List trained models")
     print("  GET  /api/model/status/:id   - Check model status")
     print("  GET  /api/health             - Health check")
     print("\n" + "="*60 + "\n")
     
-    # Run Flask - CRITICAL: debug=False for production/ngrok
-    app.run(host='0.0.0.0', port=5000, debug=False)
+    app.run(host='0.0.0.0', port=5000, debug=True)

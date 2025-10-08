@@ -1,0 +1,21 @@
+{
+  "student_id": "STU0000360",
+  "training_date": "2025-10-07T13:17:05.134409",
+  "genuine_samples": 55,
+  "forged_samples": 70,
+  "epochs_trained": 50,
+  "training_time_seconds": 1724.027111,
+  "final_val_loss": 4.1546540160197765e-05,
+  "final_accuracy": 1.0,
+  "precision": 1.0,
+  "recall": 1.0,
+  "f1_score": 1.0,
+  "threshold": 0.45,
+  "margin": 1.2,
+  "img_size": [
+    224,
+    224
+  ],
+  "architecture": "memory_optimized_generator",
+  "memory_efficient": true
+}

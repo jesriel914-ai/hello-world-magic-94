@@ -162,7 +162,7 @@ const AppRoutes = () => {
       }
     />
     <Route
-      path="/signature-ai-simple"
+      path="/model-training-signature-classify"
       element={
         <ProtectedRoute>
           <RoleProtectedRoute allowedRoles={['admin']}>
@@ -172,7 +172,7 @@ const AppRoutes = () => {
       }
     />
     <Route
-      path="/SiameseSignatureModelTraining"
+      path="/model-training-signature-verify"
       element={
         <ProtectedRoute>
           <RoleProtectedRoute allowedRoles={['admin']}>

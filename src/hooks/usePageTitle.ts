@@ -16,9 +16,10 @@ const routeTitles: Record<string, string> = {
   '/excuse-application': 'Excuse Application',
   '/academic-year': 'Allowed Terms',
   '/subjects': 'Subjects',
-  '/signature-ai': 'Model Training',
   '/login': 'Login',
   '/sessions': 'Session Students',
+  '/model-training-signature-classify': 'Model Training',
+  '/model-training-signature-verify': 'Model Training',
 };
 
 export const usePageTitle = () => {

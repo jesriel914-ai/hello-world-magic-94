@@ -96,7 +96,7 @@ const getNavItems = (userRole: string = '') => {
         href: "/excuse-application",
         isActive: (path: string) => path === '/excuse-application'
       },
-      { icon: Brain, label: "Model Training", href: "/signature-ai-simple" },
+      { icon: Brain, label: "Model Training", href: "/model-training-signature-classify" },
       { icon: CalendarDays, label: "Allowed Terms", href: "/academic-year" },
       { icon: UserCog, label: "Accounts", href: "/accounts" }
     ];

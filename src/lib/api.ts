@@ -5,10 +5,10 @@ const getApiBaseUrl = () => {
   // Check if we're in a browser environment
   if (typeof window !== 'undefined') {
     // In browser, use window.ENV or fallback to localhost
-    return window.ENV?.NEXT_PUBLIC_API_BASE_URL || 'http://localhost:5000/api';
+    return window.ENV?.VITE_API_BASE_URL || 'http://localhost:5000/api';
   }
   // In server environment, use process.env
-  return process.env.NEXT_PUBLIC_API_BASE_URL || 'http://localhost:5000/api';
+  return process.env.VITE_API_BASE_URL || 'http://localhost:5000/api';
 };
 
 const API_BASE_URL = getApiBaseUrl(); // Configurable API base URL

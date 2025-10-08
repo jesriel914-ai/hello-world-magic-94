@@ -1,14 +1,14 @@
-# google drive filepath: siamese_training/requirements.py
-# GPU-Optimized ML frameworks for Colab
-tensorflow==2.19.0  # Latest stable in Colab
+# Minimal requirements for LOCAL VERIFICATION ONLY
+# No GPU training, no ngrok, no heavy dependencies
+
+# Core ML (CPU version is fine)
+tensorflow==2.17.0
 numpy==1.26.4
 opencv-python==4.10.0.84
-scikit-learn==1.5.1
+
 # API framework
 flask==3.0.3
 flask-cors==4.0.1
-flask-ngrok==0.0.25
-# Utilities
+
+# Utils
 pillow==10.4.0
-# For Colab tunneling
-pyngrok==7.2.0

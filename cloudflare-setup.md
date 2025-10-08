@@ -40,8 +40,8 @@ cloudflared tunnel --url http://localhost:5173
 
 ### 5. Access Your Application
 - Cloudflare will give you a URL like: `https://random-name.trycloudflare.com`
-- **Desktop**: Use `http://localhost:5173/signature-ai-simple`
-- **Mobile**: Use the Cloudflare URL: `https://random-name.trycloudflare.com/signature-ai-simple`
+- **Desktop**: Use `http://localhost:5173/model-training-signature-classify`
+- **Mobile**: Use the Cloudflare URL: `https://random-name.trycloudflare.com/model-training-signature-classify`
 
 The WebSocket connection will automatically work through the same tunnel.
 

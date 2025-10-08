@@ -951,10 +951,10 @@ const ExcuseApplicationContent = () => {
                   </p>
                 </div>
 
-                {/* Absence Data */}
+                {/* Absence Date */}
                 <div>
                   <p className="text-sm">
-                    <span className="text-muted-foreground">Absence Data:</span> <span className="font-medium">
+                    <span className="text-muted-foreground">Absence Date:</span> <span className="font-medium">
                       {format(new Date(selectedExcuse.absence_date), 'EEEE, MMMM d, yyyy')}
                     </span>
                   </p>

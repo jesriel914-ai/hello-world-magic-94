@@ -312,10 +312,10 @@ If you're getting "Failed to fetch" errors when trying to export models to S3:
 
 2. **Manual Fix**: Copy `.env.example` to `.env` and add your AWS credentials:
    ```env
-   NEXT_PUBLIC_AWS_ACCESS_KEY_ID=your_aws_access_key_here
-   NEXT_PUBLIC_AWS_SECRET_ACCESS_KEY=your_aws_secret_key_here
-   NEXT_PUBLIC_AWS_REGION=us-east-1
-   NEXT_PUBLIC_S3_BUCKET=signatureai-uploads
+   VITE_AWS_ACCESS_KEY_ID=your_aws_access_key_here
+   VITE_AWS_SECRET_ACCESS_KEY=your_aws_secret_key_here
+   VITE_AWS_REGION=us-east-1
+   VITE_S3_BUCKET=signatureai-uploads
    ```
 
 3. **Alternative**: Disable S3 exports and use local downloads:

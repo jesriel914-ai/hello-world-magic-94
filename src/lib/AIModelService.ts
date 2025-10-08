@@ -8,8 +8,8 @@ import * as tf from '@tensorflow/tfjs';
 declare global {
   interface Window {
     ENV?: {
-      NEXT_PUBLIC_AI_SERVICE_URL?: string;
-      NEXT_PUBLIC_API_BASE_URL?: string;
+      VITE_AI_SERVICE_URL?: string;
+      VITE_API_BASE_URL?: string;
     };
   }
 }
@@ -224,16 +224,16 @@ class AIModelServiceClass {
     console.log('AIModelService initialized with baseUrl:', this.baseUrl);
     // Only initialize S3 client if process is available (not in browser)
     if (typeof process !== 'undefined' && process.env) {
-      this.bucketName = process.env.NEXT_PUBLIC_S3_BUCKET || 'signatureai-uploads';
-      this.publicBaseUrl = process.env.NEXT_PUBLIC_S3_PUBLIC_BASE_URL || 
-        `https://${this.bucketName}.s3.${process.env.NEXT_PUBLIC_AWS_REGION || 'us-east-1'}.amazonaws.com`;
+      this.bucketName = process.env.VITE_S3_BUCKET || 'signatureai-uploads';
+      this.publicBaseUrl = process.env.VITE_S3_PUBLIC_BASE_URL || 
+        `https://${this.bucketName}.s3.${process.env.VITE_AWS_REGION || 'us-east-1'}.amazonaws.com`;
       
       // Initialize S3 client with your existing configuration
       s3Client = new S3Client({
-        region: process.env.NEXT_PUBLIC_AWS_REGION || 'us-east-1',
+        region: process.env.VITE_AWS_REGION || 'us-east-1',
         credentials: {
-          accessKeyId: process.env.NEXT_PUBLIC_AWS_ACCESS_KEY_ID!,
-          secretAccessKey: process.env.NEXT_PUBLIC_AWS_SECRET_ACCESS_KEY!,
+          accessKeyId: process.env.VITE_AWS_ACCESS_KEY_ID!,
+          secretAccessKey: process.env.VITE_AWS_SECRET_ACCESS_KEY!,
         },
       });
     } else {
@@ -304,7 +304,7 @@ class AIModelServiceClass {
         metadata.storage = {
           location: 's3',
           bucket: this.bucketName,
-          region: process.env.NEXT_PUBLIC_AWS_REGION || 'us-east-1',
+          region: process.env.VITE_AWS_REGION || 'us-east-1',
           modelKey,
           weightsKey,
           metadataKey
@@ -340,7 +340,7 @@ class AIModelServiceClass {
         metadata.storage = {
           location: 's3',
           bucket: this.bucketName,
-          region: process.env.NEXT_PUBLIC_AWS_REGION || 'us-east-1',
+          region: process.env.VITE_AWS_REGION || 'us-east-1',
           modelKey,
           metadataKey
         };
