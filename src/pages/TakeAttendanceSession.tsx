@@ -841,11 +841,8 @@ const TakeAttendanceSession = () => {
     <Layout>
       <div className="w-full space-y-6">
         {/* Session Header - Left Aligned */}
-        <div className="text-left space-y-1">
+        <div className="text-left">
           <h1 className="text-3xl font-bold text-education-navy">{session.title}</h1>
-          <p className="text-muted-foreground text-sm">
-            {session.program} • {session.year} • {session.section} • {new Date(session.date).toLocaleDateString()} • {session.time_in} - {session.time_out}
-          </p>
         </div>
 
         <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
