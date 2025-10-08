@@ -85,7 +85,9 @@ const TakeAttendanceSession = () => {
   const [isLoadingModel, setIsLoadingModel] = useState(false);
   const [modelTrainedAt, setModelTrainedAt] = useState<Date | null>(null);
   const [predictions, setPredictions] = useState<PredictionResult[]>([]);
-  const [showModels, setShowModels] = useState(false);
+  const [showStudentList, setShowStudentList] = useState(false);
+  const [sessionStudents, setSessionStudents] = useState<any[]>([]);
+  const [loadingStudents, setLoadingStudents] = useState(false);
   const cameraPredictionIntervalRef = useRef<NodeJS.Timeout | null>(null);
 
   useEffect(() => {
@@ -241,6 +243,30 @@ const TakeAttendanceSession = () => {
     console.log('✅ Camera stopped successfully');
   }, []);
 
+  // Fetch students registered for this session
+  const fetchSessionStudents = useCallback(async () => {
+    if (!session) return;
+    
+    try {
+      setLoadingStudents(true);
+      const { data, error } = await supabase
+        .from('students')
+        .select('id, student_id, firstname, surname, program, year, section')
+        .eq('program', session.program)
+        .eq('year', session.year)
+        .eq('section', session.section)
+        .order('firstname');
+
+      if (error) throw error;
+      setSessionStudents(data || []);
+    } catch (error) {
+      console.error('Error fetching session students:', error);
+      toast.error('Failed to load students');
+    } finally {
+      setLoadingStudents(false);
+    }
+  }, [session]);
+
   // Auto-load latest model on page open
   useEffect(() => {
     const loadLatestModel = async () => {
@@ -288,7 +314,6 @@ const TakeAttendanceSession = () => {
         setModelTrainedAt(new Date(latestModel.training_date));
         
         console.log('✅ Latest model loaded successfully');
-        toast.success(`Model loaded: ${latestModel.student_name}`);
       } catch (error) {
         console.error('❌ Error loading latest model:', error);
         toast.error('Failed to load model: ' + (error instanceof Error ? error.message : 'Unknown error'));
