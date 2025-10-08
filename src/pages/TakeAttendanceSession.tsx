@@ -888,50 +888,28 @@ const TakeAttendanceSession = () => {
                 {session && (
                   <div className="p-4 bg-white rounded-lg border shadow-sm">
                     <h3 className="text-sm font-semibold text-gray-700 mb-3">Session Information</h3>
-                    <div className="space-y-2">
-                      <div className="flex items-start gap-2">
-                        <BookOpen className="w-4 h-4 text-gray-400 mt-0.5" />
-                        <div className="flex-1">
-                          <p className="text-xs text-gray-500">Title</p>
-                          <p className="text-sm font-medium text-gray-900">{session.title}</p>
-                        </div>
-                      </div>
-                      <div className="flex items-start gap-2">
-                        <BookOpen className="w-4 h-4 text-gray-400 mt-0.5" />
-                        <div className="flex-1">
-                          <p className="text-xs text-gray-500">Program</p>
-                          <p className="text-sm font-medium text-gray-900">{session.program}</p>
-                        </div>
-                      </div>
-                      <div className="flex items-start gap-2">
-                        <Users className="w-4 h-4 text-gray-400 mt-0.5" />
-                        <div className="flex-1">
-                          <p className="text-xs text-gray-500">Year {session.section && `& Section`}</p>
-                          <p className="text-sm font-medium text-gray-900">
-                            {session.year}{session.section && ` - ${session.section}`}
-                          </p>
-                        </div>
-                      </div>
-                      <div className="flex items-start gap-2">
-                        <Calendar className="w-4 h-4 text-gray-400 mt-0.5" />
-                        <div className="flex-1">
-                          <p className="text-xs text-gray-500">Date</p>
-                          <p className="text-sm font-medium text-gray-900">
-                            {new Date(session.date).toLocaleDateString('en-US', {
-                              month: 'short',
-                              day: 'numeric',
-                              year: 'numeric'
-                            })}
-                          </p>
-                        </div>
-                      </div>
-                      <div className="flex items-start gap-2">
-                        <Clock className="w-4 h-4 text-gray-400 mt-0.5" />
-                        <div className="flex-1">
-                          <p className="text-xs text-gray-500">Time</p>
-                          <p className="text-sm font-medium text-gray-900">{session.time_in} - {session.time_out}</p>
-                        </div>
-                      </div>
+                    <div className="space-y-1.5">
+                      <p className="text-sm">
+                        <span className="text-gray-500">Title:</span> <span className="font-medium text-gray-900">{session.title}</span>
+                      </p>
+                      <p className="text-sm">
+                        <span className="text-gray-500">Program:</span> <span className="font-medium text-gray-900">{session.program}</span>
+                      </p>
+                      <p className="text-sm">
+                        <span className="text-gray-500">Year{session.section && ' & Section'}:</span> <span className="font-medium text-gray-900">{session.year}{session.section && ` - ${session.section}`}</span>
+                      </p>
+                      <p className="text-sm">
+                        <span className="text-gray-500">Date:</span> <span className="font-medium text-gray-900">
+                          {new Date(session.date).toLocaleDateString('en-US', {
+                            month: 'short',
+                            day: 'numeric',
+                            year: 'numeric'
+                          })}
+                        </span>
+                      </p>
+                      <p className="text-sm">
+                        <span className="text-gray-500">Time:</span> <span className="font-medium text-gray-900">{session.time_in} - {session.time_out}</span>
+                      </p>
                     </div>
                   </div>
                 )}
