@@ -1,7 +1,7 @@
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
-import { Loader2, Camera, Play, StopCircle, CheckCircle, XCircle, Users, User, Clock, Calendar, BookOpen, ArrowLeft, RefreshCw, Square, FileImage } from "lucide-react";
+import { Loader2, Camera, Play, StopCircle, CheckCircle, XCircle, Users, User, Clock, Calendar, BookOpen, ArrowLeft, RefreshCw, Square, FileImage, Brain, List, Cloud, X } from "lucide-react";
 import { cn } from "@/lib/utils";
 import Layout from "@/components/Layout";
 import { useEffect, useRef, useState, useCallback } from 'react';
@@ -10,6 +10,22 @@ import { supabase } from '@/lib/supabase';
 import { toast } from 'sonner';
 import { MobileWebcam } from '@/components/model-training-ui/services/mobileWebcam';
 import useMobileDetection from '@/hooks/use-mobile-detection';
+import * as tf from '@tensorflow/tfjs';
+import { getAIModelService } from '@/lib/AIModelService';
+import { predictFromCanvas, forceMemoryCleanup } from '@/components/model-training-ui/utils/modelPrediction';
+
+interface PredictionResult {
+  className: string;
+  confidence: number;
+}
+
+interface CustomModel {
+  featureExtractor: tf.LayersModel | null;
+  classifier: tf.LayersModel | null;
+  getTotalClasses: () => number;
+  getClassLabels: () => string[];
+  predict: (image: HTMLCanvasElement | HTMLVideoElement, flipped?: boolean) => Promise<PredictionResult[]>;
+}
 
 type Session = {
   id: number;
@@ -63,6 +79,14 @@ const TakeAttendanceSession = () => {
   const [cameraError, setCameraError] = useState<string | null>(null);
   const [isCameraReady, setIsCameraReady] = useState(false);
   const isMobile = useMobileDetection();
+  
+  // Model and prediction states
+  const [model, setModel] = useState<CustomModel | null>(null);
+  const [isLoadingModel, setIsLoadingModel] = useState(false);
+  const [modelTrainedAt, setModelTrainedAt] = useState<Date | null>(null);
+  const [predictions, setPredictions] = useState<PredictionResult[]>([]);
+  const [showModels, setShowModels] = useState(false);
+  const cameraPredictionIntervalRef = useRef<NodeJS.Timeout | null>(null);
 
   useEffect(() => {
     // Fetch session details when component mounts
@@ -216,6 +240,125 @@ const TakeAttendanceSession = () => {
     
     console.log('✅ Camera stopped successfully');
   }, []);
+
+  // Auto-load latest model on page open
+  useEffect(() => {
+    const loadLatestModel = async () => {
+      try {
+        setIsLoadingModel(true);
+        console.log('🤖 Auto-loading latest model...');
+        
+        const aiService = getAIModelService();
+        const models = await aiService.listModels();
+        
+        if (models.length === 0) {
+          console.log('No models available');
+          toast.error('No trained models available');
+          return;
+        }
+        
+        // Get the latest model (sorted by training_date descending)
+        const latestModel = models.sort((a, b) => 
+          new Date(b.training_date).getTime() - new Date(a.training_date).getTime()
+        )[0];
+        
+        console.log('📥 Loading latest model:', latestModel.id);
+        
+        const loadedModel = await aiService.loadModel(latestModel.id);
+        setModel(loadedModel);
+        setModelTrainedAt(new Date(latestModel.training_date));
+        
+        console.log('✅ Latest model loaded successfully');
+        toast.success(`Model loaded: ${latestModel.id}`);
+      } catch (error) {
+        console.error('❌ Error loading latest model:', error);
+        toast.error('Failed to load model');
+      } finally {
+        setIsLoadingModel(false);
+      }
+    };
+    
+    loadLatestModel();
+  }, []);
+
+  // Camera prediction loop (only top 1 prediction)
+  useEffect(() => {
+    if (!isMobile || !isCameraReady || !mobileWebcam.current || !model) {
+      if (cameraPredictionIntervalRef.current) {
+        clearInterval(cameraPredictionIntervalRef.current);
+        cameraPredictionIntervalRef.current = null;
+      }
+      setPredictions([]);
+      return;
+    }
+    
+    let isRunning = false;
+    let consecutiveErrors = 0;
+    const MAX_ERRORS = 3;
+    let lastCleanupTime = Date.now();
+    const CLEANUP_INTERVAL = 5000;
+    
+    const runCameraPrediction = async () => {
+      if (isRunning) return;
+      if (!mobileWebcam.current || !model) return;
+      
+      isRunning = true;
+      
+      try {
+        const now = Date.now();
+        if (now - lastCleanupTime > CLEANUP_INTERVAL) {
+          forceMemoryCleanup();
+          lastCleanupTime = now;
+        }
+        
+        const videoElement = mobileWebcam.current.getVideo();
+        if (!videoElement || videoElement.paused || videoElement.ended || videoElement.readyState < 2) {
+          throw new Error('Video not ready');
+        }
+        
+        const canvas = mobileWebcam.current.captureFrame();
+        if (!canvas || canvas.width !== 224 || canvas.height !== 224) {
+          throw new Error('Invalid canvas');
+        }
+        
+        const predictionResults = await predictFromCanvas(model, canvas, false);
+        
+        if (!predictionResults || predictionResults.length === 0) {
+          throw new Error('Empty predictions');
+        }
+        
+        consecutiveErrors = 0;
+        const sortedPredictions = predictionResults.sort((a, b) => b.confidence - a.confidence);
+        setPredictions(sortedPredictions);
+        
+      } catch (error) {
+        consecutiveErrors++;
+        console.error(`❌ Camera prediction error #${consecutiveErrors}:`, error);
+        
+        if (consecutiveErrors >= MAX_ERRORS) {
+          if (cameraPredictionIntervalRef.current) {
+            clearInterval(cameraPredictionIntervalRef.current);
+            cameraPredictionIntervalRef.current = null;
+          }
+          toast.error('Camera prediction failed. Please restart camera.');
+          setPredictions([]);
+        }
+      } finally {
+        isRunning = false;
+      }
+    };
+    
+    runCameraPrediction();
+    cameraPredictionIntervalRef.current = setInterval(runCameraPrediction, 300);
+    
+    return () => {
+      if (cameraPredictionIntervalRef.current) {
+        clearInterval(cameraPredictionIntervalRef.current);
+        cameraPredictionIntervalRef.current = null;
+      }
+      forceMemoryCleanup();
+    };
+  }, [isMobile, isCameraReady, model]);
 
   // Check for basic MediaDevices API support on component mount
   useEffect(() => {
@@ -660,10 +803,75 @@ const TakeAttendanceSession = () => {
         <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
           {/* Left Section: Scan Signatures */}
           <div className="space-y-4">
-            <div className="flex items-center gap-2">
-              <FileImage className="w-6 h-6" />
-              <span className="text-base font-semibold">Scan Signatures</span>
+            <div className="flex items-center justify-between">
+              <div className="flex items-center gap-2">
+                {showModels ? (
+                  <>
+                    <Brain className="w-6 h-6" />
+                    <span className="text-base font-semibold">Current Model</span>
+                  </>
+                ) : (
+                  <>
+                    <FileImage className="w-6 h-6" />
+                    <span className="text-base font-semibold">Scan Signatures</span>
+                  </>
+                )}
+              </div>
+              <Button 
+                variant="ghost" 
+                size="default"
+                onClick={() => setShowModels(!showModels)}
+                className="h-10 w-10 p-0"
+                title={showModels ? "Back to Scanner" : "View Model"}
+              >
+                {showModels ? <X className="w-5 h-5" /> : <List className="w-5 h-5" />}
+              </Button>
             </div>
+            
+            {showModels ? (
+              <>
+                {model ? (
+                  <div className="space-y-4">
+                    <div className="p-4 bg-white rounded-lg border shadow-sm">
+                      <div className="space-y-3">
+                        <div className="text-sm text-gray-900 font-medium">
+                          {modelTrainedAt ? modelTrainedAt.toLocaleString('en-US', {
+                            year: 'numeric',
+                            month: 'short',
+                            day: 'numeric',
+                            hour: 'numeric',
+                            minute: '2-digit',
+                            hour12: true
+                          }) : 'Just now'}
+                        </div>
+                        <div className="space-y-2">
+                          <div className="text-sm font-medium text-gray-700">Trained Students:</div>
+                          <div className="space-y-1">
+                            {model.getClassLabels().map((studentName, index) => (
+                              <div key={index} className="text-sm text-gray-600 flex items-center gap-2">
+                                <div className="w-2 h-2 bg-blue-500 rounded-full"></div>
+                                {studentName}
+                              </div>
+                            ))}
+                          </div>
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+                ) : (
+                  <div className="text-center py-8">
+                    <Brain className="w-12 h-12 mx-auto mb-4 text-gray-300" />
+                    <h3 className="text-base font-medium text-gray-500 mb-2">
+                      {isLoadingModel ? 'Loading model...' : 'No model loaded'}
+                    </h3>
+                    {isLoadingModel && (
+                      <Loader2 className="w-6 h-6 mx-auto animate-spin text-blue-600" />
+                    )}
+                  </div>
+                )}
+              </>
+            ) : (
+              <>
             
             {/* Preview Box for Camera Feed */}
             <div className="relative border-2 border-dashed border-gray-300 rounded-lg aspect-video flex items-center justify-center bg-gray-50">
@@ -727,30 +935,25 @@ const TakeAttendanceSession = () => {
               </Button>
             )}
             
-            {/* TEMPORARY DEBUG BUTTON - Test Frame Capture */}
-            {isCameraReady && mobileWebcam.current && (
-              <Button 
-                onClick={() => {
-                  if (mobileWebcam.current) {
-                    const canvas = mobileWebcam.current.captureFrame();
-                    if (canvas) {
-                      const dataUrl = canvas.toDataURL();
-                      console.log('✅ Test capture successful:', dataUrl.substring(0, 50) + '...');
-                      const a = document.createElement('a');
-                      a.href = dataUrl;
-                      a.download = 'test-capture.png';
-                      a.click();
-                    } else {
-                      console.error('❌ captureFrame returned null');
-                    }
-                  }
-                }}
-                variant="outline"
-                size="sm"
-                className="w-full"
-              >
-                🧪 Test Frame Capture
-              </Button>
+            {/* Single Prediction Display - Only Top 1 */}
+            {isCameraReady && predictions.length > 0 && (
+              <div className="space-y-2">
+                <h4 className="font-medium text-sm">Detected Student:</h4>
+                <div className="p-4 bg-green-50 border border-green-200 rounded-lg">
+                  <div className="flex justify-between items-center mb-2">
+                    <span className="text-sm font-medium text-green-800">{predictions[0].className}</span>
+                    <span className="text-sm text-green-600">{(predictions[0].confidence * 100).toFixed(0)}%</span>
+                  </div>
+                  <div className="w-full bg-gray-200 rounded-full h-2">
+                    <div 
+                      className="bg-green-600 h-2 rounded-full transition-all duration-300" 
+                      style={{ width: `${predictions[0].confidence * 100}%` }}
+                    />
+                  </div>
+                </div>
+              </div>
+            )}
+            </>
             )}
           </div>
 
