@@ -249,9 +249,9 @@ const TakeAttendanceSession = () => {
         console.log('🤖 Auto-loading latest model...');
         
         const aiService = getAIModelService();
-        const models = await aiService.listModels();
+        const models = await aiService.getTrainedModels();
         
-        if (models.length === 0) {
+        if (!models || models.length === 0) {
           console.log('No models available');
           toast.error('No trained models available');
           return;
@@ -264,15 +264,34 @@ const TakeAttendanceSession = () => {
         
         console.log('📥 Loading latest model:', latestModel.id);
         
-        const loadedModel = await aiService.loadModel(latestModel.id);
-        setModel(loadedModel);
+        const loadResult = await aiService.loadModel(latestModel.id);
+        
+        if (!loadResult.success || !loadResult.model) {
+          throw new Error(loadResult.error || 'Failed to load model');
+        }
+        
+        console.log('✅ Model loaded successfully:', loadResult.model);
+        
+        const loadedModelData = loadResult.model;
+        const customModel: CustomModel = {
+          featureExtractor: null,
+          classifier: null,
+          getTotalClasses: () => loadedModelData.getTotalClasses(),
+          getClassLabels: () => loadedModelData.getClassLabels(),
+          predict: async (image: HTMLCanvasElement | HTMLVideoElement, flipped?: boolean) => {
+            const results = await loadedModelData.predict(image, flipped);
+            return results;
+          }
+        };
+        
+        setModel(customModel);
         setModelTrainedAt(new Date(latestModel.training_date));
         
         console.log('✅ Latest model loaded successfully');
-        toast.success(`Model loaded: ${latestModel.id}`);
+        toast.success(`Model loaded: ${latestModel.student_name}`);
       } catch (error) {
         console.error('❌ Error loading latest model:', error);
-        toast.error('Failed to load model');
+        toast.error('Failed to load model: ' + (error instanceof Error ? error.message : 'Unknown error'));
       } finally {
         setIsLoadingModel(false);
       }
