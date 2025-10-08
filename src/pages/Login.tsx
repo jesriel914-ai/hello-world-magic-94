@@ -134,8 +134,8 @@ export default function Login() {
             </TabsList>
           </div>
           
-          <TabsContent value="signin" className="px-0 animate-in fade-in-50 slide-in-from-bottom-2 duration-300">
-            <form onSubmit={handleSignIn}>
+          <TabsContent value="signin" className="px-0">
+            <form onSubmit={handleSignIn} className="animate-in fade-in-50 slide-in-from-bottom-2 duration-300">
               <CardContent className="space-y-4">
                 <div className="space-y-2">
                   <Label htmlFor="signin-email">Email</Label>
@@ -208,8 +208,8 @@ export default function Login() {
             </form>
           </TabsContent>
 
-          <TabsContent value="signup" className="px-0 animate-in fade-in-50 slide-in-from-bottom-2 duration-300">
-            <form onSubmit={handleSignUp}>
+          <TabsContent value="signup" className="px-0">
+            <form onSubmit={handleSignUp} className="animate-in fade-in-50 slide-in-from-bottom-2 duration-300">
               <CardContent className="space-y-4">
                 <div className="grid grid-cols-2 gap-2">
                   <div className="space-y-2">
