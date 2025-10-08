@@ -849,10 +849,10 @@ const TakeAttendanceSession = () => {
           <div className="space-y-4">
             <div className="flex items-center justify-between">
               <div className="flex items-center gap-2">
-                {showModels ? (
+                {showStudentList ? (
                   <>
-                    <Brain className="w-6 h-6" />
-                    <span className="text-base font-semibold">Current Model</span>
+                    <Users className="w-6 h-6" />
+                    <span className="text-base font-semibold">Students</span>
                   </>
                 ) : (
                   <>
@@ -864,56 +864,55 @@ const TakeAttendanceSession = () => {
               <Button 
                 variant="ghost" 
                 size="default"
-                onClick={() => setShowModels(!showModels)}
+                onClick={() => {
+                  const newValue = !showStudentList;
+                  setShowStudentList(newValue);
+                  if (newValue && sessionStudents.length === 0) {
+                    fetchSessionStudents();
+                  }
+                }}
                 className="h-10 w-10 p-0"
-                title={showModels ? "Back to Scanner" : "View Model"}
+                title={showStudentList ? "Back to Scanner" : "View Attendees"}
               >
-                {showModels ? <X className="w-5 h-5" /> : <List className="w-5 h-5" />}
+                {showStudentList ? <X className="w-5 h-5" /> : <List className="w-5 h-5" />}
               </Button>
             </div>
             
-            {showModels ? (
-              <>
-                {model ? (
-                  <div className="space-y-4">
-                    <div className="p-4 bg-white rounded-lg border shadow-sm">
-                      <div className="space-y-3">
-                        <div className="text-sm text-gray-900 font-medium">
-                          {modelTrainedAt ? modelTrainedAt.toLocaleString('en-US', {
-                            year: 'numeric',
-                            month: 'short',
-                            day: 'numeric',
-                            hour: 'numeric',
-                            minute: '2-digit',
-                            hour12: true
-                          }) : 'Just now'}
-                        </div>
-                        <div className="space-y-2">
-                          <div className="text-sm font-medium text-gray-700">Trained Students:</div>
-                          <div className="space-y-1">
-                            {model.getClassLabels().map((studentName, index) => (
-                              <div key={index} className="text-sm text-gray-600 flex items-center gap-2">
-                                <div className="w-2 h-2 bg-blue-500 rounded-full"></div>
-                                {studentName}
-                              </div>
-                            ))}
+            {showStudentList ? (
+              <div className="space-y-4">
+                {loadingStudents ? (
+                  <div className="text-center py-8">
+                    <Loader2 className="w-8 h-8 mx-auto animate-spin text-blue-600 mb-2" />
+                    <p className="text-sm text-gray-500">Loading students...</p>
+                  </div>
+                ) : sessionStudents.length > 0 ? (
+                  <div className="space-y-2 max-h-96 overflow-y-auto">
+                    {sessionStudents.map((student, index) => (
+                      <div key={student.id} className="p-3 bg-white rounded-lg border shadow-sm hover:bg-gray-50 transition-colors">
+                        <div className="flex items-center gap-3">
+                          <div className="w-8 h-8 bg-blue-100 rounded-full flex items-center justify-center text-blue-600 font-medium text-sm">
+                            {index + 1}
+                          </div>
+                          <div className="flex-1">
+                            <div className="font-medium text-sm text-gray-900">
+                              {student.firstname} {student.surname}
+                            </div>
+                            <div className="text-xs text-gray-500">
+                              ID: {student.student_id} • {student.program} {student.year}-{student.section}
+                            </div>
                           </div>
                         </div>
                       </div>
-                    </div>
+                    ))}
                   </div>
                 ) : (
                   <div className="text-center py-8">
-                    <Brain className="w-12 h-12 mx-auto mb-4 text-gray-300" />
-                    <h3 className="text-base font-medium text-gray-500 mb-2">
-                      {isLoadingModel ? 'Loading model...' : 'No model loaded'}
-                    </h3>
-                    {isLoadingModel && (
-                      <Loader2 className="w-6 h-6 mx-auto animate-spin text-blue-600" />
-                    )}
+                    <Users className="w-12 h-12 mx-auto mb-4 text-gray-300" />
+                    <h3 className="text-base font-medium text-gray-500 mb-2">No students found</h3>
+                    <p className="text-sm text-gray-400">No students registered for this session</p>
                   </div>
                 )}
-              </>
+              </div>
             ) : (
               <>
             
