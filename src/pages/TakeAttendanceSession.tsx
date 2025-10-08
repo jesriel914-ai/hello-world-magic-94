@@ -238,7 +238,7 @@ const TakeAttendanceSession = () => {
     setIsCameraReady(false);
     
     if (webcamRef.current) {
-      webcamRef.current.innerHTML = '<div class="flex flex-col items-center justify-center h-full text-gray-400"><div class="text-lg mb-2">📷</div><div class="text-sm">Camera stopped</div></div>';
+      webcamRef.current.innerHTML = '';
     }
     
     console.log('✅ Camera stopped successfully');
