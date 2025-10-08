@@ -127,12 +127,14 @@ export default function Login() {
           </CardDescription>
         </CardHeader>
         <Tabs defaultValue="signin" className="w-full">
-          <TabsList className="grid w-full grid-cols-2 mb-4 px-6">
-            <TabsTrigger value="signin">Sign In</TabsTrigger>
-            <TabsTrigger value="signup">Sign Up</TabsTrigger>
-          </TabsList>
+          <div className="px-6">
+            <TabsList className="grid w-full grid-cols-2 mb-4">
+              <TabsTrigger value="signin">Sign In</TabsTrigger>
+              <TabsTrigger value="signup">Sign Up</TabsTrigger>
+            </TabsList>
+          </div>
           
-          <TabsContent value="signin" className="px-0">
+          <TabsContent value="signin" className="px-0 animate-in fade-in-50 slide-in-from-bottom-2 duration-300">
             <form onSubmit={handleSignIn}>
               <CardContent className="space-y-4">
                 <div className="space-y-2">
@@ -206,7 +208,7 @@ export default function Login() {
             </form>
           </TabsContent>
 
-          <TabsContent value="signup" className="px-0">
+          <TabsContent value="signup" className="px-0 animate-in fade-in-50 slide-in-from-bottom-2 duration-300">
             <form onSubmit={handleSignUp}>
               <CardContent className="space-y-4">
                 <div className="grid grid-cols-2 gap-2">
