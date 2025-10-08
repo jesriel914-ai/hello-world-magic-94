@@ -1,13 +1,15 @@
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
-import { Loader2, Camera, Play, StopCircle, CheckCircle, XCircle, Users, User, Clock, Calendar, BookOpen, ArrowLeft, RefreshCw, Square } from "lucide-react";
+import { Loader2, Camera, Play, StopCircle, CheckCircle, XCircle, Users, User, Clock, Calendar, BookOpen, ArrowLeft, RefreshCw, Square, FileImage } from "lucide-react";
 import { cn } from "@/lib/utils";
 import Layout from "@/components/Layout";
-import { useEffect, useRef, useState } from 'react';
+import { useEffect, useRef, useState, useCallback } from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
 import { supabase } from '@/lib/supabase';
 import { toast } from 'sonner';
+import { MobileWebcam } from '@/components/model-training-ui/services/mobileWebcam';
+import useMobileDetection from '@/hooks/use-mobile-detection';
 
 type Session = {
   id: number;
@@ -53,6 +55,14 @@ const TakeAttendanceSession = () => {
   const videoRef = useRef<HTMLVideoElement>(null);
   const streamRef = useRef<MediaStream | null>(null);
   const permissionGranted = useRef(false);
+  
+  // Mobile webcam setup (like in Preview.tsx)
+  const webcamRef = useRef<HTMLDivElement>(null);
+  const mobileWebcam = useRef<MobileWebcam | null>(null);
+  const [isCameraStarting, setIsCameraStarting] = useState(false);
+  const [cameraError, setCameraError] = useState<string | null>(null);
+  const [isCameraReady, setIsCameraReady] = useState(false);
+  const isMobile = useMobileDetection();
 
   useEffect(() => {
     // Fetch session details when component mounts
