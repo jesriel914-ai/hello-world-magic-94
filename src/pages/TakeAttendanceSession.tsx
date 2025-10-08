@@ -855,8 +855,8 @@ const TakeAttendanceSession = () => {
               <div className="flex items-center gap-2">
                 {showStudentList ? (
                   <>
-                    <Users className="w-6 h-6" />
-                    <span className="text-base font-semibold">Students</span>
+                    <List className="w-6 h-6" />
+                    <span className="text-base font-semibold">Details</span>
                   </>
                 ) : (
                   <>
@@ -884,38 +884,94 @@ const TakeAttendanceSession = () => {
             
             {showStudentList ? (
               <div className="space-y-4">
-                {loadingStudents ? (
-                  <div className="text-center py-8">
-                    <Loader2 className="w-8 h-8 mx-auto animate-spin text-blue-600 mb-2" />
-                    <p className="text-sm text-gray-500">Loading students...</p>
+                {/* Session Details */}
+                {session && (
+                  <div className="p-4 bg-white rounded-lg border shadow-sm">
+                    <h3 className="text-sm font-semibold text-gray-700 mb-3">Session Information</h3>
+                    <div className="space-y-2">
+                      <div className="flex items-start gap-2">
+                        <BookOpen className="w-4 h-4 text-gray-400 mt-0.5" />
+                        <div className="flex-1">
+                          <p className="text-xs text-gray-500">Title</p>
+                          <p className="text-sm font-medium text-gray-900">{session.title}</p>
+                        </div>
+                      </div>
+                      <div className="flex items-start gap-2">
+                        <BookOpen className="w-4 h-4 text-gray-400 mt-0.5" />
+                        <div className="flex-1">
+                          <p className="text-xs text-gray-500">Program</p>
+                          <p className="text-sm font-medium text-gray-900">{session.program}</p>
+                        </div>
+                      </div>
+                      <div className="flex items-start gap-2">
+                        <Users className="w-4 h-4 text-gray-400 mt-0.5" />
+                        <div className="flex-1">
+                          <p className="text-xs text-gray-500">Year {session.section && `& Section`}</p>
+                          <p className="text-sm font-medium text-gray-900">
+                            {session.year}{session.section && ` - ${session.section}`}
+                          </p>
+                        </div>
+                      </div>
+                      <div className="flex items-start gap-2">
+                        <Calendar className="w-4 h-4 text-gray-400 mt-0.5" />
+                        <div className="flex-1">
+                          <p className="text-xs text-gray-500">Date</p>
+                          <p className="text-sm font-medium text-gray-900">
+                            {new Date(session.date).toLocaleDateString('en-US', {
+                              month: 'short',
+                              day: 'numeric',
+                              year: 'numeric'
+                            })}
+                          </p>
+                        </div>
+                      </div>
+                      <div className="flex items-start gap-2">
+                        <Clock className="w-4 h-4 text-gray-400 mt-0.5" />
+                        <div className="flex-1">
+                          <p className="text-xs text-gray-500">Time</p>
+                          <p className="text-sm font-medium text-gray-900">{session.time_in} - {session.time_out}</p>
+                        </div>
+                      </div>
+                    </div>
                   </div>
-                ) : sessionStudents.length > 0 ? (
-                  <div className="space-y-2 max-h-96 overflow-y-auto">
-                    {sessionStudents.map((student, index) => (
-                      <div key={student.id} className="p-3 bg-white rounded-lg border shadow-sm hover:bg-gray-50 transition-colors">
-                        <div className="flex items-center gap-3">
-                          <div className="w-8 h-8 bg-blue-100 rounded-full flex items-center justify-center text-blue-600 font-medium text-sm">
-                            {index + 1}
-                          </div>
-                          <div className="flex-1">
-                            <div className="font-medium text-sm text-gray-900">
-                              {student.full_name || `${student.firstname} ${student.surname}`}
+                )}
+
+                {/* Students List */}
+                <div>
+                  <h3 className="text-sm font-semibold text-gray-700 mb-3">Required Attendees</h3>
+                  {loadingStudents ? (
+                    <div className="text-center py-8">
+                      <Loader2 className="w-8 h-8 mx-auto animate-spin text-blue-600 mb-2" />
+                      <p className="text-sm text-gray-500">Loading students...</p>
+                    </div>
+                  ) : sessionStudents.length > 0 ? (
+                    <div className="space-y-2 max-h-64 overflow-y-auto">
+                      {sessionStudents.map((student, index) => (
+                        <div key={student.id} className="p-3 bg-white rounded-lg border shadow-sm hover:bg-gray-50 transition-colors">
+                          <div className="flex items-center gap-3">
+                            <div className="w-8 h-8 bg-blue-100 rounded-full flex items-center justify-center text-blue-600 font-medium text-sm">
+                              {index + 1}
                             </div>
-                            <div className="text-xs text-gray-500">
-                              ID: {student.student_id}
+                            <div className="flex-1">
+                              <div className="font-medium text-sm text-gray-900">
+                                {student.full_name || `${student.firstname} ${student.surname}`}
+                              </div>
+                              <div className="text-xs text-gray-500">
+                                ID: {student.student_id}
+                              </div>
                             </div>
                           </div>
                         </div>
-                      </div>
-                    ))}
-                  </div>
-                ) : (
-                  <div className="text-center py-8">
-                    <Users className="w-12 h-12 mx-auto mb-4 text-gray-300" />
-                    <h3 className="text-base font-medium text-gray-500 mb-2">No students found</h3>
-                    <p className="text-sm text-gray-400">No students registered for this session</p>
-                  </div>
-                )}
+                      ))}
+                    </div>
+                  ) : (
+                    <div className="text-center py-8">
+                      <Users className="w-12 h-12 mx-auto mb-4 text-gray-300" />
+                      <h3 className="text-base font-medium text-gray-500 mb-2">No students found</h3>
+                      <p className="text-sm text-gray-400">No students registered for this session</p>
+                    </div>
+                  )}
+                </div>
               </div>
             ) : (
               <>
