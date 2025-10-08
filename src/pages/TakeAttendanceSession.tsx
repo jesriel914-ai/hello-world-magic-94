@@ -726,6 +726,32 @@ const TakeAttendanceSession = () => {
                 Stop Camera
               </Button>
             )}
+            
+            {/* TEMPORARY DEBUG BUTTON - Test Frame Capture */}
+            {isCameraReady && mobileWebcam.current && (
+              <Button 
+                onClick={() => {
+                  if (mobileWebcam.current) {
+                    const canvas = mobileWebcam.current.captureFrame();
+                    if (canvas) {
+                      const dataUrl = canvas.toDataURL();
+                      console.log('✅ Test capture successful:', dataUrl.substring(0, 50) + '...');
+                      const a = document.createElement('a');
+                      a.href = dataUrl;
+                      a.download = 'test-capture.png';
+                      a.click();
+                    } else {
+                      console.error('❌ captureFrame returned null');
+                    }
+                  }
+                }}
+                variant="outline"
+                size="sm"
+                className="w-full"
+              >
+                🧪 Test Frame Capture
+              </Button>
+            )}
           </div>
 
           {/* Right Section: Attendance Log */}
