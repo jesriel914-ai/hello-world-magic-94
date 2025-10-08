@@ -407,7 +407,7 @@ const BatchUpload: React.FC<BatchUploadProps> = ({
               </div>
 
               <ScrollArea 
-                className="h-[400px] hide-scrollbar"
+                className="h-[400px] overlay-scrollbar"
                 onDragOver={handleDragOver}
                 onDragLeave={handleDragLeave}
                 onDrop={handleDrop}
