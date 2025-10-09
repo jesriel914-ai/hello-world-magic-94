@@ -351,36 +351,56 @@ const TakeAttendanceSession = () => {
 
   // Mark attendance function
   const markAttendance = async (status: 'present' | 'absent') => {
+    console.log('🎯 Mark attendance clicked:', status);
+    console.log('Predictions:', predictions);
+    console.log('Session:', session);
+    console.log('Session students:', sessionStudents);
+    
     if (!predictions.length || !session) {
+      console.log('❌ No predictions or session');
       toast.error('No student detected');
       return;
     }
     
     const predictedName = predictions[0].className;
+    console.log('🔍 Looking for student:', predictedName);
     
-    // Find student in session students list
-    const student = sessionStudents.find(s => 
-      `${s.student_id} - ${s.firstname} ${s.surname}` === predictedName ||
-      `${s.firstname} ${s.surname}` === predictedName
-    );
+    // Find student in session students list - try multiple formats
+    const student = sessionStudents.find(s => {
+      const format1 = `${s.student_id} - ${s.firstname} ${s.surname}`;
+      const format2 = `${s.firstname} ${s.surname}`;
+      const format3 = s.full_name;
+      
+      console.log('Checking:', { format1, format2, format3, predictedName });
+      
+      return format1 === predictedName || 
+             format2 === predictedName || 
+             format3 === predictedName;
+    });
+    
+    console.log('Found student:', student);
     
     if (!student) {
       // Student not in required attendees
+      console.log('⚠️ Student not in session');
       showOverlay(predictedName, 'Student not included in this session', 'warning');
       return;
     }
     
     // Check if already marked
     const existingRecord = attendanceMap.get(student.id);
+    console.log('Existing record:', existingRecord);
     
     if (existingRecord) {
       if (existingRecord.status === status) {
         // Same status - just show message
         const studentName = `${student.firstname} ${student.surname}`;
+        console.log('⚠️ Already marked:', status);
         showOverlay(studentName, `Already marked ${status}`, 'warning');
         return;
       } else {
         // Different status - ask for confirmation
+        console.log('🔄 Status change requested');
         setPendingChange({ student, newStatus: status });
         setShowChangeConfirm(true);
         return;
@@ -388,13 +408,20 @@ const TakeAttendanceSession = () => {
     }
     
     // New record - insert
+    console.log('✅ Saving new attendance record');
     await saveAttendance(student, status);
   };
 
   // Save attendance to database
   const saveAttendance = async (student: any, status: string) => {
     try {
-      const { error } = await supabase
+      console.log('💾 Saving to database:', {
+        session_id: session!.id,
+        student_id: student.id,
+        status: status
+      });
+      
+      const { data, error } = await supabase
         .from('attendance')
         .upsert({
           session_id: session!.id,
@@ -404,9 +431,15 @@ const TakeAttendanceSession = () => {
           updated_at: new Date().toISOString()
         }, {
           onConflict: 'session_id,student_id'
-        });
+        })
+        .select();
       
-      if (error) throw error;
+      if (error) {
+        console.error('❌ Database error:', error);
+        throw error;
+      }
+      
+      console.log('✅ Saved successfully:', data);
       
       // Reload attendance records
       await loadAttendanceRecords();
@@ -415,10 +448,10 @@ const TakeAttendanceSession = () => {
       const studentName = `${student.firstname} ${student.surname}`;
       showOverlay(studentName, `Marked ${status === 'present' ? 'Present' : 'Absent'}`, 'success');
       
-      toast.success(`${student.firstname} ${student.surname} marked ${status}`);
+      console.log('✅ Overlay shown');
     } catch (error) {
-      console.error('Error saving attendance:', error);
-      toast.error('Failed to save attendance');
+      console.error('❌ Error saving attendance:', error);
+      toast.error('Failed to save attendance: ' + (error as any)?.message);
     }
   };
 
@@ -1244,19 +1277,23 @@ const TakeAttendanceSession = () => {
             {isCameraReady && (
               <div className="space-y-2">
                 <Button 
-                  onClick={() => markAttendance('present')}
+                  onClick={(e) => {
+                    e.currentTarget.blur();
+                    markAttendance('present');
+                  }}
                   disabled={!predictions.length || isPaused}
-                  className="w-full h-12 text-sm bg-green-600 hover:bg-green-700 active:bg-green-700 focus:bg-green-600 disabled:opacity-50 disabled:cursor-not-allowed transition-none"
-                  onMouseUp={(e) => e.currentTarget.blur()}
+                  className="w-full h-12 text-sm bg-green-600 hover:bg-green-700 active:bg-green-800 focus-visible:ring-0 focus-visible:ring-offset-0 disabled:opacity-50 disabled:cursor-not-allowed"
                 >
                   Mark Present
                 </Button>
                 <Button 
-                  onClick={() => markAttendance('absent')}
+                  onClick={(e) => {
+                    e.currentTarget.blur();
+                    markAttendance('absent');
+                  }}
                   disabled={!predictions.length || isPaused}
                   variant="outline"
-                  className="w-full h-12 text-sm border-red-300 text-red-600 hover:bg-red-50 active:bg-red-50 focus:bg-white disabled:opacity-50 disabled:cursor-not-allowed transition-none"
-                  onMouseUp={(e) => e.currentTarget.blur()}
+                  className="w-full h-12 text-sm border-red-300 text-red-600 hover:bg-red-50 active:bg-red-100 focus-visible:ring-0 focus-visible:ring-offset-0 disabled:opacity-50 disabled:cursor-not-allowed"
                 >
                   Mark Absent
                 </Button>
