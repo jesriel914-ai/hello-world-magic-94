@@ -366,7 +366,7 @@ const TakeAttendanceSession = () => {
     
     if (!student) {
       // Student not in required attendees
-      showOverlay('Student not included in this session', 'warning');
+      showOverlay(predictedName, 'Student not included in this session', 'warning');
       return;
     }
     
@@ -376,7 +376,8 @@ const TakeAttendanceSession = () => {
     if (existingRecord) {
       if (existingRecord.status === status) {
         // Same status - just show message
-        showOverlay(`Student already marked ${status}`, 'warning');
+        const studentName = `${student.firstname} ${student.surname}`;
+        showOverlay(studentName, `Already marked ${status}`, 'warning');
         return;
       } else {
         // Different status - ask for confirmation
@@ -410,8 +411,9 @@ const TakeAttendanceSession = () => {
       // Reload attendance records
       await loadAttendanceRecords();
       
-      // Show success overlay
-      showOverlay(`Marked ${status === 'present' ? 'Present' : 'Absent'}`, 'success');
+      // Show success overlay with student name
+      const studentName = `${student.firstname} ${student.surname}`;
+      showOverlay(studentName, `Marked ${status === 'present' ? 'Present' : 'Absent'}`, 'success');
       
       toast.success(`${student.firstname} ${student.surname} marked ${status}`);
     } catch (error) {
@@ -421,7 +423,8 @@ const TakeAttendanceSession = () => {
   };
 
   // Show overlay and pause camera
-  const showOverlay = (message: string, type: 'success' | 'error' | 'warning') => {
+  const showOverlay = (studentName: string, message: string, type: 'success' | 'error' | 'warning') => {
+    setOverlayStudentName(studentName);
     setOverlayMessage(message);
     setOverlayType(type);
     setIsPaused(true);
@@ -429,6 +432,7 @@ const TakeAttendanceSession = () => {
     // Hide overlay and resume after 1 second
     setTimeout(() => {
       setOverlayMessage(null);
+      setOverlayStudentName(null);
       setIsPaused(false);
     }, 1000);
   };
@@ -1223,13 +1227,14 @@ const TakeAttendanceSession = () => {
               
               {/* Status Overlay - Shows after marking */}
               {overlayMessage && (
-                <div className={`absolute inset-0 flex items-center justify-center z-40 rounded-lg ${
-                  overlayType === 'success' ? 'bg-green-500/90' : 
-                  overlayType === 'warning' ? 'bg-yellow-500/90' : 
-                  'bg-red-500/90'
+                <div className={`absolute top-1/2 left-1/2 transform -translate-x-1/2 -translate-y-1/2 z-40 rounded-lg px-4 py-3 shadow-lg ${
+                  overlayType === 'success' ? 'bg-green-600' : 
+                  overlayType === 'warning' ? 'bg-yellow-600' : 
+                  'bg-red-600'
                 }`}>
                   <div className="text-center text-white">
-                    <p className="text-lg font-bold">{overlayMessage}</p>
+                    <p className="font-bold text-sm">{overlayStudentName}</p>
+                    <p className="text-xs mt-1">{overlayMessage}</p>
                   </div>
                 </div>
               )}
