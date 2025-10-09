@@ -219,8 +219,16 @@ const TrainingSetup: React.FC<TrainingSetupProps> = ({ classes, setClasses }) =>
   const addMultipleStudents = (students: Student[], samplesMap?: Map<string, { genuine: SampleData[], forged: SampleData[] }>) => {
     if (students.length === 0) return;
     
+    const existingStudentIds = classes.map(cls => cls.student?.id).filter(id => id !== undefined);
+    const newStudents = students.filter(student => !existingStudentIds.includes(student.id));
+    
+    if (newStudents.length === 0) {
+      alert('All selected students are already added.');
+      return;
+    }
+    
     const colors = ['#FF6B6B', '#4ECDC4', '#45B7D1', '#96CEB4', '#FECA57', '#FF9FF3', '#54A0FF'];
-    const newClasses = students.map((student, index) => {
+    const newClasses = newStudents.map((student, index) => {
       const studentSamples = samplesMap?.get(student.student_id);
       const allSamples = studentSamples ? [...studentSamples.genuine, ...studentSamples.forged] : [];
       
@@ -233,7 +241,19 @@ const TrainingSetup: React.FC<TrainingSetupProps> = ({ classes, setClasses }) =>
       };
     });
     
-    setClasses([...classes, ...newClasses]);
+    // Remove the first class if it's the placeholder (no student and no samples)
+    const shouldRemovePlaceholder = classes.length === 1 && !classes[0].student && 
+                                     classes[0].samples.length === 0 && 
+                                     classes[0].genuineSamples.length === 0 && 
+                                     classes[0].forgedSamples.length === 0;
+    
+    if (shouldRemovePlaceholder) {
+      setClasses(newClasses);
+    } else {
+      setClasses([...classes, ...newClasses]);
+    }
+    
+    alert(`Added ${newStudents.length} student${newStudents.length !== 1 ? 's' : ''} successfully.`);
   };
 
   // Remove class
