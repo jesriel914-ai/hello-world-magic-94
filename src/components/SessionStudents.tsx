@@ -292,7 +292,7 @@ export default function SessionStudents({ sessionId, onClose }: SessionStudentsF
   return (
     <div className="flex flex-col h-full">
       {/* Scrollable Content */}
-      <ScrollArea className="flex-1">
+      <ScrollArea className="flex-1 hide-scrollbar">
         <div className="space-y-6 pr-4">
           {/* Session Information - No Card */}
           <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
