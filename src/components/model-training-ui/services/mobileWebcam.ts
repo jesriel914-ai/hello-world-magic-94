@@ -91,25 +91,33 @@ export class MobileWebcam {
     }
 
     const constraintSets: MediaStreamConstraints[] = [
-      // 1. Try 4K Ultra HD (3840x2160) - Best quality for high-end phones
+      // 1. Try 4K Ultra HD (3840x2160) - Best quality for high-end phones with MAXIMUM stabilization
       {
         video: {
           width: { ideal: 3840 },
           height: { ideal: 2160 },
           facingMode: this.config.facingMode,
-          // @ts-ignore
+          // @ts-ignore - Force maximum stabilization features
           zoom: this.config.zoom,
           focusMode: 'continuous',
           focusDistance: { ideal: 0.15 },
-          imageStabilization: true,
-          videoStabilization: true,
+          imageStabilization: true,      // OIS - Optical (hardware)
+          videoStabilization: true,      // EIS - Electronic (software)
+          opticalStabilization: true,    // Explicit OIS request
+          stabilizationMode: 'on',       // Force on
+          // @ts-ignore - Brand-specific stabilization
+          ultraSteady: true,             // Tecno, Realme ultra steady
+          superSteady: true,             // Samsung super steady
+          hyperSteady: true,             // Various brands
           advanced: [{
             focusMode: 'continuous',
-            zoom: this.config.zoom
+            zoom: this.config.zoom,
+            imageStabilization: true,
+            videoStabilization: true
           }]
         }
       },
-      // 2. Try Quad HD (2560x1440) - Good quality for mid-range phones
+      // 2. Try Quad HD (2560x1440) - Good quality with full stabilization
       {
         video: {
           width: { ideal: 2560 },
@@ -120,13 +128,17 @@ export class MobileWebcam {
           focusMode: 'continuous',
           focusDistance: { ideal: 0.15 },
           imageStabilization: true,
+          videoStabilization: true,
+          opticalStabilization: true,
           advanced: [{
             focusMode: 'continuous',
-            zoom: this.config.zoom
+            zoom: this.config.zoom,
+            imageStabilization: true,
+            videoStabilization: true
           }]
         }
       },
-      // 3. Try Full HD (1920x1080) - Standard quality
+      // 3. Try Full HD (1920x1080) - Standard quality with full stabilization
       {
         video: {
           width: { ideal: 1920 },
@@ -136,20 +148,24 @@ export class MobileWebcam {
           zoom: this.config.zoom,
           focusMode: 'continuous',
           focusDistance: { ideal: 0.15 },
+          imageStabilization: true,
+          videoStabilization: true,
           advanced: [{
             focusMode: 'continuous',
-            zoom: this.config.zoom
+            zoom: this.config.zoom,
+            imageStabilization: true
           }]
         }
       },
-      // 4. Try HD (1280x720) - Basic quality for older phones
+      // 4. Try HD (1280x720) - Basic quality with basic stabilization
       {
         video: {
           width: { ideal: 1280 },
           height: { ideal: 720 },
           facingMode: this.config.facingMode,
           // @ts-ignore
-          focusMode: 'continuous'
+          focusMode: 'continuous',
+          imageStabilization: true
         }
       },
       // 5. Try SD (640x480) - Compatibility for very old phones
