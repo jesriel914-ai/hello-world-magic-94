@@ -16,6 +16,7 @@ import { predictFromCanvas, forceMemoryCleanup } from '@/components/model-traini
 import { fetchSessionStudents } from '@/lib/supabaseService';
 import { Switch } from '@/components/ui/switch';
 import { Label } from '@/components/ui/label';
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from '@/components/ui/dialog';
 
 interface PredictionResult {
   className: string;
@@ -92,6 +93,15 @@ const TakeAttendanceSession = () => {
   const [sessionStudents, setSessionStudents] = useState<any[]>([]);
   const [loadingStudents, setLoadingStudents] = useState(false);
   const cameraPredictionIntervalRef = useRef<NodeJS.Timeout | null>(null);
+  
+  // Attendance tracking
+  const [attendanceLog, setAttendanceLog] = useState<any[]>([]);
+  const [attendanceMap, setAttendanceMap] = useState<Map<number, any>>(new Map());
+  const [overlayMessage, setOverlayMessage] = useState<string | null>(null);
+  const [overlayType, setOverlayType] = useState<'success' | 'error' | 'warning'>('success');
+  const [isPaused, setIsPaused] = useState(false);
+  const [showChangeConfirm, setShowChangeConfirm] = useState(false);
+  const [pendingChange, setPendingChange] = useState<{student: any, newStatus: string} | null>(null);
 
   useEffect(() => {
     // Fetch session details when component mounts
@@ -106,6 +116,36 @@ const TakeAttendanceSession = () => {
 
         if (error) throw error;
         setSession(data);
+        
+        // Auto-load students and attendance when session is loaded
+        if (data) {
+          const response = await fetchSessionStudents(data.id);
+          if (response?.students) {
+            setSessionStudents(response.students);
+          }
+          
+          // Load attendance records
+          const { data: attendanceData } = await supabase
+            .from('attendance')
+            .select(`
+              *,
+              students (
+                id,
+                student_id,
+                firstname,
+                surname
+              )
+            `)
+            .eq('session_id', data.id)
+            .order('created_at', { ascending: false });
+          
+          const map = new Map();
+          (attendanceData || []).forEach((record: any) => {
+            map.set(record.student_id, record);
+          });
+          setAttendanceMap(map);
+          setAttendanceLog(attendanceData || []);
+        }
       } catch (err) {
         console.error('Error fetching session:', err);
         setError('Failed to load session details');
@@ -264,6 +304,9 @@ const TakeAttendanceSession = () => {
       
       console.log('Students loaded:', response.students.length);
       setSessionStudents(response.students);
+      
+      // Also load existing attendance records
+      await loadAttendanceRecords();
     } catch (error) {
       console.error('Error fetching session students:', error);
       toast.error('Failed to load students');
@@ -272,6 +315,132 @@ const TakeAttendanceSession = () => {
       setLoadingStudents(false);
     }
   }, [session]);
+
+  // Load attendance records for this session
+  const loadAttendanceRecords = useCallback(async () => {
+    if (!session) return;
+    
+    try {
+      const { data, error } = await supabase
+        .from('attendance')
+        .select(`
+          *,
+          students (
+            id,
+            student_id,
+            firstname,
+            surname
+          )
+        `)
+        .eq('session_id', session.id)
+        .order('created_at', { ascending: false });
+      
+      if (error) throw error;
+      
+      // Create map for quick lookup
+      const map = new Map();
+      (data || []).forEach((record: any) => {
+        map.set(record.student_id, record);
+      });
+      setAttendanceMap(map);
+      setAttendanceLog(data || []);
+    } catch (error) {
+      console.error('Error loading attendance records:', error);
+    }
+  }, [session]);
+
+  // Mark attendance function
+  const markAttendance = async (status: 'present' | 'absent') => {
+    if (!predictions.length || !session) {
+      toast.error('No student detected');
+      return;
+    }
+    
+    const predictedName = predictions[0].className;
+    
+    // Find student in session students list
+    const student = sessionStudents.find(s => 
+      `${s.student_id} - ${s.firstname} ${s.surname}` === predictedName ||
+      `${s.firstname} ${s.surname}` === predictedName
+    );
+    
+    if (!student) {
+      // Student not in required attendees
+      showOverlay('Student not included in this session', 'warning');
+      return;
+    }
+    
+    // Check if already marked
+    const existingRecord = attendanceMap.get(student.id);
+    
+    if (existingRecord) {
+      if (existingRecord.status === status) {
+        // Same status - just show message
+        showOverlay(`Student already marked ${status}`, 'warning');
+        return;
+      } else {
+        // Different status - ask for confirmation
+        setPendingChange({ student, newStatus: status });
+        setShowChangeConfirm(true);
+        return;
+      }
+    }
+    
+    // New record - insert
+    await saveAttendance(student, status);
+  };
+
+  // Save attendance to database
+  const saveAttendance = async (student: any, status: string) => {
+    try {
+      const { error } = await supabase
+        .from('attendance')
+        .upsert({
+          session_id: session!.id,
+          student_id: student.id,
+          status: status,
+          time_in: status === 'present' ? new Date().toISOString() : null,
+          updated_at: new Date().toISOString()
+        }, {
+          onConflict: 'session_id,student_id'
+        });
+      
+      if (error) throw error;
+      
+      // Reload attendance records
+      await loadAttendanceRecords();
+      
+      // Show success overlay
+      showOverlay(`Marked ${status === 'present' ? 'Present' : 'Absent'}`, 'success');
+      
+      toast.success(`${student.firstname} ${student.surname} marked ${status}`);
+    } catch (error) {
+      console.error('Error saving attendance:', error);
+      toast.error('Failed to save attendance');
+    }
+  };
+
+  // Show overlay and pause camera
+  const showOverlay = (message: string, type: 'success' | 'error' | 'warning') => {
+    setOverlayMessage(message);
+    setOverlayType(type);
+    setIsPaused(true);
+    
+    // Hide overlay and resume after 1 second
+    setTimeout(() => {
+      setOverlayMessage(null);
+      setIsPaused(false);
+    }, 1000);
+  };
+
+  // Confirm status change
+  const confirmStatusChange = async () => {
+    if (!pendingChange) return;
+    
+    await saveAttendance(pendingChange.student, pendingChange.newStatus);
+    setShowChangeConfirm(false);
+    setPendingChange(null);
+  };
 
   // Auto-load latest model on page open
   useEffect(() => {
@@ -435,7 +604,7 @@ const TakeAttendanceSession = () => {
       console.log('🧹 Final memory cleanup');
       forceMemoryCleanup();
     };
-  }, [isMobile, isCameraReady, model, toast]);
+  }, [isMobile, isCameraReady, model, isPaused, toast]);
 
   // Check for basic MediaDevices API support on component mount
   useEffect(() => {
@@ -1039,7 +1208,7 @@ const TakeAttendanceSession = () => {
               )}
               
               {/* Prediction Overlay - Lower-left when camera is active */}
-              {isCameraReady && predictions.length > 0 && (
+              {isCameraReady && predictions.length > 0 && !overlayMessage && (
                 <>
                   {/* Lower-left: Student Name */}
                   <div className="absolute bottom-2 left-2 bg-black/70 text-white px-2 py-1 rounded text-xs font-medium z-30">
@@ -1050,6 +1219,19 @@ const TakeAttendanceSession = () => {
                     {(predictions[0].confidence * 100).toFixed(0)}%
                   </div>
                 </>
+              )}
+              
+              {/* Status Overlay - Shows after marking */}
+              {overlayMessage && (
+                <div className={`absolute inset-0 flex items-center justify-center z-40 rounded-lg ${
+                  overlayType === 'success' ? 'bg-green-500/90' : 
+                  overlayType === 'warning' ? 'bg-yellow-500/90' : 
+                  'bg-red-500/90'
+                }`}>
+                  <div className="text-center text-white">
+                    <p className="text-lg font-bold">{overlayMessage}</p>
+                  </div>
+                </div>
               )}
             </div>
             
@@ -1080,19 +1262,98 @@ const TakeAttendanceSession = () => {
             <CardHeader className="p-4 pb-2">
               <div className="flex items-center justify-between">
                 <CardTitle className="text-lg">Attendance Log</CardTitle>
-                <Badge className="bg-green-100 text-green-800 hover:bg-green-100">
-                  {stats.matched} captured
-                </Badge>
+                <div className="flex gap-2">
+                  <Badge className="bg-green-100 text-green-800 hover:bg-green-100">
+                    {attendanceLog.filter(a => a.status === 'present').length} Present
+                  </Badge>
+                  <Badge className="bg-red-100 text-red-800 hover:bg-red-100">
+                    {attendanceLog.filter(a => a.status === 'absent').length} Absent
+                  </Badge>
+                </div>
               </div>
             </CardHeader>
-            <CardContent className="p-0">
-              <div className="w-full h-48 bg-muted/10 flex flex-col items-center justify-center">
-                <Users className="w-12 h-12 text-muted-300 mb-2" />
-                <p className="text-muted-500">No signatures captured yet</p>
-              </div>
+            <CardContent className="p-4">
+              {attendanceLog.length > 0 ? (
+                <div className="space-y-2 max-h-[400px] overflow-y-auto">
+                  {attendanceLog.map((record) => (
+                    <div key={record.id} className={`p-3 rounded-lg border ${
+                      record.status === 'present' ? 'bg-green-50 border-green-200' : 'bg-red-50 border-red-200'
+                    }`}>
+                      <div className="flex items-center justify-between">
+                        <div>
+                          <p className="text-sm font-medium text-gray-900">
+                            {record.students?.firstname} {record.students?.surname}
+                          </p>
+                          <p className="text-xs text-gray-500">ID: {record.students?.student_id}</p>
+                        </div>
+                        <div className="text-right">
+                          <Badge className={`${
+                            record.status === 'present' 
+                              ? 'bg-green-100 text-green-800' 
+                              : 'bg-red-100 text-red-800'
+                          } hover:bg-opacity-100`}>
+                            {record.status === 'present' ? (
+                              <>
+                                <CheckCircle className="w-3 h-3 mr-1" />
+                                Present
+                              </>
+                            ) : (
+                              <>
+                                <XCircle className="w-3 h-3 mr-1" />
+                                Absent
+                              </>
+                            )}
+                          </Badge>
+                          {record.time_in && (
+                            <p className="text-xs text-gray-500 mt-1">
+                              {new Date(record.time_in).toLocaleTimeString()}
+                            </p>
+                          )}
+                        </div>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              ) : (
+                <div className="flex flex-col items-center justify-center py-8">
+                  <Users className="w-12 h-12 text-gray-300 mb-2" />
+                  <p className="text-gray-500 text-sm">No attendance recorded yet</p>
+                </div>
+              )}
             </CardContent>
           </Card>
         </div>
+        
+        {/* Status Change Confirmation Dialog */}
+        <Dialog open={showChangeConfirm} onOpenChange={setShowChangeConfirm}>
+          <DialogContent className="max-w-sm w-full">
+            <DialogHeader>
+              <DialogTitle>Confirm Status Change</DialogTitle>
+            </DialogHeader>
+            <p>
+              This student is already marked as <strong>{pendingChange?.student && attendanceMap.get(pendingChange.student.id)?.status}</strong>. 
+              Do you want to change it to <strong>{pendingChange?.newStatus}</strong>?
+            </p>
+            <DialogFooter className="flex flex-row gap-2">
+              <Button 
+                variant="outline" 
+                onClick={() => {
+                  setShowChangeConfirm(false);
+                  setPendingChange(null);
+                }}
+                className="flex-1"
+              >
+                No
+              </Button>
+              <Button 
+                onClick={confirmStatusChange}
+                className="flex-1"
+              >
+                Yes
+              </Button>
+            </DialogFooter>
+          </DialogContent>
+        </Dialog>
       </div>
     </Layout>
   );
