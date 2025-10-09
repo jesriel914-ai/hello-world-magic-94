@@ -988,6 +988,20 @@ const TakeAttendanceSession = () => {
                   Camera not active
                 </div>
               )}
+              
+              {/* Prediction Overlay - Lower corners */}
+              {isCameraReady && predictions.length > 0 && (
+                <>
+                  {/* Lower-left: Student Name */}
+                  <div className="absolute bottom-2 left-2 bg-black/70 text-white px-2 py-1 rounded text-xs font-medium z-30">
+                    {predictions[0].className}
+                  </div>
+                  {/* Lower-right: Confidence */}
+                  <div className="absolute bottom-2 right-2 bg-black/70 text-white px-2 py-1 rounded text-xs font-medium z-30">
+                    {(predictions[0].confidence * 100).toFixed(0)}%
+                  </div>
+                </>
+              )}
             </div>
             
             {/* Start Camera Button */}
@@ -1020,25 +1034,6 @@ const TakeAttendanceSession = () => {
                 <StopCircle className="w-5 h-5 mr-2" />
                 Stop Camera
               </Button>
-            )}
-            
-            {/* Single Prediction Display - Only Top 1 */}
-            {isCameraReady && predictions.length > 0 && (
-              <div className="space-y-2">
-                <h4 className="font-medium text-sm">Detected Student:</h4>
-                <div className="p-4 bg-green-50 border border-green-200 rounded-lg">
-                  <div className="flex justify-between items-center mb-2">
-                    <span className="text-sm font-medium text-green-800">{predictions[0].className}</span>
-                    <span className="text-sm text-green-600">{(predictions[0].confidence * 100).toFixed(0)}%</span>
-                  </div>
-                  <div className="w-full bg-gray-200 rounded-full h-2">
-                    <div 
-                      className="bg-green-600 h-2 rounded-full transition-all duration-300" 
-                      style={{ width: `${predictions[0].confidence * 100}%` }}
-                    />
-                  </div>
-                </div>
-              </div>
             )}
             </>
             )}
