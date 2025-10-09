@@ -93,8 +93,8 @@ export class MobileWebcam {
     const constraintSets: MediaStreamConstraints[] = [
       {
         video: {
-          width: { ideal: 1280 },    // ✅ Changed from 1920
-          height: { ideal: 720 },    // ✅ Changed from 1080
+          width: { ideal: 1920 },
+          height: { ideal: 1080 },
           facingMode: this.config.facingMode,
           // @ts-ignore
           zoom: this.config.zoom,
@@ -110,8 +110,8 @@ export class MobileWebcam {
       },
       {
         video: {
-          width: { ideal: 1280 },
-          height: { ideal: 720 },
+          width: { ideal: 1920 },
+          height: { ideal: 1080 },
           facingMode: this.config.facingMode,
           // @ts-ignore
           zoom: this.config.zoom,
@@ -125,8 +125,8 @@ export class MobileWebcam {
       },
       {
         video: {
-          width: { ideal: 1280 },
-          height: { ideal: 720 },
+          width: { ideal: 1920 },
+          height: { ideal: 1080 },
           facingMode: this.config.facingMode,
           // @ts-ignore
           focusMode: 'continuous',
