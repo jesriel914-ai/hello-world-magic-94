@@ -91,47 +91,64 @@ export class MobileWebcam {
     }
 
     const constraintSets: MediaStreamConstraints[] = [
-      // 1. Try 4K Ultra HD (3840x2160) - Best quality for high-end phones with MAXIMUM stabilization
+      // 1. Try 4K Ultra HD (3840x2160) - Best quality with MAXIMUM stabilization
       {
         video: {
           width: { ideal: 3840 },
           height: { ideal: 2160 },
           facingMode: this.config.facingMode,
-          // @ts-ignore - Standard stabilization features
+          // @ts-ignore - Request ALL stabilization features
           zoom: this.config.zoom,
           focusMode: 'continuous',
           focusDistance: { ideal: 0.15 },
-          // Standard stabilization
-          imageStabilization: true,           // OIS - Optical (hardware lens)
-          videoStabilization: true,           // EIS - Electronic (software)
-          opticalStabilization: true,         // Explicit OIS
+          // ===== Standard Stabilization (All Brands) =====
+          imageStabilization: true,           // OIS - Optical Image Stabilization
+          videoStabilization: true,           // EIS - Electronic Image Stabilization
+          opticalStabilization: true,         // Explicit OIS request
           stabilizationMode: 'on',            // Force enable
-          // @ts-ignore - Brand-specific features
-          // Samsung
-          superSteady: true,                  // Samsung Super Steady
+          // ===== Apple (iPhone) =====
+          sensorShiftStabilization: true,     // iPhone 12 Pro Max+ Sensor-Shift
+          cinematicStabilization: true,       // iPhone Cinematic mode
+          // ===== Samsung (Galaxy) =====
+          superSteady: true,                  // Samsung Super Steady (Hybrid OIS+EIS)
           superSteady2: true,                 // Samsung Super Steady 2.0
-          VDIS: true,                         // Samsung VDIS
-          // Oppo/Realme
+          VDIS: true,                         // Samsung Video Digital IS
+          // ===== Google Pixel =====
+          fusedEIS: true,                     // Google Fused EIS
+          superResZoom: true,                 // Google stabilization + zoom
+          // ===== Sony Xperia =====
+          steadyShot: true,                   // Sony SteadyShot
+          opticalSteadyShot: true,            // Sony Optical SteadyShot
+          flawlessEye: true,                  // Sony FlawlessEye OIS
+          flawlessEyeOIS: true,               // Sony FlawlessEye explicit
+          // ===== Huawei =====
+          AIS: true,                          // Huawei AI Image Stabilization
+          aiImageStabilization: true,         // Huawei AIS explicit
+          // ===== Xiaomi / Redmi / Poco (Your Redmi Note 14!) =====
+          superStabilization: true,           // Xiaomi Super Stabilization
+          ultraSteadyVideo: true,             // Xiaomi/Redmi Ultra Steady
+          // ===== OnePlus =====
+          superStableVideo: true,             // OnePlus Super Stable Video
+          // ===== Oppo / Realme =====
           ultraSteady: true,                  // Oppo/Realme Ultra Steady Video
           ultraSteadyPro: true,               // Oppo/Realme Ultra Steady Pro
-          // Vivo
-          gimbalOIS: true,                    // Vivo Gimbal OIS
-          gimbalStabilization: true,          // Vivo 5-axis gimbal
-          // Xiaomi/Redmi (Your Redmi Note 14!)
-          superStabilization: true,           // Xiaomi Super Stabilization
-          // Tecno (Your Tecno Pova 7!)
+          HIS: true,                          // Oppo Hybrid Image Stabilization
+          // ===== Vivo =====
+          gimbalOIS: true,                    // Vivo Gimbal OIS (5-axis)
+          gimbalStabilization: true,          // Vivo Gimbal Stabilization
+          fiveAxisGimbal: true,               // Vivo 5-axis explicit
+          // ===== Tecno (Your Tecno Pova 7!) =====
           ultraSteadyVideo: true,             // Tecno Ultra Steady
-          // Asus ROG
+          gimbalOIS: true,                    // Tecno uses Gimbal on premium
+          gyroEIS: true,                      // Tecno Gyro-EIS
+          // ===== Infinix =====
+          gyroEIS: true,                      // Infinix Gyro-EIS
+          // ===== Asus ROG Phone =====
           hyperSteady: true,                  // Asus HyperSteady
           rockSteady: true,                   // Asus Rock Steady
-          // Sony
-          steadyShot: true,                   // Sony SteadyShot
-          flawlessEye: true,                  // Sony FlawlessEye OIS
-          // Huawei
-          AIS: true,                          // Huawei AI Image Stabilization
-          // Apple
-          sensorShift: true,                  // iPhone Sensor-Shift OIS
-          cinematicStabilization: true,       // iPhone Cinematic mode
+          // ===== Honor =====
+          // ===== ZTE / Nubia =====
+          // (Use standard OIS/EIS)
           advanced: [{
             focusMode: 'continuous',
             zoom: this.config.zoom,
@@ -141,7 +158,7 @@ export class MobileWebcam {
           }]
         }
       },
-      // 2. Try Quad HD (2560x1440) - Good quality with full stabilization
+      // 2. Try 2K Quad HD (2560x1440) - Good quality with full stabilization
       {
         video: {
           width: { ideal: 2560 },
@@ -154,6 +171,10 @@ export class MobileWebcam {
           imageStabilization: true,
           videoStabilization: true,
           opticalStabilization: true,
+          superStabilization: true,          // Xiaomi/Redmi
+          ultraSteady: true,                 // Oppo/Realme/Tecno
+          superSteady: true,                 // Samsung
+          gimbalOIS: true,                   // Vivo/Tecno
           advanced: [{
             focusMode: 'continuous',
             zoom: this.config.zoom,
@@ -162,7 +183,7 @@ export class MobileWebcam {
           }]
         }
       },
-      // 3. Try Full HD (1920x1080) - Standard quality with full stabilization
+      // 3. Try Full HD / 1080p (1920x1080) - Standard quality with stabilization
       {
         video: {
           width: { ideal: 1920 },
@@ -181,7 +202,7 @@ export class MobileWebcam {
           }]
         }
       },
-      // 4. Try HD (1280x720) - Basic quality with basic stabilization
+      // 4. Try HD / 720p (1280x720) - Basic quality for older phones
       {
         video: {
           width: { ideal: 1280 },
