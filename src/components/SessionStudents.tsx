@@ -290,50 +290,62 @@ export default function SessionStudents({ sessionId, onClose }: SessionStudentsF
   }
 
   return (
-    <div className="space-y-4">
+    <div className="space-y-6">
 
-      {/* Session Details - Inline Format */}
-      <div className="mb-8">
-        <div className="space-y-2">
-          <p className="text-sm">
-            <span className="text-muted-foreground">Type:</span> <span className="font-medium capitalize">{session.type}</span>
-          </p>
-          <p className="text-sm">
-            <span className="text-muted-foreground">Program:</span> <span className="font-medium">{session.program}</span>
-          </p>
-          <p className="text-sm">
-            <span className="text-muted-foreground">Date:</span> <span className="font-medium">
+      {/* Session Details - Enhanced Card */}
+      <div className="bg-white rounded-lg border border-gray-200 p-5 shadow-sm">
+        <h3 className="text-base font-semibold text-gray-900 mb-4">Session Details</h3>
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+          <div className="md:col-span-2">
+            <span className="text-xs text-gray-500 uppercase font-medium">Title</span>
+            <p className="text-sm font-medium text-gray-900 mt-1">{session.title}</p>
+          </div>
+          <div>
+            <span className="text-xs text-gray-500 uppercase font-medium">Type</span>
+            <p className="text-sm font-medium text-gray-900 capitalize mt-1">{session.type}</p>
+          </div>
+          <div>
+            <span className="text-xs text-gray-500 uppercase font-medium">Program</span>
+            <p className="text-sm font-medium text-gray-900 mt-1">{session.program}</p>
+          </div>
+          <div>
+            <span className="text-xs text-gray-500 uppercase font-medium">Year</span>
+            <p className="text-sm font-medium text-gray-900 mt-1">{session.year}</p>
+          </div>
+          <div>
+            <span className="text-xs text-gray-500 uppercase font-medium">Section</span>
+            <p className="text-sm font-medium text-gray-900 mt-1">{session.section}</p>
+          </div>
+          <div>
+            <span className="text-xs text-gray-500 uppercase font-medium">Date</span>
+            <p className="text-sm font-medium text-gray-900 mt-1">
               {new Date(session.date).toLocaleDateString('en-US', {
-                weekday: 'long',
+                weekday: 'short',
                 year: 'numeric',
-                month: 'long',
+                month: 'short',
                 day: 'numeric'
               })}
-            </span>
-          </p>
-          <p className="text-sm">
-            <span className="text-muted-foreground">Year:</span> <span className="font-medium">{session.year}</span>
-          </p>
-          <p className="text-sm">
-            <span className="text-muted-foreground">Time:</span> <span className="font-medium">
+            </p>
+          </div>
+          <div>
+            <span className="text-xs text-gray-500 uppercase font-medium">Time</span>
+            <p className="text-sm font-medium text-gray-900 mt-1">
               {formatTime(session.time_in)} - {session.time_out ? formatTime(session.time_out) : 'TBD'}
-            </span>
-          </p>
-          <p className="text-sm">
-            <span className="text-muted-foreground">Section:</span> <span className="font-medium">{session.section}</span>
-          </p>
-          <p className="text-sm">
-            <span className="text-muted-foreground">Attendees:</span> <span className="font-medium">{pagination.totalCount} students</span>
-          </p>
+            </p>
+          </div>
+          <div className="md:col-span-2">
+            <span className="text-xs text-gray-500 uppercase font-medium">Total Attendees</span>
+            <p className="text-sm font-medium text-gray-900 mt-1">{pagination.totalCount} students</p>
+          </div>
         </div>
+        
+        {session.description && (
+          <div className="mt-4 pt-4 border-t border-gray-200">
+            <span className="text-xs text-gray-500 uppercase font-medium">Notes</span>
+            <p className="text-sm text-gray-700 mt-2">{session.description}</p>
+          </div>
+        )}
       </div>
-      
-      {session.description && (
-        <div className="mb-6 p-4 bg-muted/30 rounded-lg border border-border/50">
-          <p className="text-sm font-medium text-muted-foreground mb-2">Notes</p>
-          <p className="text-sm text-foreground">{session.description}</p>
-        </div>
-      )}
 
       {/* Students List Section */}
       <div className="pt-6">
