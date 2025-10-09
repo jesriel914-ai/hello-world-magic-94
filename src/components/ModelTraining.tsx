@@ -487,22 +487,21 @@ async function testModelPrediction(model: CustomModel) {
       samples: samplesMap?.get(student.student_id) || []
     }));
     
-    setClasses([...classes, ...newClasses]);
-    setCurrentClassIndex(classes.length);
+    // Remove the first class if it's the placeholder (no student and no samples)
+    const shouldRemovePlaceholder = classes.length === 1 && !classes[0].student && classes[0].samples.length === 0;
     
-    const skippedCount = students.length - newStudents.length;
-    
-    if (skippedCount > 0) {
-      toast({
-        title: 'Students Added',
-        description: `Added ${newStudents.length} student${newStudents.length !== 1 ? 's' : ''}. ${skippedCount} student${skippedCount !== 1 ? 's were' : ' was'} already added and skipped.`,
-      });
+    if (shouldRemovePlaceholder) {
+      setClasses(newClasses);
+      setCurrentClassIndex(0);
     } else {
-      toast({
-        title: 'Students Added',
-        description: `Successfully added ${newStudents.length} student${newStudents.length !== 1 ? 's' : ''}.`,
-      });
+      setClasses([...classes, ...newClasses]);
+      setCurrentClassIndex(classes.length);
     }
+    
+    toast({
+      title: 'Students Added',
+      description: `Added ${newStudents.length} student${newStudents.length !== 1 ? 's' : ''} successfully.`,
+    });
   };
 
   const updateClassName = (index: number, student: Student | null) => {

@@ -206,18 +206,18 @@ interface StudentSelectionModalProps {
       <DialogTrigger asChild>
         {trigger || defaultTrigger}
       </DialogTrigger>
-      <DialogContent className="max-w-2xl max-h-[90vh] overflow-hidden p-0">
-        <DialogHeader className="p-6 pb-0">
+      <DialogContent className="max-w-2xl h-[600px] overflow-hidden p-0 flex flex-col">
+        <DialogHeader className="p-6 pb-0 flex-shrink-0">
           <DialogTitle className="text-lg font-semibold">
             {effectiveMode === 'single' ? 'Select Student' : 'Add Students'}
           </DialogTitle>
         </DialogHeader>
 
-        <div className="p-6 pt-0">
+        <div className="p-6 pt-0 flex-1 overflow-hidden flex flex-col">
           {/* Search Bar */}
-          <div className="flex gap-2 mb-4">
+          <div className="flex gap-2 mb-4 flex-shrink-0">
             {effectiveMode === 'multiple' && (
-              <div className="flex items-center gap-2">
+              <div className="flex items-center gap-4">
                 <div className="flex items-center space-x-2">
                   <Checkbox
                     id="select-all"
@@ -228,7 +228,17 @@ interface StudentSelectionModalProps {
                     Select All
                   </label>
                 </div>
-                
+                {excludeStudents && excludeStudents.length > 0 && (
+                  <Button
+                    variant="ghost"
+                    size="sm"
+                    onClick={() => setShowSelected(!showSelected)}
+                    className="text-xs"
+                  >
+                    {showSelected ? <EyeOff className="w-4 h-4 mr-1" /> : <Eye className="w-4 h-4 mr-1" />}
+                    {showSelected ? 'Hide' : 'Show'} Added ({excludeStudents.length})
+                  </Button>
+                )}
               </div>
             )}
             
@@ -270,7 +280,7 @@ interface StudentSelectionModalProps {
             </div>
           )}
 
-          <div className="max-h-96 overflow-y-auto hide-scrollbar">
+          <div className="flex-1 overflow-y-auto hide-scrollbar min-h-0">
             {isLoading ? (
               <div className="flex items-center justify-center py-8">
                 <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-gray-900"></div>
@@ -290,6 +300,37 @@ interface StudentSelectionModalProps {
               </div>
             ) : (
               <div className="space-y-1">
+                {/* Show excluded students if toggle is on */}
+                {effectiveMode === 'multiple' && showSelected && excludeStudents && excludeStudents.length > 0 && (
+                  <>
+                    {excludeStudents.map((student) => (
+                      <div
+                        key={student.student_id}
+                        className="flex items-center pr-2 pl-0 rounded-lg bg-gray-100 opacity-60"
+                      >
+                        <Checkbox
+                          checked={true}
+                          disabled={true}
+                          className="mr-2"
+                        />
+                        <div className="flex-1 text-left cursor-not-allowed">
+                          {(() => {
+                            const display = formatStudentDisplay(student).split('\n');
+                            return (
+                              <>
+                                <div className="font-bold text-gray-600 text-sm">{display[0]}</div>
+                                <div className="text-xs text-gray-400 mt-1">{display[1]}</div>
+                              </>
+                            );
+                          })()}
+                        </div>
+                        <Badge variant="secondary" className="text-xs">Added</Badge>
+                      </div>
+                    ))}
+                    <div className="border-t border-gray-200 my-2"></div>
+                  </>
+                )}
+                
                 {filteredStudents.slice(0, displayedCount).map((student) => (
                   <div
                     key={student.student_id}
@@ -353,7 +394,7 @@ interface StudentSelectionModalProps {
 
           {/* Action Buttons */}
           {effectiveMode === 'multiple' && (
-            <div className="flex gap-2 pt-2">
+            <div className="flex gap-2 pt-4 flex-shrink-0">
               <Button
                 variant="outline"
                 onClick={() => setOpen(false)}
