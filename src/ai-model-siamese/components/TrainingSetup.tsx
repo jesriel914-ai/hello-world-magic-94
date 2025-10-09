@@ -90,7 +90,11 @@ const TrainingSetup: React.FC<TrainingSetupProps> = ({ classes, setClasses }) =>
       setBatchUploadOpen(true);
     } catch (error) {
       console.error('Error loading students:', error);
-      alert('Failed to load students for validation');
+      toast({
+        title: 'Error',
+        description: 'Failed to load students for validation',
+        variant: 'destructive',
+      });
     }
   };
 
@@ -211,7 +215,11 @@ const TrainingSetup: React.FC<TrainingSetupProps> = ({ classes, setClasses }) =>
     } catch (error) {
       console.error('Error processing batch upload:', error);
       setIsProcessingUpload(false);
-      alert('Failed to process batch upload: ' + (error instanceof Error ? error.message : 'Unknown error'));
+      toast({
+        title: 'Upload Failed',
+        description: 'Failed to process batch upload: ' + (error instanceof Error ? error.message : 'Unknown error'),
+        variant: 'destructive',
+      });
     }
   };
 
@@ -257,7 +265,10 @@ const TrainingSetup: React.FC<TrainingSetupProps> = ({ classes, setClasses }) =>
       setClasses([...classes, ...newClasses]);
     }
     
-    alert(`Added ${newStudents.length} student${newStudents.length !== 1 ? 's' : ''} successfully.`);
+    toast({
+      title: 'Students Added',
+      description: `Added ${newStudents.length} student${newStudents.length !== 1 ? 's' : ''} successfully.`,
+    });
   };
 
   // Remove class
@@ -339,7 +350,11 @@ const TrainingSetup: React.FC<TrainingSetupProps> = ({ classes, setClasses }) =>
     const validClasses = classes.filter(cls => cls.student && (cls.genuineSamples.length > 0 || cls.forgedSamples.length > 0));
     
     if (validClasses.length < 1) {
-      alert('Please add students and upload samples before training!');
+      toast({
+        title: 'Cannot Train',
+        description: 'Please add students and upload samples before training!',
+        variant: 'destructive',
+      });
       return;
     }
 
@@ -375,7 +390,11 @@ const TrainingSetup: React.FC<TrainingSetupProps> = ({ classes, setClasses }) =>
 
     } catch (error) {
       console.error('Training failed:', error);
-      alert(`Training failed: ${error}`);
+      toast({
+        title: 'Training Failed',
+        description: `Training failed: ${error}`,
+        variant: 'destructive',
+      });
     } finally {
       setIsTraining(false);
       setTrainingProgress(0);
