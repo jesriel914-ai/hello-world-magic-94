@@ -1323,9 +1323,7 @@ const TakeAttendanceSession = () => {
               {attendanceLog.length > 0 ? (
                 <div className="space-y-2 max-h-[400px] overflow-y-auto">
                   {attendanceLog.map((record) => (
-                    <div key={record.id} className={`p-3 rounded-lg border ${
-                      record.status === 'present' ? 'bg-green-50 border-green-200' : 'bg-red-50 border-red-200'
-                    }`}>
+                    <div key={record.id} className="p-3 rounded-lg border border-gray-200">
                       <div className="flex items-center justify-between">
                         <div>
                           <p className="text-sm font-medium text-gray-900">
@@ -1334,23 +1332,13 @@ const TakeAttendanceSession = () => {
                           <p className="text-xs text-gray-500">ID: {record.students?.student_id}</p>
                         </div>
                         <div className="text-right">
-                          <Badge className={`${
+                          <span className={`text-xs font-medium ${
                             record.status === 'present' 
-                              ? 'bg-green-100 text-green-800' 
-                              : 'bg-red-100 text-red-800'
-                          } hover:bg-opacity-100`}>
-                            {record.status === 'present' ? (
-                              <>
-                                <CheckCircle className="w-3 h-3 mr-1" />
-                                Present
-                              </>
-                            ) : (
-                              <>
-                                <XCircle className="w-3 h-3 mr-1" />
-                                Absent
-                              </>
-                            )}
-                          </Badge>
+                              ? 'text-green-600' 
+                              : 'text-red-600'
+                          }`}>
+                            {record.status === 'present' ? 'Present' : 'Absent'}
+                          </span>
                           {record.time_in && (
                             <p className="text-xs text-gray-500 mt-1">
                               {new Date(record.time_in).toLocaleTimeString()}
