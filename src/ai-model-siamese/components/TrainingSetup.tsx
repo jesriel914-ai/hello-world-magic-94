@@ -223,7 +223,11 @@ const TrainingSetup: React.FC<TrainingSetupProps> = ({ classes, setClasses }) =>
     const newStudents = students.filter(student => !existingStudentIds.includes(student.id));
     
     if (newStudents.length === 0) {
-      alert('All selected students are already added.');
+      toast({
+        title: 'No New Students',
+        description: 'All selected students are already added.',
+        variant: 'destructive',
+      });
       return;
     }
     
