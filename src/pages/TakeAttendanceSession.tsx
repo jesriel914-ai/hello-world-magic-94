@@ -1239,15 +1239,17 @@ const TakeAttendanceSession = () => {
             {isCameraReady && (
               <div className="space-y-2">
                 <Button 
-                  onClick={() => console.log('Present clicked')}
-                  className="w-full h-12 text-sm bg-green-600 hover:bg-green-700"
+                  onClick={() => markAttendance('present')}
+                  disabled={!predictions.length || isPaused}
+                  className="w-full h-12 text-sm bg-green-600 hover:bg-green-700 disabled:opacity-50 disabled:cursor-not-allowed"
                 >
                   Mark Present
                 </Button>
                 <Button 
-                  onClick={() => console.log('Absent clicked')}
+                  onClick={() => markAttendance('absent')}
+                  disabled={!predictions.length || isPaused}
                   variant="outline"
-                  className="w-full h-12 text-sm border-red-300 text-red-600 hover:bg-red-50"
+                  className="w-full h-12 text-sm border-red-300 text-red-600 hover:bg-red-50 disabled:opacity-50 disabled:cursor-not-allowed"
                 >
                   Mark Absent
                 </Button>
