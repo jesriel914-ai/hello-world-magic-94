@@ -157,7 +157,11 @@ interface StudentSelectionModalProps {
 
   const handleSelectAll = (checked: boolean) => {
     if (checked) {
-      setSelectedMultiple(filteredStudents.slice(0, displayedCount));
+      // Only select students that are not in excludeStudents
+      const validStudents = filteredStudents.slice(0, displayedCount).filter(
+        student => !excludeStudentIds.includes(student.student_id)
+      );
+      setSelectedMultiple(validStudents);
     } else {
       setSelectedMultiple([]);
     }
