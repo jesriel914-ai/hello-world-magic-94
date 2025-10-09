@@ -98,6 +98,7 @@ const TakeAttendanceSession = () => {
   const [attendanceLog, setAttendanceLog] = useState<any[]>([]);
   const [attendanceMap, setAttendanceMap] = useState<Map<number, any>>(new Map());
   const [overlayMessage, setOverlayMessage] = useState<string | null>(null);
+  const [overlayStudentName, setOverlayStudentName] = useState<string | null>(null);
   const [overlayType, setOverlayType] = useState<'success' | 'error' | 'warning'>('success');
   const [isPaused, setIsPaused] = useState(false);
   const [showChangeConfirm, setShowChangeConfirm] = useState(false);
