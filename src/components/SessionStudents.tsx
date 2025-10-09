@@ -291,9 +291,6 @@ export default function SessionStudents({ sessionId, onClose }: SessionStudentsF
 
   return (
     <div className="flex flex-col h-full">
-      {/* Header: Session Details */}
-      <h3 className="text-lg font-semibold text-gray-900 mb-4 flex-shrink-0">Session Details</h3>
-
       {/* Scrollable Content */}
       <ScrollArea className="flex-1">
         <div className="space-y-6 pr-4">

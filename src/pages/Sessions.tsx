@@ -1243,7 +1243,7 @@ const Schedule = () => {
       }}>
         <DialogContent className="max-w-6xl max-h-[90vh] flex flex-col">
           <DialogHeader>
-            <DialogTitle className="text-education-navy text-lg">{selectedSession?.title || 'Session Students'}</DialogTitle>
+            <DialogTitle className="text-education-navy text-lg">Session Details</DialogTitle>
           </DialogHeader>
           
           <div className="flex-1 overflow-y-auto flex flex-col">
