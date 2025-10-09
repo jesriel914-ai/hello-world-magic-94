@@ -1,7 +1,7 @@
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
-import { Loader2, Camera, Play, StopCircle, CheckCircle, XCircle, Users, User, Clock, Calendar, BookOpen, ArrowLeft, RefreshCw, Square, FileImage, Brain, List, Cloud, X } from "lucide-react";
+import { Loader2, Camera, Play, StopCircle, CheckCircle, XCircle, Users, User, Clock, Calendar, BookOpen, ArrowLeft, RefreshCw, Square, FileImage, Brain, List, Cloud, X, FileText } from "lucide-react";
 import { cn } from "@/lib/utils";
 import Layout from "@/components/Layout";
 import { useEffect, useRef, useState, useCallback } from 'react';
@@ -14,6 +14,8 @@ import * as tf from '@tensorflow/tfjs';
 import { getAIModelService } from '@/lib/AIModelService';
 import { predictFromCanvas, forceMemoryCleanup } from '@/components/model-training-ui/utils/modelPrediction';
 import { fetchSessionStudents } from '@/lib/supabaseService';
+import { Switch } from '@/components/ui/switch';
+import { Label } from '@/components/ui/label';
 
 interface PredictionResult {
   className: string;
@@ -848,42 +850,55 @@ const TakeAttendanceSession = () => {
         <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
           {/* Left Section: Scan Signatures */}
           <div className="space-y-4">
-            <div className="flex items-center justify-between">
-              <div className="flex items-center gap-2">
-                {showStudentList ? (
-                  <>
-                    <List className="w-6 h-6" />
-                    <span className="text-base font-semibold">Details</span>
-                  </>
-                ) : (
-                  <>
-                    <FileImage className="w-6 h-6" />
-                    <span className="text-base font-semibold">Scan Signatures</span>
-                  </>
-                )}
+            <div className="space-y-3">
+              <div className="flex items-center justify-between">
+                <span className="text-base font-semibold">
+                  {showStudentList ? 'Details' : 'Scan Signatures'}
+                </span>
+                <Button 
+                  variant="ghost" 
+                  size="default"
+                  onClick={() => {
+                    const newValue = !showStudentList;
+                    
+                    // Stop camera when going to Details
+                    if (newValue && isCameraReady) {
+                      stopCamera();
+                    }
+                    
+                    setShowStudentList(newValue);
+                    
+                    if (newValue && sessionStudents.length === 0) {
+                      loadSessionStudents();
+                    }
+                  }}
+                  className="h-10 w-10 p-0"
+                  title={showStudentList ? "Back to Scanner" : "View Details"}
+                >
+                  {showStudentList ? <X className="w-5 h-5" /> : <List className="w-5 h-5" />}
+                </Button>
               </div>
-              <Button 
-                variant="ghost" 
-                size="default"
-                onClick={() => {
-                  const newValue = !showStudentList;
-                  
-                  // Stop camera when going to Details
-                  if (newValue && isCameraReady) {
-                    stopCamera();
-                  }
-                  
-                  setShowStudentList(newValue);
-                  
-                  if (newValue && sessionStudents.length === 0) {
-                    loadSessionStudents();
-                  }
-                }}
-                className="h-10 w-10 p-0"
-                title={showStudentList ? "Back to Scanner" : "View Details"}
-              >
-                {showStudentList ? <X className="w-5 h-5" /> : <List className="w-5 h-5" />}
-              </Button>
+              
+              {/* Camera On/Off Switch - Only in Scan Signatures view */}
+              {!showStudentList && (
+                <div className="flex items-center gap-2">
+                  <Switch 
+                    id="camera-switch"
+                    checked={isCameraReady}
+                    onCheckedChange={(checked) => {
+                      if (checked) {
+                        startCamera();
+                      } else {
+                        stopCamera();
+                      }
+                    }}
+                    disabled={isCameraStarting}
+                  />
+                  <Label htmlFor="camera-switch" className="text-sm font-medium cursor-pointer">
+                    {isCameraStarting ? 'Starting...' : (isCameraReady ? 'On' : 'Off')}
+                  </Label>
+                </div>
+              )}
             </div>
             
             {showStudentList ? (
@@ -1011,57 +1026,21 @@ const TakeAttendanceSession = () => {
               )}
             </div>
             
-            {/* Camera Control Buttons */}
-            {!isCameraReady ? (
-              <Button 
-                onClick={startCamera}
-                disabled={isCameraStarting}
-                className="w-full bg-teal-300 text-white hover:bg-teal-200 hover:text-teal-900 py-2 h-auto text-base transition-all duration-200"
-                size="lg"
-              >
-                {isCameraStarting ? (
-                  <>
-                    <Loader2 className="w-5 h-5 mr-2 animate-spin" />
-                    <span>Starting Camera...</span>
-                  </>
-                ) : (
-                  <>
-                    <Camera className="w-5 h-5 mr-2 text-white" />
-                    <span className="text-white">Start Camera</span>
-                  </>
-                )}
-              </Button>
-            ) : (
-              <div className="grid grid-cols-2 gap-2">
-                {/* Top Row */}
+            {/* Attendance Buttons - Only show when camera is active */}
+            {isCameraReady && (
+              <div className="space-y-2">
                 <Button 
-                  onClick={stopCamera}
-                  variant="destructive"
-                  className="h-12 text-sm"
+                  onClick={() => console.log('Present clicked')}
+                  className="w-full h-12 text-sm bg-green-600 hover:bg-green-700"
                 >
-                  <StopCircle className="w-4 h-4 mr-1" />
-                  Stop
+                  Mark Present
                 </Button>
-                <Button 
-                  onClick={() => console.log('Verify clicked')}
-                  className="h-12 text-sm bg-blue-600 hover:bg-blue-700"
-                >
-                  Verify
-                </Button>
-                
-                {/* Bottom Row */}
                 <Button 
                   onClick={() => console.log('Absent clicked')}
                   variant="outline"
-                  className="h-12 text-sm border-red-300 text-red-600 hover:bg-red-50"
+                  className="w-full h-12 text-sm border-red-300 text-red-600 hover:bg-red-50"
                 >
                   Mark Absent
-                </Button>
-                <Button 
-                  onClick={() => console.log('Present clicked')}
-                  className="h-12 text-sm bg-green-600 hover:bg-green-700"
-                >
-                  Mark Present
                 </Button>
               </div>
             )}
