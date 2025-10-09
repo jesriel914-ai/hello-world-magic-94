@@ -617,9 +617,9 @@ const Header = ({ isMobile = false }: HeaderProps) => {
               <DialogTitle>Confirm Logout</DialogTitle>
             </DialogHeader>
             <p>Are you sure you want to log out?</p>
-            <DialogFooter>
-              <Button variant="outline" onClick={() => setIsLogoutConfirmOpen(false)}>Cancel</Button>
-              <Button variant="destructive" onClick={handleLogout}>Log Out</Button>
+            <DialogFooter className="flex flex-row gap-2 sm:gap-3">
+              <Button variant="outline" onClick={() => setIsLogoutConfirmOpen(false)} className="flex-1">Cancel</Button>
+              <Button variant="destructive" onClick={handleLogout} className="flex-1">Log Out</Button>
             </DialogFooter>
         </DialogContent>
       </Dialog>
