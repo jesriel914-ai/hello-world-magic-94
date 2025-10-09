@@ -1075,7 +1075,7 @@ const TakeAttendanceSession = () => {
 
   return (
     <Layout>
-      <div className="w-full space-y-6">
+      <div className="w-full lg:px-6 space-y-6">
         {/* Session Header - Left Aligned */}
         <div className="text-left">
           <h1 className="text-3xl font-bold text-education-navy">{session.title}</h1>
@@ -1371,6 +1371,34 @@ const TakeAttendanceSession = () => {
             <p>
               <strong>{pendingChange?.student && `${pendingChange.student.firstname} ${pendingChange.student.surname}`}</strong> is already marked as{' '}
               <strong>{pendingChange?.student && attendanceMap.get(pendingChange.student.id)?.status}</strong>. 
+              Do you want to change it to <strong>{pendingChange?.newStatus}</strong>?
+            </p>
+            <DialogFooter className="flex flex-row gap-2">
+              <Button 
+                variant="outline" 
+                onClick={() => {
+                  setShowChangeConfirm(false);
+                  setPendingChange(null);
+                }}
+                className="flex-1"
+              >
+                No
+              </Button>
+              <Button 
+                onClick={confirmStatusChange}
+                className="flex-1"
+              >
+                Yes
+              </Button>
+            </DialogFooter>
+          </DialogContent>
+        </Dialog>
+      </div>
+    </Layout>
+  );
+};
+
+export default TakeAttendanceSession;status}</strong>. 
               Do you want to change it to <strong>{pendingChange?.newStatus}</strong>?
             </p>
             <DialogFooter className="flex flex-row gap-2">
