@@ -1,13 +1,34 @@
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
-import { Loader2, Camera, Play, StopCircle, CheckCircle, XCircle, Users, User, Clock, Calendar, BookOpen, ArrowLeft, RefreshCw, Square } from "lucide-react";
+import { Loader2, Camera, Play, StopCircle, CheckCircle, XCircle, Users, User, Clock, Calendar, BookOpen, ArrowLeft, RefreshCw, Square, FileImage, Brain, List, Cloud, X, FileText } from "lucide-react";
 import { cn } from "@/lib/utils";
 import Layout from "@/components/Layout";
-import { useEffect, useRef, useState } from 'react';
+import { useEffect, useRef, useState, useCallback } from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
 import { supabase } from '@/lib/supabase';
 import { toast } from 'sonner';
+import { MobileWebcam } from '@/components/model-training-ui/services/mobileWebcam';
+import useMobileDetection from '@/hooks/use-mobile-detection';
+import * as tf from '@tensorflow/tfjs';
+import { getAIModelService } from '@/lib/AIModelService';
+import { predictFromCanvas, forceMemoryCleanup } from '@/components/model-training-ui/utils/modelPrediction';
+import { fetchSessionStudents } from '@/lib/supabaseService';
+import { Switch } from '@/components/ui/switch';
+import { Label } from '@/components/ui/label';
+
+interface PredictionResult {
+  className: string;
+  confidence: number;
+}
+
+interface CustomModel {
+  featureExtractor: tf.LayersModel | null;
+  classifier: tf.LayersModel | null;
+  getTotalClasses: () => number;
+  getClassLabels: () => string[];
+  predict: (image: HTMLCanvasElement | HTMLVideoElement, flipped?: boolean) => Promise<PredictionResult[]>;
+}
 
 type Session = {
   id: number;
@@ -53,6 +74,24 @@ const TakeAttendanceSession = () => {
   const videoRef = useRef<HTMLVideoElement>(null);
   const streamRef = useRef<MediaStream | null>(null);
   const permissionGranted = useRef(false);
+  
+  // Mobile webcam setup (like in Preview.tsx)
+  const webcamRef = useRef<HTMLDivElement>(null);
+  const mobileWebcam = useRef<MobileWebcam | null>(null);
+  const [isCameraStarting, setIsCameraStarting] = useState(false);
+  const [cameraError, setCameraError] = useState<string | null>(null);
+  const [isCameraReady, setIsCameraReady] = useState(false);
+  const isMobile = useMobileDetection();
+  
+  // Model and prediction states
+  const [model, setModel] = useState<CustomModel | null>(null);
+  const [isLoadingModel, setIsLoadingModel] = useState(false);
+  const [modelTrainedAt, setModelTrainedAt] = useState<Date | null>(null);
+  const [predictions, setPredictions] = useState<PredictionResult[]>([]);
+  const [showStudentList, setShowStudentList] = useState(false);
+  const [sessionStudents, setSessionStudents] = useState<any[]>([]);
+  const [loadingStudents, setLoadingStudents] = useState(false);
+  const cameraPredictionIntervalRef = useRef<NodeJS.Timeout | null>(null);
 
   useEffect(() => {
     // Fetch session details when component mounts
@@ -89,10 +128,314 @@ const TakeAttendanceSession = () => {
         });
         streamRef.current = null;
       }
+      if (mobileWebcam.current) {
+        mobileWebcam.current.stop();
+        mobileWebcam.current = null;
+      }
       permissionGranted.current = false;
       setCameraActive(false);
     };
   }, [sessionId]);
+
+  // Camera functions from Preview.tsx
+  const startCamera = useCallback(async () => {
+    console.log('📷 startCamera called - isMobile:', isMobile);
+    if (!isMobile || !webcamRef.current) {
+      console.log('❌ startCamera blocked');
+      return;
+    }
+    
+    console.log('🚀 Starting camera process...');
+    setIsCameraStarting(true);
+    setCameraError(null);
+    setIsCameraReady(false);
+    
+    try {
+      const permissions = await navigator.permissions.query({ name: 'camera' as PermissionName });
+      console.log('📋 Camera permission status:', permissions.state);
+      
+      if (permissions.state === 'denied') {
+        throw new Error('Camera permission denied. Please enable camera permissions in your browser settings.');
+      }
+      
+      if (mobileWebcam.current) {
+        mobileWebcam.current.stop();
+        mobileWebcam.current = null;
+      }
+      
+      webcamRef.current.innerHTML = '<div class="flex flex-col items-center justify-center h-full text-gray-500"><div class="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-500 mb-2"></div><div class="text-sm">Starting camera...</div></div>';
+      
+      mobileWebcam.current = new MobileWebcam({
+        width: 300,
+        height: 300,
+        facingMode: 'environment',
+        timeout: 20000,
+        zoom: 2.0
+      });
+      
+      console.log('📷 Initializing camera with 2x zoom...');
+      const videoElement = await mobileWebcam.current.start();
+      
+      webcamRef.current.innerHTML = '';
+      webcamRef.current.appendChild(videoElement);
+      
+      setTimeout(() => {
+        if (webcamRef.current && mobileWebcam.current) {
+          const outerContainer = webcamRef.current.parentElement;
+          if (outerContainer) {
+            const rect = outerContainer.getBoundingClientRect();
+            console.log('📱 Mobile preview container dimensions:', {
+              width: rect.width,
+              height: rect.height,
+              aspectRatio: (rect.width / rect.height).toFixed(2)
+            });
+            
+            mobileWebcam.current.setPreviewDimensions(rect.width, rect.height);
+          }
+        }
+      }, 1000);
+      
+      setIsCameraReady(true);
+      console.log('✅ Camera started successfully with zoom and marked as ready');
+      
+    } catch (error) {
+      console.error('❌ Error starting camera:', error);
+      
+      let userErrorMessage = 'Failed to start camera';
+      
+      if (error instanceof Error) {
+        if (error.message.includes('permission denied')) {
+          userErrorMessage = 'Camera permission denied. Please allow camera access.';
+        } else if (error.message.includes('timeout')) {
+          userErrorMessage = 'Camera startup timed out. Please try again.';
+        } else {
+          userErrorMessage = error.message;
+        }
+      }
+      
+      setCameraError(userErrorMessage);
+      setIsCameraReady(false);
+      
+      if (webcamRef.current) {
+        webcamRef.current.innerHTML = `<div class="flex flex-col items-center justify-center h-full text-red-500 p-4 text-center"><div class="text-lg mb-2">❌ Camera Error</div><div class="text-sm">${userErrorMessage}</div></div>`;
+      }
+      
+      if (mobileWebcam.current) {
+        mobileWebcam.current.stop();
+        mobileWebcam.current = null;
+      }
+    } finally {
+      setIsCameraStarting(false);
+    }
+  }, [isMobile]);
+
+  const stopCamera = useCallback(() => {
+    console.log('🛑 Stopping camera...');
+    
+    if (mobileWebcam.current) {
+      mobileWebcam.current.stop();
+      mobileWebcam.current = null;
+    }
+    
+    setIsCameraReady(false);
+    
+    if (webcamRef.current) {
+      webcamRef.current.innerHTML = '';
+    }
+    
+    console.log('✅ Camera stopped successfully');
+  }, []);
+
+  // Fetch students registered for this session
+  const loadSessionStudents = useCallback(async () => {
+    if (!session) return;
+    
+    try {
+      setLoadingStudents(true);
+      console.log('Fetching students for session:', session.id);
+      
+      const response = await fetchSessionStudents(session.id);
+      
+      if (!response || !response.students) {
+        console.log('No students found in response');
+        setSessionStudents([]);
+        return;
+      }
+      
+      console.log('Students loaded:', response.students.length);
+      setSessionStudents(response.students);
+    } catch (error) {
+      console.error('Error fetching session students:', error);
+      toast.error('Failed to load students');
+      setSessionStudents([]);
+    } finally {
+      setLoadingStudents(false);
+    }
+  }, [session]);
+
+  // Auto-load latest model on page open
+  useEffect(() => {
+    const loadLatestModel = async () => {
+      try {
+        setIsLoadingModel(true);
+        console.log('🤖 Auto-loading latest model...');
+        
+        const aiService = getAIModelService();
+        const models = await aiService.getTrainedModels();
+        
+        if (!models || models.length === 0) {
+          console.log('No models available');
+          toast.error('No trained models available');
+          return;
+        }
+        
+        // Get the latest model (sorted by training_date descending)
+        const latestModel = models.sort((a, b) => 
+          new Date(b.training_date).getTime() - new Date(a.training_date).getTime()
+        )[0];
+        
+        console.log('📥 Loading latest model:', latestModel.id);
+        
+        const loadResult = await aiService.loadModel(latestModel.id);
+        
+        if (!loadResult.success || !loadResult.model) {
+          throw new Error(loadResult.error || 'Failed to load model');
+        }
+        
+        console.log('✅ Model loaded successfully:', loadResult.model);
+        
+        const loadedModelData = loadResult.model;
+        const customModel: CustomModel = {
+          featureExtractor: null,
+          classifier: null,
+          getTotalClasses: () => loadedModelData.getTotalClasses(),
+          getClassLabels: () => loadedModelData.getClassLabels(),
+          predict: async (image: HTMLCanvasElement | HTMLVideoElement, flipped?: boolean) => {
+            const results = await loadedModelData.predict(image, flipped);
+            return results;
+          }
+        };
+        
+        setModel(customModel);
+        setModelTrainedAt(new Date(latestModel.training_date));
+        
+        console.log('✅ Latest model loaded successfully');
+      } catch (error) {
+        console.error('❌ Error loading latest model:', error);
+        toast.error('Failed to load model: ' + (error instanceof Error ? error.message : 'Unknown error'));
+      } finally {
+        setIsLoadingModel(false);
+      }
+    };
+    
+    loadLatestModel();
+  }, []);
+
+  // Camera prediction loop (only top 1 prediction)
+useEffect(() => {
+  if (!isMobile || !isCameraReady || !mobileWebcam.current || !model) {
+    setPredictions([]);
+    console.log('🛑 Camera prediction loop stopped');
+    return;
+  }
+  
+  let isRunning = false;
+  let consecutiveErrors = 0;
+  const MAX_ERRORS = 3;
+  let successCount = 0;
+  let lastCleanupTime = Date.now();
+  let lastPredictionTime = 0;
+  const CLEANUP_INTERVAL = 5000;
+  const MIN_PREDICTION_INTERVAL = 500; // ✅ Adjust this for your hardware (300-700ms)
+  
+  const runCameraPrediction = async () => {
+    if (isRunning) return;
+    if (!mobileWebcam.current || !model) return;
+    
+    isRunning = true;
+    
+    try {
+      const now = Date.now();
+      if (now - lastCleanupTime > CLEANUP_INTERVAL) {
+        forceMemoryCleanup();
+        lastCleanupTime = now;
+      }
+      
+      const videoElement = mobileWebcam.current.getVideo();
+      if (!videoElement) throw new Error('Video element is null');
+      if (videoElement.paused || videoElement.ended) throw new Error('Video is paused or ended');
+      if (videoElement.readyState < 2) throw new Error(`Video not ready (readyState: ${videoElement.readyState})`);
+      
+      const canvas = mobileWebcam.current.captureFrame();
+      if (!canvas) throw new Error('captureFrame() returned null');
+      if (canvas.width !== 224 || canvas.height !== 224) throw new Error(`Invalid canvas size: ${canvas.width}x${canvas.height}`);
+      
+      const predictions = await predictFromCanvas(model, canvas, false);
+      if (!predictions || predictions.length === 0) throw new Error('Model returned empty predictions');
+      
+      consecutiveErrors = 0;
+      successCount++;
+      
+      const sortedPredictions = predictions.sort((a, b) => b.confidence - a.confidence);
+      
+      if (successCount % 30 === 0) {
+        const memory = tf.memory();
+        console.log(`📊 Memory stats after ${successCount} predictions:`, {
+          numTensors: memory.numTensors,
+          numBytes: (memory.numBytes / 1024 / 1024).toFixed(2) + ' MB'
+        });
+      }
+      
+      setPredictions(sortedPredictions);
+      
+    } catch (error) {
+      consecutiveErrors++;
+      console.error(`❌ Camera prediction error #${consecutiveErrors}:`, error);
+      
+      if (consecutiveErrors >= MAX_ERRORS) {
+        console.error('🛑 Too many consecutive errors, stopping predictions');
+        toast({
+          title: 'Camera Prediction Failed',
+          description: 'Unable to process camera feed. Please try restarting the camera.',
+          variant: 'destructive',
+        });
+        setPredictions([]);
+      }
+    } finally {
+      isRunning = false;
+    }
+  };
+  
+  // ✅ Use requestAnimationFrame for smooth predictions
+  let animationFrameId: number;
+  
+  const predictionLoop = async () => {
+    const now = Date.now();
+    
+    // Throttle predictions to MIN_PREDICTION_INTERVAL
+    if (now - lastPredictionTime >= MIN_PREDICTION_INTERVAL) {
+      await runCameraPrediction();
+      lastPredictionTime = now;
+    }
+    
+    // Continue loop if camera is still active
+    if (isCameraReady && model) {
+      animationFrameId = requestAnimationFrame(predictionLoop);
+    }
+  };
+  
+  console.log('🚀 Starting camera prediction loop with requestAnimationFrame');
+  predictionLoop();
+  
+  return () => {
+    console.log('🛑 Stopping camera prediction loop');
+    if (animationFrameId) {
+      cancelAnimationFrame(animationFrameId);
+    }
+    console.log('🧹 Final memory cleanup');
+    forceMemoryCleanup();
+  };
+}, [isMobile, isCameraReady, model, toast]);
 
   // Check for basic MediaDevices API support on component mount
   useEffect(() => {
@@ -525,237 +868,212 @@ const TakeAttendanceSession = () => {
 
   return (
     <Layout>
-      <div className="px-6 py-4 space-y-6">
+      <div className="w-full space-y-6">
         {/* Session Header - Left Aligned */}
-        <div className="text-left space-y-1">
+        <div className="text-left">
           <h1 className="text-3xl font-bold text-education-navy">{session.title}</h1>
-          <p className="text-muted-foreground text-sm">
-            {session.program} • {session.year} • {session.section} • {new Date(session.date).toLocaleDateString()} • {session.time_in} - {session.time_out}
-          </p>
         </div>
 
         <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-          {/* Left Section: Signature Capture */}
-          <Card className="shadow-sm">
-            <CardHeader className="pb-2">
-              <CardTitle className="text-lg flex items-center gap-2">
-                <Camera className="w-5 h-5 text-education-navy" />
-                Signature Capture
-              </CardTitle>
-            </CardHeader>
-            <CardContent className="flex flex-col space-y-4 p-4">
-              {/* Camera Preview Box - Always Visible */}
-              <div className="w-full h-48 bg-muted/30 rounded-lg flex items-center justify-center border border-muted-foreground/20">
-                <div className="w-full h-full relative">
-                  {/* Video element - always present but only visible when active */}
-                  <video 
-                    ref={videoRef}
-                    autoPlay 
-                    playsInline 
-                    muted 
-                    className={`w-full h-full object-cover rounded-lg transition-opacity duration-300 ${
-                      cameraActive ? 'opacity-100' : 'opacity-0 absolute'
-                    }`}
+          {/* Left Section: Scan Signatures */}
+          <div className="space-y-4">
+            <div className="space-y-3">
+              <div className="flex items-center justify-between">
+                <span className="text-base font-semibold">
+                  {showStudentList ? 'Details' : 'Scan Signatures'}
+                </span>
+                <Button 
+                  variant="ghost" 
+                  size="default"
+                  onClick={() => {
+                    const newValue = !showStudentList;
+                    
+                    // Stop camera when going to Details
+                    if (newValue && isCameraReady) {
+                      stopCamera();
+                    }
+                    
+                    setShowStudentList(newValue);
+                    
+                    if (newValue && sessionStudents.length === 0) {
+                      loadSessionStudents();
+                    }
+                  }}
+                  className="h-10 w-10 p-0"
+                  title={showStudentList ? "Back to Scanner" : "View Details"}
+                >
+                  {showStudentList ? <X className="w-5 h-5" /> : <List className="w-5 h-5" />}
+                </Button>
+              </div>
+              
+              {/* Camera On/Off Switch - Only in Scan Signatures view */}
+              {!showStudentList && (
+                <div className="flex items-center gap-2">
+                  <Switch 
+                    id="camera-switch"
+                    checked={isCameraReady}
+                    onCheckedChange={(checked) => {
+                      if (checked) {
+                        startCamera();
+                      } else {
+                        stopCamera();
+                      }
+                    }}
+                    disabled={isCameraStarting}
                   />
-                  
-                  {/* Error state */}
-                  {error && (
-                    <div className="absolute inset-0 bg-red-50 rounded-lg flex items-center justify-center p-4">
-                      <div className="text-center">
-                        <XCircle className="w-12 h-12 text-red-400 mx-auto mb-2" />
-                        <p className="text-red-700 font-medium">Camera Error</p>
-                        <p className="text-sm text-red-600 max-w-xs">{error}</p>
+                  <Label htmlFor="camera-switch" className="text-sm font-medium cursor-pointer">
+                    {isCameraStarting ? 'Starting...' : (isCameraReady ? 'On' : 'Off')}
+                  </Label>
+                </div>
+              )}
+            </div>
+            
+            {showStudentList ? (
+              <div className="space-y-4">
+                {/* Session Details */}
+                {session && (
+                  <div>
+                    <h3 className="text-sm font-semibold text-gray-700 mb-3">Session Information</h3>
+                    <div className="p-4 bg-white rounded-lg border shadow-sm">
+                      <div className="space-y-1.5">
+                        <p className="text-sm">
+                          <span className="text-gray-500">Title:</span> <span className="font-medium text-gray-900">{session.title}</span>
+                        </p>
+                        <p className="text-sm">
+                          <span className="text-gray-500">Program:</span> <span className="font-medium text-gray-900">{session.program}</span>
+                        </p>
+                        <p className="text-sm">
+                          <span className="text-gray-500">Year{session.section && ' & Section'}:</span> <span className="font-medium text-gray-900">{session.year}{session.section && ` - ${session.section}`}</span>
+                        </p>
+                        <p className="text-sm">
+                          <span className="text-gray-500">Date:</span> <span className="font-medium text-gray-900">
+                            {new Date(session.date).toLocaleDateString('en-US', {
+                              month: 'short',
+                              day: 'numeric',
+                              year: 'numeric'
+                            })}
+                          </span>
+                        </p>
+                        <p className="text-sm">
+                          <span className="text-gray-500">Time:</span> <span className="font-medium text-gray-900">{session.time_in} - {session.time_out}</span>
+                        </p>
                       </div>
                     </div>
-                  )}
-                  
-                  {/* Captured image */}
-                  {capturedImage && !cameraActive && !error && (
-                    <div className="absolute inset-0 flex items-center justify-center">
-                      <img 
-                        src={capturedImage} 
-                        alt="Captured Signature" 
-                        className="w-full h-full object-cover rounded-lg" 
-                      />
+                  </div>
+                )}
+
+                {/* Students List */}
+                <div>
+                  <h3 className="text-sm font-semibold text-gray-700 mb-3">Required Attendees</h3>
+                  {loadingStudents ? (
+                    <div className="text-center py-8">
+                      <Loader2 className="w-8 h-8 mx-auto animate-spin text-blue-600 mb-2" />
+                      <p className="text-sm text-gray-500">Loading students...</p>
                     </div>
-                  )}
-                  
-                  {/* Initial/Inactive state */}
-                  {!cameraActive && !capturedImage && !error && (
-                    <div className="absolute inset-0 flex flex-col items-center justify-center p-4">
-                      <div className="w-16 h-16 bg-muted/50 rounded-full flex items-center justify-center mb-4">
-                        <Camera className="w-8 h-8 text-muted-foreground" />
-                      </div>
-                      <p className="text-muted-foreground text-center">
-                        {isRequestingCamera ? 'Initializing camera...' : 'Camera not active'}
-                      </p>
+                  ) : sessionStudents.length > 0 ? (
+                    <div className="space-y-1 max-h-64 overflow-y-auto">
+                      {sessionStudents.map((student, index) => (
+                        <div key={student.id} className="p-3 bg-white rounded-lg border shadow-sm hover:bg-gray-50 transition-colors">
+                          <div className="flex items-center gap-3">
+                            <div className="w-8 h-8 bg-blue-100 rounded-full flex items-center justify-center text-blue-600 font-medium text-sm">
+                              {index + 1}
+                            </div>
+                            <div className="flex-1">
+                              <div className="font-medium text-sm text-gray-900">
+                                {student.full_name || `${student.firstname} ${student.surname}`}
+                              </div>
+                              <div className="text-xs text-gray-500">
+                                ID: {student.student_id}
+                              </div>
+                            </div>
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  ) : (
+                    <div className="text-center py-8">
+                      <Users className="w-12 h-12 mx-auto mb-4 text-gray-300" />
+                      <h3 className="text-base font-medium text-gray-500 mb-2">No students found</h3>
+                      <p className="text-sm text-gray-400">No students registered for this session</p>
                     </div>
                   )}
                 </div>
               </div>
-
-                  {/* Camera Status Message */}
-                  {cameraAvailable === false && (
-                    <div className="mb-4 p-3 bg-amber-50 border border-amber-200 rounded-lg text-amber-800 text-sm">
-                      <p className="font-medium">Camera access restricted</p>
-                      <p className="text-xs">
-                        {!window.isSecureContext && !['localhost', '127.0.0.1', '192.168.254.100'].includes(window.location.hostname)
-                          ? 'Camera access requires HTTPS on mobile devices. Please use HTTPS or access from localhost.'
-                          : 'No camera was detected on this device or camera access is not supported.'
-                        }
-                      </p>
-                    </div>
-                  )}
-
-                  {/* HTTPS Requirement Message for Mobile */}
-                  {/Android|webOS|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini/i.test(navigator.userAgent) && 
-                   !window.isSecureContext && 
-                   !['localhost', '127.0.0.1', '192.168.254.100'].includes(window.location.hostname) && (
-                    <div className="mb-4 p-4 bg-red-50 border border-red-200 rounded-lg text-red-800">
-                      <div className="flex items-start">
-                        <div className="flex-shrink-0">
-                          <XCircle className="w-5 h-5 mt-0.5" />
-                        </div>
-                        <div className="ml-3">
-                          <h3 className="text-sm font-medium">HTTPS Required for Mobile Camera Access</h3>
-                          <div className="mt-2 text-sm">
-                            <p>Mobile browsers require HTTPS to access the camera. To use camera features:</p>
-                            <ul className="list-disc list-inside mt-1 space-y-1">
-                              <li>Use HTTPS instead of HTTP</li>
-                              <li>Access from localhost (localhost:3000)</li>
-                              <li>Use a secure development server</li>
-                            </ul>
-                          </div>
-                        </div>
-                      </div>
-                    </div>
-                  )}
-
-                  {/* Verification Results */}
-                  {capturedImage && verificationResult && !isVerifying && (
-                    <div className={cn(
-                      "mb-4 p-4 rounded-lg border",
-                      verificationResult.match 
-                        ? "bg-green-50 border-green-200 text-green-800"
-                        : "bg-red-50 border-red-200 text-red-800"
-                    )}>
-                      <div className="flex items-center mb-2">
-                        {verificationResult.match ? (
-                          <CheckCircle className="w-5 h-5 mr-2" />
-                        ) : (
-                          <XCircle className="w-5 h-5 mr-2" />
-                        )}
-                        <span className="font-medium">
-                          {verificationResult.match ? 'Match Found!' : 'No Match'}
-                        </span>
-                      </div>
-                      
-                      {verificationResult.student && (
-                        <div className="text-sm mb-2">
-                          <strong>{verificationResult.student.firstname} {verificationResult.student.surname}</strong>
-                          <br />
-                          Student ID: {verificationResult.student.student_id}
-                        </div>
-                      )}
-                      
-                      <div className="text-sm">
-                        Confidence: {Math.round(verificationResult.score * 100)}%
-                      </div>
-                      
-                      {verificationResult.message && (
-                        <div className="text-xs mt-2 opacity-80">
-                          {verificationResult.message}
-                        </div>
-                      )}
-                    </div>
-                  )}
-
-                  {/* Verification Loading */}
-                  {isVerifying && (
-                    <div className="mb-4 p-4 bg-blue-50 border border-blue-200 rounded-lg text-blue-800">
-                      <div className="flex items-center">
-                        <Loader2 className="w-5 h-5 mr-2 animate-spin" />
-                        <span className="font-medium">Verifying signature...</span>
-                      </div>
-                      <div className="text-sm mt-1 opacity-80">
-                        Please wait while we process your signature
-                      </div>
-                    </div>
-                  )}
-
-                  {/* Button Group */}
-                  <div className="flex flex-col space-y-2">
-                    {!cameraActive && !capturedImage ? (
-                      <Button 
-                        onClick={handleStartCamera}
-                        disabled={isRequestingCamera || cameraAvailable === false}
-                        className="w-full bg-teal-300 text-white hover:bg-teal-200 hover:text-teal-900 py-2 h-auto text-base transition-all duration-200 disabled:opacity-50 disabled:cursor-not-allowed"
-                        size="lg"
-                      >
-                        {isRequestingCamera ? (
-                          <>
-                            <Loader2 className="w-5 h-5 mr-2 animate-spin" />
-                            <span>Requesting Access...</span>
-                          </>
-                        ) : (
-                          <>
-                            <Play className="w-5 h-5 mr-2 text-white" />
-                            <span className="text-white">
-                              {cameraAvailable === false ? 'Camera Not Available' : 'Start Camera'}
-                            </span>
-                          </>
-                        )}
-                      </Button>
-                    ) : cameraActive ? (
-                      <div className="flex gap-2 w-full">
-                        <Button 
-                          onClick={handleCaptureSignature}
-                          disabled={isVerifying}
-                          className="flex-1 bg-teal-300 text-white hover:bg-teal-200 hover:text-teal-900 py-2 h-auto text-base transition-all duration-200 disabled:opacity-50"
-                          size="lg"
-                        >
-                          <Camera className="w-5 h-5 mr-2 text-white" />
-                          <span className="text-white">Capture Signature</span>
-                        </Button>
-                        <Button 
-                          onClick={handleStopCamera}
-                          variant="outline"
-                          className="flex-shrink-0 px-3 sm:px-4 py-2 h-auto text-base hover:bg-transparent hover:text-inherit active:bg-transparent focus:bg-transparent focus-visible:ring-0 focus-visible:ring-offset-0"
-                          size="lg"
-                        >
-                          <div className="relative w-5 h-5 mr-2">
-                            <Square className="w-4 h-4 text-red-600 absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2" />
-                            <div className="w-3 h-3 bg-red-600 absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2" />
-                          </div>
-                          <span className="hidden sm:inline">Stop</span>
-                        </Button>
-                      </div>
-                    ) : capturedImage ? (
-                      <div className="flex gap-2 w-full">
-                        <Button 
-                          onClick={handleRetakeSignature}
-                          variant="outline"
-                          className="flex-1 py-2 h-auto text-base"
-                          size="lg"
-                          disabled={isVerifying}
-                        >
-                          <RefreshCw className="w-5 h-5 mr-2" />
-                          Retake
-                        </Button>
-                        <Button 
-                          onClick={handleStartCamera}
-                          className="flex-1 bg-teal-300 text-white hover:bg-teal-200 hover:text-teal-900 py-2 h-auto text-base transition-all duration-200"
-                          size="lg"
-                          disabled={isVerifying}
-                        >
-                          <Camera className="w-5 h-5 mr-2 text-white" />
-                          <span className="text-white">New Capture</span>
-                        </Button>
-                      </div>
-                    ) : null}
+            ) : (
+              <>
+            
+            {/* Preview Box for Camera Feed */}
+            <div className="relative border-2 border-dashed border-gray-300 rounded-lg aspect-video flex items-center justify-center bg-gray-50">
+              <div 
+                ref={webcamRef} 
+                className="absolute inset-[2px] flex items-center justify-center z-0 rounded-lg overflow-hidden"
+              />
+              
+              {isCameraStarting && (
+                <div className="absolute inset-[2px] flex items-center justify-center bg-gray-50 bg-opacity-75 z-20 rounded-lg">
+                  <Loader2 className="w-8 h-8 animate-spin text-blue-600" />
+                </div>
+              )}
+              
+              {cameraError && (
+                <div className="absolute inset-[2px] flex items-center justify-center bg-red-50 z-20 rounded-lg">
+                  <div className="text-center p-4">
+                    <div className="text-red-600 font-medium mb-2">Camera Error</div>
+                    <div className="text-red-500 text-sm">{cameraError}</div>
                   </div>
-            </CardContent>
-          </Card>
+                </div>
+              )}
+              
+              {!isCameraReady && !isCameraStarting && !cameraError && (
+                <div className="text-gray-500 text-center">
+                  <Camera className="w-8 h-8 mx-auto mb-2 text-gray-400" />
+                  Camera not active
+                </div>
+              )}
+              
+              {/* Model Status Overlay - Shows when camera is NOT active */}
+              {!isCameraReady && !isCameraStarting && !cameraError && (
+                <div className="absolute bottom-2 left-2 bg-black/70 text-white px-2 py-1 rounded text-xs font-medium z-30">
+                  {isLoadingModel ? 'Not ready for attendance' : (model ? 'Ready for attendance' : 'No model loaded')}
+                </div>
+              )}
+              
+              {/* Prediction Overlay - Lower-left when camera is active */}
+              {isCameraReady && predictions.length > 0 && (
+                <>
+                  {/* Lower-left: Student Name */}
+                  <div className="absolute bottom-2 left-2 bg-black/70 text-white px-2 py-1 rounded text-xs font-medium z-30">
+                    {predictions[0].className}
+                  </div>
+                  {/* Lower-right: Confidence */}
+                  <div className="absolute bottom-2 right-2 bg-black/70 text-white px-2 py-1 rounded text-xs font-medium z-30">
+                    {(predictions[0].confidence * 100).toFixed(0)}%
+                  </div>
+                </>
+              )}
+            </div>
+            
+            {/* Attendance Buttons - Only show when camera is active */}
+            {isCameraReady && (
+              <div className="space-y-2">
+                <Button 
+                  onClick={() => console.log('Present clicked')}
+                  className="w-full h-12 text-sm bg-green-600 hover:bg-green-700"
+                >
+                  Mark Present
+                </Button>
+                <Button 
+                  onClick={() => console.log('Absent clicked')}
+                  variant="outline"
+                  className="w-full h-12 text-sm border-red-300 text-red-600 hover:bg-red-50"
+                >
+                  Mark Absent
+                </Button>
+              </div>
+            )}
+            </>
+            )}
+          </div>
 
           {/* Right Section: Attendance Log */}
           <Card className="shadow-sm">
@@ -775,38 +1093,6 @@ const TakeAttendanceSession = () => {
             </CardContent>
           </Card>
         </div>
-
-        {/* Statistics Section */}
-        <Card className="shadow-sm mt-6">
-          <CardHeader className="pb-2">
-            <CardTitle className="text-lg">Session Statistics</CardTitle>
-          </CardHeader>
-          <CardContent>
-            <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-              {/* Total Scanned */}
-              <div className="bg-muted/30 p-4 rounded-lg">
-                <div className="text-2xl font-bold text-center">{stats.totalScanned}</div>
-                <p className="text-center text-muted-foreground text-sm mt-1">Total Scanned</p>
-              </div>
-
-              {/* Matched */}
-              <div className="bg-muted/30 p-4 rounded-lg">
-                <div className="text-2xl font-bold text-center text-green-600">
-                  {stats.matched}
-                </div>
-                <p className="text-center text-muted-foreground text-sm mt-1">Matched</p>
-              </div>
-
-              {/* No Match */}
-              <div className="bg-muted/30 p-4 rounded-lg">
-                <div className="text-2xl font-bold text-center text-red-600">
-                  {stats.noMatch}
-                </div>
-                <p className="text-center text-muted-foreground text-sm mt-1">No Match</p>
-              </div>
-            </div>
-          </CardContent>
-        </Card>
       </div>
     </Layout>
   );

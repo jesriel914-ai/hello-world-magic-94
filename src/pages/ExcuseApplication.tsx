@@ -93,8 +93,6 @@ const ExcuseApplicationContent = () => {
   const [loading, setLoading] = useState(true);
   const [isFormOpen, setIsFormOpen] = useState(false);
   const [isViewOpen, setIsViewOpen] = useState(false);
-  const [isImagePreviewOpen, setIsImagePreviewOpen] = useState(false);
-  const [previewImageUrl, setPreviewImageUrl] = useState<string>('');
   const [selectedExcuse, setSelectedExcuse] = useState<ExcuseApplication | null>(null);
   const [formData, setFormData] = useState<ExcuseFormData>({
     student_id: '',
@@ -674,17 +672,11 @@ const ExcuseApplicationContent = () => {
                       </td>
                       <td className="px-3 py-1 whitespace-nowrap">
                         {excuse.documentation_url ? (
-                          <div 
-                            className="w-12 h-8 bg-gray-100 rounded border cursor-pointer overflow-hidden"
-                            onClick={() => {
-                              setPreviewImageUrl(excuse.documentation_url!);
-                              setIsImagePreviewOpen(true);
-                            }}
-                          >
+                          <div className="w-12 h-8 bg-gray-100 rounded border overflow-hidden">
                             <img 
                               src={excuse.documentation_url} 
                               alt="Excuse letter preview" 
-                              className="w-full h-full object-cover hover:opacity-80 transition-opacity"
+                              className="w-full h-full object-cover"
                             />
                           </div>
                         ) : (
@@ -775,7 +767,7 @@ const ExcuseApplicationContent = () => {
                     <ChevronsUpDown className="ml-2 h-4 w-4 shrink-0 opacity-50" />
                   </Button>
                 </PopoverTrigger>
-                <PopoverContent className="w-full p-0 z-[100]">
+                <PopoverContent className="w-full p-0 z-[150]">
                   <Command>
                     <CommandInput placeholder="Search students..." />
                     <CommandEmpty>No student found.</CommandEmpty>
@@ -823,7 +815,7 @@ const ExcuseApplicationContent = () => {
                     </div>
                   </Button>
                 </PopoverTrigger>
-                <PopoverContent className="w-full p-0 z-[100]">
+                <PopoverContent className="w-full p-0 z-[150]">
                   <Command>
                     <CommandInput placeholder="Search sessions or dates..." />
                     <CommandEmpty>No session found.</CommandEmpty>
@@ -1053,19 +1045,6 @@ const ExcuseApplicationContent = () => {
               )}
             </div>
           )}
-        </DialogContent>
-      </Dialog>
-
-      {/* Image Preview Dialog */}
-      <Dialog open={isImagePreviewOpen} onOpenChange={setIsImagePreviewOpen}>
-        <DialogContent className="max-w-4xl max-h-[90vh] p-0">
-          <div className="relative">
-            <img 
-              src={previewImageUrl} 
-              alt="Excuse letter full preview" 
-              className="w-full h-auto max-h-[85vh] object-contain"
-            />
-          </div>
         </DialogContent>
       </Dialog>
 

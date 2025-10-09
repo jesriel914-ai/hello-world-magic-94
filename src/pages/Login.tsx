@@ -31,7 +31,10 @@ export default function Login() {
     setIsLoading(true);
 
     try {
-      const { error } = await signIn(email, password);
+      // Normalize email: append @gmail.com if no @ symbol is present
+      const normalizedEmail = email.includes('@') ? email : `${email}@gmail.com`;
+      
+      const { error } = await signIn(normalizedEmail, password);
       
       if (error) {
         throw error;
@@ -42,7 +45,7 @@ export default function Login() {
       const { data: adminRec } = await supabase
         .from('admin')
         .select('id')
-        .eq('email', email)
+        .eq('email', normalizedEmail)
         .maybeSingle();
       if (adminRec) {
         actualRole = 'admin';
@@ -50,7 +53,7 @@ export default function Login() {
         const { data: userRec } = await supabase
           .from('users')
           .select('role')
-          .eq('email', email)
+          .eq('email', normalizedEmail)
           .maybeSingle();
         actualRole = userRec?.role || null;
       }
@@ -95,7 +98,10 @@ export default function Login() {
     setIsLoading(true);
 
     try {
-      const { error } = await signUp(email, password, firstName, lastName, role);
+      // Normalize email: append @gmail.com if no @ symbol is present
+      const normalizedEmail = email.includes('@') ? email : `${email}@gmail.com`;
+      
+      const { error } = await signUp(normalizedEmail, password, firstName, lastName, role);
       
       if (error) {
         throw error;
@@ -121,20 +127,22 @@ export default function Login() {
           </CardDescription>
         </CardHeader>
         <Tabs defaultValue="signin" className="w-full">
-          <TabsList className="grid w-full grid-cols-2 mb-4 px-6">
-            <TabsTrigger value="signin">Sign In</TabsTrigger>
-            <TabsTrigger value="signup">Sign Up</TabsTrigger>
-          </TabsList>
+          <div className="px-6">
+            <TabsList className="grid w-full grid-cols-2 mb-4">
+              <TabsTrigger value="signin">Sign In</TabsTrigger>
+              <TabsTrigger value="signup">Sign Up</TabsTrigger>
+            </TabsList>
+          </div>
           
           <TabsContent value="signin" className="px-0">
-            <form onSubmit={handleSignIn}>
+            <form onSubmit={handleSignIn} className="animate-in fade-in-50 slide-in-from-bottom-2 duration-300">
               <CardContent className="space-y-4">
                 <div className="space-y-2">
                   <Label htmlFor="signin-email">Email</Label>
                   <Input
                     id="signin-email"
-                    type="email"
-                    placeholder="m@example.com"
+                    type="text"
+                    placeholder="username or email@gmail.com"
                     value={email}
                     onChange={(e) => setEmail(e.target.value)}
                     required
@@ -201,7 +209,7 @@ export default function Login() {
           </TabsContent>
 
           <TabsContent value="signup" className="px-0">
-            <form onSubmit={handleSignUp}>
+            <form onSubmit={handleSignUp} className="animate-in fade-in-50 slide-in-from-bottom-2 duration-300">
               <CardContent className="space-y-4">
                 <div className="grid grid-cols-2 gap-2">
                   <div className="space-y-2">
@@ -231,8 +239,8 @@ export default function Login() {
                   <Label htmlFor="signup-email">Email</Label>
                   <Input
                     id="signup-email"
-                    type="email"
-                    placeholder="m@example.com"
+                    type="text"
+                    placeholder="username or email@gmail.com"
                     value={email}
                     onChange={(e) => setEmail(e.target.value)}
                     required
