@@ -97,23 +97,47 @@ export class MobileWebcam {
           width: { ideal: 3840 },
           height: { ideal: 2160 },
           facingMode: this.config.facingMode,
-          // @ts-ignore - Force maximum stabilization features
+          // @ts-ignore - Standard stabilization features
           zoom: this.config.zoom,
           focusMode: 'continuous',
           focusDistance: { ideal: 0.15 },
-          imageStabilization: true,      // OIS - Optical (hardware)
-          videoStabilization: true,      // EIS - Electronic (software)
-          opticalStabilization: true,    // Explicit OIS request
-          stabilizationMode: 'on',       // Force on
-          // @ts-ignore - Brand-specific stabilization
-          ultraSteady: true,             // Tecno, Realme ultra steady
-          superSteady: true,             // Samsung super steady
-          hyperSteady: true,             // Various brands
+          // Standard stabilization
+          imageStabilization: true,           // OIS - Optical (hardware lens)
+          videoStabilization: true,           // EIS - Electronic (software)
+          opticalStabilization: true,         // Explicit OIS
+          stabilizationMode: 'on',            // Force enable
+          // @ts-ignore - Brand-specific features
+          // Samsung
+          superSteady: true,                  // Samsung Super Steady
+          superSteady2: true,                 // Samsung Super Steady 2.0
+          VDIS: true,                         // Samsung VDIS
+          // Oppo/Realme
+          ultraSteady: true,                  // Oppo/Realme Ultra Steady Video
+          ultraSteadyPro: true,               // Oppo/Realme Ultra Steady Pro
+          // Vivo
+          gimbalOIS: true,                    // Vivo Gimbal OIS
+          gimbalStabilization: true,          // Vivo 5-axis gimbal
+          // Xiaomi/Redmi (Your Redmi Note 14!)
+          superStabilization: true,           // Xiaomi Super Stabilization
+          // Tecno (Your Tecno Pova 7!)
+          ultraSteadyVideo: true,             // Tecno Ultra Steady
+          // Asus ROG
+          hyperSteady: true,                  // Asus HyperSteady
+          rockSteady: true,                   // Asus Rock Steady
+          // Sony
+          steadyShot: true,                   // Sony SteadyShot
+          flawlessEye: true,                  // Sony FlawlessEye OIS
+          // Huawei
+          AIS: true,                          // Huawei AI Image Stabilization
+          // Apple
+          sensorShift: true,                  // iPhone Sensor-Shift OIS
+          cinematicStabilization: true,       // iPhone Cinematic mode
           advanced: [{
             focusMode: 'continuous',
             zoom: this.config.zoom,
             imageStabilization: true,
-            videoStabilization: true
+            videoStabilization: true,
+            opticalStabilization: true
           }]
         }
       },
