@@ -1303,24 +1303,26 @@ const TakeAttendanceSession = () => {
             )}
             </>
             )}
+            </div>
           </div>
 
-          {/* Right Section: Attendance Log */}
-          <Card className="shadow-sm">
-            <CardHeader className="p-4 pb-2">
-              <div className="flex items-center justify-between">
-                <CardTitle className="text-lg">Attendance Log</CardTitle>
-                <div className="flex gap-2">
-                  <Badge className="bg-green-100 text-green-800 hover:bg-green-100">
-                    {attendanceLog.filter(a => a.status === 'present').length} Present
-                  </Badge>
-                  <Badge className="bg-red-100 text-red-800 hover:bg-red-100">
-                    {attendanceLog.filter(a => a.status === 'absent').length} Absent
-                  </Badge>
-                </div>
+          {/* Right Section: Attendance Log - No card on mobile, card on desktop */}
+          <div className="space-y-4">
+            {/* Header */}
+            <div className="flex items-center justify-between">
+              <h3 className="text-base font-semibold">Attendance Log</h3>
+              <div className="flex gap-2">
+                <Badge className="bg-green-100 text-green-800 hover:bg-green-100">
+                  {attendanceLog.filter(a => a.status === 'present').length} Present
+                </Badge>
+                <Badge className="bg-red-100 text-red-800 hover:bg-red-100">
+                  {attendanceLog.filter(a => a.status === 'absent').length} Absent
+                </Badge>
               </div>
-            </CardHeader>
-            <CardContent className="p-4">
+            </div>
+            
+            {/* Content - Card on desktop only */}
+            <div className="lg:bg-white lg:rounded-lg lg:border lg:border-gray-200 lg:shadow-sm lg:p-4">
               {attendanceLog.length > 0 ? (
                 <div className="space-y-2 max-h-[400px] overflow-y-auto">
                   {attendanceLog.map((record) => (
