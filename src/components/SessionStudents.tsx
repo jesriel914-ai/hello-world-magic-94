@@ -3,8 +3,10 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { Search, ArrowLeft, User, RefreshCw } from "lucide-react";
+import { ScrollArea } from "@/components/ui/scroll-area";
+import { Search, ArrowLeft, User, RefreshCw, CheckCircle, XCircle, Clock } from "lucide-react";
 import { fetchSessionStudents } from "@/lib/supabaseService";
+import { supabase } from "@/lib/supabase";
 import type { Student } from "@/types";
 
 interface SessionResponse {
@@ -52,6 +54,7 @@ export default function SessionStudents({ sessionId, onClose }: SessionStudentsF
   const [searchQuery, setSearchQuery] = useState("");
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const [attendanceRecords, setAttendanceRecords] = useState<Map<number, any>>(new Map());
 
   // Pagination state
   const [pagination, setPagination] = useState<PaginationState>({
@@ -101,14 +104,25 @@ export default function SessionStudents({ sessionId, onClose }: SessionStudentsF
         
         setSession(session);
         
+        // Fetch attendance records for this session
+        const { data: attendanceData } = await supabase
+          .from('attendance')
+          .select('*')
+          .eq('session_id', sessionData.id);
+        
+        // Create a map of student_id -> attendance record
+        const attendanceMap = new Map();
+        (attendanceData || []).forEach((record: any) => {
+          attendanceMap.set(record.student_id, record);
+        });
+        setAttendanceRecords(attendanceMap);
+        
         // Transform students data to match expected format
         const studentsList = sessionStudents
           .map(student => ({
             ...student,
             full_name: student.full_name || `${student.firstname || ''} ${student.surname || ''}`.trim(),
-            status: student.status || 'absent',
-            time_in: student.time_in || null,
-            time_out: student.time_out || null
+            attendance: attendanceMap.get(student.id) || null
           }))
           // Sort students alphabetically by full_name
           .sort((a, b) => a.full_name.localeCompare(b.full_name));
@@ -357,42 +371,72 @@ export default function SessionStudents({ sessionId, onClose }: SessionStudentsF
         </div>
 
             {paginatedStudents.length > 0 ? (
-              <div className="bg-white rounded-md border border-gray-200 overflow-hidden">
-                <table className="min-w-full divide-y divide-gray-200 text-sm">
-                  <thead className="bg-gray-50">
-                    <tr className="text-xs text-gray-500">
-                      <th scope="col" className="px-6 py-2 text-left font-medium">Student</th>
-                      <th scope="col" className="px-6 py-2 text-left font-medium">ID</th>
-                      <th scope="col" className="px-6 py-2 text-left font-medium">Program</th>
-                      <th scope="col" className="px-6 py-2 text-left font-medium">Year & Section</th>
-                    </tr>
-                  </thead>
-                  <tbody className="bg-white divide-y divide-gray-200">
-                    {paginatedStudents.map((student) => {
-                      return (
-                        <tr key={student.id} className="hover:bg-gray-50">
-                          <td className="px-6 py-2 whitespace-nowrap">
-                            <div className="text-sm font-medium text-gray-900">
-                              {student.full_name}
-                            </div>
-                          </td>
-                          <td className="px-6 py-2 whitespace-nowrap text-gray-500 text-sm">
-                            {student.student_id}
-                          </td>
-                          <td className="px-6 py-2 whitespace-nowrap">
-                            <div className="text-sm text-gray-500 truncate max-w-[120px]">{student.program}</div>
-                          </td>
-                          <td className="px-6 py-2 whitespace-nowrap">
-                            <div className="text-sm text-gray-500">
-                              {student.year} • {student.section}
-                            </div>
-                          </td>
-                        </tr>
-                      );
-                    })}
-                  </tbody>
-                </table>
-              </div>
+              <ScrollArea className="h-[400px] rounded-md border border-gray-200">
+                <div className="bg-white">
+                  <table className="min-w-full divide-y divide-gray-200 text-sm">
+                    <thead className="bg-gray-50 sticky top-0 z-10">
+                      <tr className="text-xs text-gray-700 uppercase">
+                        <th scope="col" className="px-4 py-3 text-left font-semibold">Student</th>
+                        <th scope="col" className="px-4 py-3 text-left font-semibold">ID</th>
+                        <th scope="col" className="px-4 py-3 text-left font-semibold">Program</th>
+                        <th scope="col" className="px-4 py-3 text-left font-semibold">Year & Section</th>
+                        <th scope="col" className="px-4 py-3 text-left font-semibold">Status</th>
+                      </tr>
+                    </thead>
+                    <tbody className="bg-white divide-y divide-gray-200">
+                      {paginatedStudents.map((student) => {
+                        const attendance = student.attendance;
+                        return (
+                          <tr key={student.id} className="hover:bg-gray-50 transition-colors">
+                            <td className="px-4 py-3 whitespace-nowrap">
+                              <div className="text-sm font-medium text-gray-900">
+                                {student.full_name}
+                              </div>
+                            </td>
+                            <td className="px-4 py-3 whitespace-nowrap text-gray-600 text-sm">
+                              {student.student_id}
+                            </td>
+                            <td className="px-4 py-3 whitespace-nowrap">
+                              <div className="text-sm text-gray-600 truncate max-w-[120px]">{student.program}</div>
+                            </td>
+                            <td className="px-4 py-3 whitespace-nowrap">
+                              <div className="text-sm text-gray-600">
+                                {student.year} • {student.section}
+                              </div>
+                            </td>
+                            <td className="px-4 py-3 whitespace-nowrap">
+                              {attendance ? (
+                                attendance.status === 'present' ? (
+                                  <Badge className="bg-green-100 text-green-800 hover:bg-green-100 flex items-center gap-1 w-fit">
+                                    <CheckCircle className="w-3 h-3" />
+                                    Present
+                                  </Badge>
+                                ) : attendance.status === 'absent' ? (
+                                  <Badge className="bg-red-100 text-red-800 hover:bg-red-100 flex items-center gap-1 w-fit">
+                                    <XCircle className="w-3 h-3" />
+                                    Absent
+                                  </Badge>
+                                ) : attendance.status === 'late' ? (
+                                  <Badge className="bg-yellow-100 text-yellow-800 hover:bg-yellow-100 flex items-center gap-1 w-fit">
+                                    <Clock className="w-3 h-3" />
+                                    Late
+                                  </Badge>
+                                ) : (
+                                  <Badge className="bg-blue-100 text-blue-800 hover:bg-blue-100 flex items-center gap-1 w-fit">
+                                    {attendance.status}
+                                  </Badge>
+                                )
+                              ) : (
+                                <span className="text-xs text-gray-400 italic">Not recorded</span>
+                              )}
+                            </td>
+                          </tr>
+                        );
+                      })}
+                    </tbody>
+                  </table>
+                </div>
+              </ScrollArea>
             ) : (
               <div className="flex flex-col items-center justify-center py-12 px-4 text-center">
                 <div className="p-4 rounded-full bg-muted/30 mb-4">
