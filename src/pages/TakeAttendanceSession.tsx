@@ -1082,8 +1082,9 @@ const TakeAttendanceSession = () => {
         </div>
 
         <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-          {/* Left Section: Scan Signatures */}
-          <div className="space-y-4">
+          {/* Left Section: Scan Signatures - Card on desktop only */}
+          <div className="lg:bg-white lg:rounded-lg lg:border lg:border-gray-200 lg:shadow-sm lg:p-4">
+            <div className="space-y-4">
             <div className="space-y-3">
               <div className="flex items-center justify-between">
                 <span className="text-base font-semibold">
