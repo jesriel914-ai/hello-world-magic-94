@@ -307,88 +307,25 @@ const Header = ({ isMobile = false }: HeaderProps) => {
     }
   };
 
-  if (isMobile) {
-    const handleMobileMenuToggle = () => {
-      if (window.mobileDrawerState) {
-        window.mobileDrawerState.toggle();
-      }
-    };
+  const handleMobileMenuToggle = () => {
+    if (window.mobileDrawerState) {
+      window.mobileDrawerState.toggle();
+    }
+  };
 
-    return (
-      <header className="sticky top-0 z-50 md:hidden bg-background/95 backdrop-blur supports-[backdrop-filter]:bg-background/60 border-b border-sidebar-border h-14">
-        <div className="flex items-center justify-between px-4 h-14">
-          {/* Left: Menu Icon */}
-          <Button variant="ghost" size="icon" onClick={handleMobileMenuToggle}>
-            <Menu className="h-5 w-5" />
-          </Button>
-          
-          {/* Right: Profile Icon with Dropdown */}
-          <DropdownMenu>
-            <DropdownMenuTrigger asChild>
-              <Button variant="ghost" className="relative h-8 w-8 rounded-lg bg-gradient-primary p-0 flex items-center justify-center cursor-pointer transition-all duration-200 hover:scale-105">
-                <UserCircle className="h-5 w-5 text-primary-foreground" />
-              </Button>
-            </DropdownMenuTrigger>
-            <DropdownMenuContent className="w-56" align="end" forceMount>
-              <div className="flex items-center justify-start gap-2 p-2">
-                <div className="flex flex-col space-y-1 leading-none">
-                  <p className="font-medium">{getUserDisplayName()}</p>
-                </div>
-              </div>
-              <DropdownMenuSeparator />
-              <DropdownMenuItem onClick={handleProfileClick}>
-                <User className="mr-2 h-4 w-4" />
-                <span>Profile</span>
-              </DropdownMenuItem>
-              <DropdownMenuItem onClick={() => setIsLogoutConfirmOpen(true)}>
-                <LogOut className="mr-2 h-4 w-4" />
-                <span>Log out</span>
-              </DropdownMenuItem>
-            </DropdownMenuContent>
-          </DropdownMenu>
-        </div>
-      </header>
-    );
-  }
-
-  // Desktop header - starts here
+  // Render mobile or desktop header
   return (
     <>
-      <header className="sticky top-0 z-40 bg-background/95 backdrop-blur supports-[backdrop-filter]:bg-background/60 border-b border-sidebar-border h-14">
-        <div className="flex items-center justify-between pr-6 pl-2 h-14">
-          {/* Left side - Logo and toggle */}
-          <div className="flex items-center gap-4">
-            <div 
-              className="w-8 h-8 bg-gradient-primary rounded-lg flex items-center justify-center cursor-pointer transition-all duration-200 hover:scale-105"
-              onClick={toggleSidebar}
-            >
-              <GraduationCap className="w-5 h-5 text-primary-foreground" />
-            </div>
-            <h1 className="text-lg font-bold text-education-navy">AMSUIP</h1>
-          </div>
-
-          {/* Right side - Academic first, then Panel label, then User dropdown */}
-          <div className="flex items-center gap-4">
-            {/* Academic Year and Semester */}
-            {academicYear && (
-              <div className="flex items-center gap-2 text-sm text-muted-foreground">
-                <span>Current A.Y.:</span>
-                <span>{academicYear.year}</span>
-                <span>{academicYear.semester}</span>
-              </div>
-            )}
-
-            {/* Vertical Separator */}
-            {academicYear && (
-              <div className="h-4 w-px bg-gray-300"></div>
-            )}
-
-            {/* Panel Label */}
-            <div className="text-sm font-medium text-muted-foreground">
-              {getPanelLabel()}
-            </div>
-
-            {/* User Dropdown */}
+      {isMobile ? (
+        /* Mobile Header */
+        <header className="sticky top-0 z-50 md:hidden bg-background/95 backdrop-blur supports-[backdrop-filter]:bg-background/60 border-b border-sidebar-border h-14">
+          <div className="flex items-center justify-between px-4 h-14">
+            {/* Left: Menu Icon */}
+            <Button variant="ghost" size="icon" onClick={handleMobileMenuToggle}>
+              <Menu className="h-5 w-5" />
+            </Button>
+            
+            {/* Right: Profile Icon with Dropdown */}
             <DropdownMenu>
               <DropdownMenuTrigger asChild>
                 <Button variant="ghost" className="relative h-8 w-8 rounded-lg bg-gradient-primary p-0 flex items-center justify-center cursor-pointer transition-all duration-200 hover:scale-105">
@@ -413,10 +350,73 @@ const Header = ({ isMobile = false }: HeaderProps) => {
               </DropdownMenuContent>
             </DropdownMenu>
           </div>
-        </div>
-      </header>
+        </header>
+      ) : (
+        /* Desktop Header */
+        <header className="sticky top-0 z-40 bg-background/95 backdrop-blur supports-[backdrop-filter]:bg-background/60 border-b border-sidebar-border h-14">
+          <div className="flex items-center justify-between pr-6 pl-2 h-14">
+            {/* Left side - Logo and toggle */}
+            <div className="flex items-center gap-4">
+              <div 
+                className="w-8 h-8 bg-gradient-primary rounded-lg flex items-center justify-center cursor-pointer transition-all duration-200 hover:scale-105"
+                onClick={toggleSidebar}
+              >
+                <GraduationCap className="w-5 h-5 text-primary-foreground" />
+              </div>
+              <h1 className="text-lg font-bold text-education-navy">AMSUIP</h1>
+            </div>
+
+            {/* Right side - Academic first, then Panel label, then User dropdown */}
+            <div className="flex items-center gap-4">
+              {/* Academic Year and Semester */}
+              {academicYear && (
+                <div className="flex items-center gap-2 text-sm text-muted-foreground">
+                  <span>Current A.Y.:</span>
+                  <span>{academicYear.year}</span>
+                  <span>{academicYear.semester}</span>
+                </div>
+              )}
+
+              {/* Vertical Separator */}
+              {academicYear && (
+                <div className="h-4 w-px bg-gray-300"></div>
+              )}
+
+              {/* Panel Label */}
+              <div className="text-sm font-medium text-muted-foreground">
+                {getPanelLabel()}
+              </div>
+
+              {/* User Dropdown */}
+              <DropdownMenu>
+                <DropdownMenuTrigger asChild>
+                  <Button variant="ghost" className="relative h-8 w-8 rounded-lg bg-gradient-primary p-0 flex items-center justify-center cursor-pointer transition-all duration-200 hover:scale-105">
+                    <UserCircle className="h-5 w-5 text-primary-foreground" />
+                  </Button>
+                </DropdownMenuTrigger>
+                <DropdownMenuContent className="w-56" align="end" forceMount>
+                  <div className="flex items-center justify-start gap-2 p-2">
+                    <div className="flex flex-col space-y-1 leading-none">
+                      <p className="font-medium">{getUserDisplayName()}</p>
+                    </div>
+                  </div>
+                  <DropdownMenuSeparator />
+                  <DropdownMenuItem onClick={handleProfileClick}>
+                    <User className="mr-2 h-4 w-4" />
+                    <span>Profile</span>
+                  </DropdownMenuItem>
+                  <DropdownMenuItem onClick={() => setIsLogoutConfirmOpen(true)}>
+                    <LogOut className="mr-2 h-4 w-4" />
+                    <span>Log out</span>
+                  </DropdownMenuItem>
+                </DropdownMenuContent>
+              </DropdownMenu>
+            </div>
+          </div>
+        </header>
+      )}
       
-      {/* Shared Dialogs for both Mobile and Desktop */}
+      {/* Shared Dialogs for Both Mobile and Desktop */}
       {/* Profile Dialog */}
       <Dialog open={isProfileOpen} onOpenChange={setIsProfileOpen}>
           <DialogContent className="max-w-md w-full">
