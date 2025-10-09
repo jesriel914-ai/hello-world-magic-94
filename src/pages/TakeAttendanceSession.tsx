@@ -1378,7 +1378,8 @@ const TakeAttendanceSession = () => {
               <DialogTitle>Confirm Status Change</DialogTitle>
             </DialogHeader>
             <p>
-              This student is already marked as <strong>{pendingChange?.student && attendanceMap.get(pendingChange.student.id)?.status}</strong>. 
+              <strong>{pendingChange?.student && `${pendingChange.student.firstname} ${pendingChange.student.surname}`}</strong> is already marked as{' '}
+              <strong>{pendingChange?.student && attendanceMap.get(pendingChange.student.id)?.status}</strong>. 
               Do you want to change it to <strong>{pendingChange?.newStatus}</strong>?
             </p>
             <DialogFooter className="flex flex-row gap-2">
