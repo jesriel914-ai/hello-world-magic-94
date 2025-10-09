@@ -867,13 +867,20 @@ const TakeAttendanceSession = () => {
                 size="default"
                 onClick={() => {
                   const newValue = !showStudentList;
+                  
+                  // Stop camera when going to Details
+                  if (newValue && isCameraReady) {
+                    stopCamera();
+                  }
+                  
                   setShowStudentList(newValue);
+                  
                   if (newValue && sessionStudents.length === 0) {
                     loadSessionStudents();
                   }
                 }}
                 className="h-10 w-10 p-0"
-                title={showStudentList ? "Back to Scanner" : "View Attendees"}
+                title={showStudentList ? "Back to Scanner" : "View Details"}
               >
                 {showStudentList ? <X className="w-5 h-5" /> : <List className="w-5 h-5" />}
               </Button>
