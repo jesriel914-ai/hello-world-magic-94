@@ -1356,8 +1356,8 @@ const TakeAttendanceSession = () => {
                   <p className="text-gray-500 text-sm">No attendance recorded yet</p>
                 </div>
               )}
-            </CardContent>
-          </Card>
+            </div>
+          </div>
         </div>
         
         {/* Status Change Confirmation Dialog */}
