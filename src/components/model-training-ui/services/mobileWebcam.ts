@@ -91,10 +91,11 @@ export class MobileWebcam {
     }
 
     const constraintSets: MediaStreamConstraints[] = [
+      // 1. Try 4K Ultra HD (3840x2160) - Best quality for high-end phones
       {
         video: {
-          width: { ideal: 1920 },
-          height: { ideal: 1080 },
+          width: { ideal: 3840 },
+          height: { ideal: 2160 },
           facingMode: this.config.facingMode,
           // @ts-ignore
           zoom: this.config.zoom,
@@ -108,6 +109,24 @@ export class MobileWebcam {
           }]
         }
       },
+      // 2. Try Quad HD (2560x1440) - Good quality for mid-range phones
+      {
+        video: {
+          width: { ideal: 2560 },
+          height: { ideal: 1440 },
+          facingMode: this.config.facingMode,
+          // @ts-ignore
+          zoom: this.config.zoom,
+          focusMode: 'continuous',
+          focusDistance: { ideal: 0.15 },
+          imageStabilization: true,
+          advanced: [{
+            focusMode: 'continuous',
+            zoom: this.config.zoom
+          }]
+        }
+      },
+      // 3. Try Full HD (1920x1080) - Standard quality
       {
         video: {
           width: { ideal: 1920 },
@@ -123,16 +142,7 @@ export class MobileWebcam {
           }]
         }
       },
-      {
-        video: {
-          width: { ideal: 1920 },
-          height: { ideal: 1080 },
-          facingMode: this.config.facingMode,
-          // @ts-ignore
-          focusMode: 'continuous',
-          focusDistance: { ideal: 0.15 }
-        }
-      },
+      // 4. Try HD (1280x720) - Basic quality for older phones
       {
         video: {
           width: { ideal: 1280 },
@@ -142,11 +152,21 @@ export class MobileWebcam {
           focusMode: 'continuous'
         }
       },
+      // 5. Try SD (640x480) - Compatibility for very old phones
+      {
+        video: {
+          width: { ideal: 640 },
+          height: { ideal: 480 },
+          facingMode: this.config.facingMode
+        }
+      },
+      // 6. Fallback: Just request any camera with facing mode
       {
         video: {
           facingMode: this.config.facingMode
         }
       },
+      // 7. Final fallback: Any camera at all
       {
         video: true
       }
