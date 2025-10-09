@@ -989,7 +989,14 @@ const TakeAttendanceSession = () => {
                 </div>
               )}
               
-              {/* Prediction Overlay - Lower corners */}
+              {/* Model Status Overlay - Shows when camera is NOT active */}
+              {!isCameraReady && !isCameraStarting && !cameraError && (
+                <div className="absolute bottom-2 left-2 bg-black/70 text-white px-2 py-1 rounded text-xs font-medium z-30">
+                  {isLoadingModel ? 'Not ready for attendance' : (model ? 'Ready' : 'No model loaded')}
+                </div>
+              )}
+              
+              {/* Prediction Overlay - Lower-left when camera is active */}
               {isCameraReady && predictions.length > 0 && (
                 <>
                   {/* Lower-left: Student Name */}
@@ -1004,7 +1011,7 @@ const TakeAttendanceSession = () => {
               )}
             </div>
             
-            {/* Start Camera Button */}
+            {/* Camera Control Buttons */}
             {!isCameraReady ? (
               <Button 
                 onClick={startCamera}
@@ -1025,15 +1032,45 @@ const TakeAttendanceSession = () => {
                 )}
               </Button>
             ) : (
-              <Button 
-                onClick={stopCamera}
-                variant="destructive"
-                className="w-full py-2 h-auto text-base"
-                size="lg"
-              >
-                <StopCircle className="w-5 h-5 mr-2" />
-                Stop Camera
-              </Button>
+              <div className="grid grid-cols-2 gap-2">
+                {/* Top Row */}
+                <Button 
+                  onClick={stopCamera}
+                  variant="destructive"
+                  className="py-2 h-auto text-sm"
+                  size="sm"
+                >
+                  <StopCircle className="w-4 h-4 mr-1" />
+                  Stop
+                </Button>
+                <Button 
+                  onClick={() => console.log('Verify clicked')}
+                  className="py-2 h-auto text-sm bg-blue-600 hover:bg-blue-700"
+                  size="sm"
+                >
+                  <CheckCircle className="w-4 h-4 mr-1" />
+                  Verify
+                </Button>
+                
+                {/* Bottom Row */}
+                <Button 
+                  onClick={() => console.log('Absent clicked')}
+                  variant="outline"
+                  className="py-2 h-auto text-sm border-red-300 text-red-600 hover:bg-red-50"
+                  size="sm"
+                >
+                  <XCircle className="w-4 h-4 mr-1" />
+                  Absent
+                </Button>
+                <Button 
+                  onClick={() => console.log('Present clicked')}
+                  className="py-2 h-auto text-sm bg-green-600 hover:bg-green-700"
+                  size="sm"
+                >
+                  <CheckCircle className="w-4 h-4 mr-1" />
+                  Present
+                </Button>
+              </div>
             )}
             </>
             )}
