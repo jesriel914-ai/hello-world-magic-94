@@ -331,22 +331,22 @@ const TakeAttendanceSession = () => {
     loadLatestModel();
   }, []);
 
-  // Camera prediction loop (only top 1 prediction)
+  // Camera prediction loop (only top 1 prediction) - Using improved version from master with requestAnimationFrame
   useEffect(() => {
     if (!isMobile || !isCameraReady || !mobileWebcam.current || !model) {
-      if (cameraPredictionIntervalRef.current) {
-        clearInterval(cameraPredictionIntervalRef.current);
-        cameraPredictionIntervalRef.current = null;
-      }
       setPredictions([]);
+      console.log('🛑 Camera prediction loop stopped');
       return;
     }
     
     let isRunning = false;
     let consecutiveErrors = 0;
     const MAX_ERRORS = 3;
+    let successCount = 0;
     let lastCleanupTime = Date.now();
+    let lastPredictionTime = 0;
     const CLEANUP_INTERVAL = 5000;
+    const MIN_PREDICTION_INTERVAL = 500; // ✅ Adjust this for your hardware (300-700ms)
     
     const runCameraPrediction = async () => {
       if (isRunning) return;
@@ -362,23 +362,30 @@ const TakeAttendanceSession = () => {
         }
         
         const videoElement = mobileWebcam.current.getVideo();
-        if (!videoElement || videoElement.paused || videoElement.ended || videoElement.readyState < 2) {
-          throw new Error('Video not ready');
-        }
+        if (!videoElement) throw new Error('Video element is null');
+        if (videoElement.paused || videoElement.ended) throw new Error('Video is paused or ended');
+        if (videoElement.readyState < 2) throw new Error(`Video not ready (readyState: ${videoElement.readyState})`);
         
         const canvas = mobileWebcam.current.captureFrame();
-        if (!canvas || canvas.width !== 224 || canvas.height !== 224) {
-          throw new Error('Invalid canvas');
-        }
+        if (!canvas) throw new Error('captureFrame() returned null');
+        if (canvas.width !== 224 || canvas.height !== 224) throw new Error(`Invalid canvas size: ${canvas.width}x${canvas.height}`);
         
-        const predictionResults = await predictFromCanvas(model, canvas, false);
-        
-        if (!predictionResults || predictionResults.length === 0) {
-          throw new Error('Empty predictions');
-        }
+        const predictions = await predictFromCanvas(model, canvas, false);
+        if (!predictions || predictions.length === 0) throw new Error('Model returned empty predictions');
         
         consecutiveErrors = 0;
-        const sortedPredictions = predictionResults.sort((a, b) => b.confidence - a.confidence);
+        successCount++;
+        
+        const sortedPredictions = predictions.sort((a, b) => b.confidence - a.confidence);
+        
+        if (successCount % 30 === 0) {
+          const memory = tf.memory();
+          console.log(`📊 Memory stats after ${successCount} predictions:`, {
+            numTensors: memory.numTensors,
+            numBytes: (memory.numBytes / 1024 / 1024).toFixed(2) + ' MB'
+          });
+        }
+        
         setPredictions(sortedPredictions);
         
       } catch (error) {
@@ -386,11 +393,12 @@ const TakeAttendanceSession = () => {
         console.error(`❌ Camera prediction error #${consecutiveErrors}:`, error);
         
         if (consecutiveErrors >= MAX_ERRORS) {
-          if (cameraPredictionIntervalRef.current) {
-            clearInterval(cameraPredictionIntervalRef.current);
-            cameraPredictionIntervalRef.current = null;
-          }
-          toast.error('Camera prediction failed. Please restart camera.');
+          console.error('🛑 Too many consecutive errors, stopping predictions');
+          toast({
+            title: 'Camera Prediction Failed',
+            description: 'Unable to process camera feed. Please try restarting the camera.',
+            variant: 'destructive',
+          });
           setPredictions([]);
         }
       } finally {
@@ -398,17 +406,36 @@ const TakeAttendanceSession = () => {
       }
     };
     
-    runCameraPrediction();
-    cameraPredictionIntervalRef.current = setInterval(runCameraPrediction, 300);
+    // ✅ Use requestAnimationFrame for smooth predictions
+    let animationFrameId: number;
+    
+    const predictionLoop = async () => {
+      const now = Date.now();
+      
+      // Throttle predictions to MIN_PREDICTION_INTERVAL
+      if (now - lastPredictionTime >= MIN_PREDICTION_INTERVAL) {
+        await runCameraPrediction();
+        lastPredictionTime = now;
+      }
+      
+      // Continue loop if camera is still active
+      if (isCameraReady && model) {
+        animationFrameId = requestAnimationFrame(predictionLoop);
+      }
+    };
+    
+    console.log('🚀 Starting camera prediction loop with requestAnimationFrame');
+    predictionLoop();
     
     return () => {
-      if (cameraPredictionIntervalRef.current) {
-        clearInterval(cameraPredictionIntervalRef.current);
-        cameraPredictionIntervalRef.current = null;
+      console.log('🛑 Stopping camera prediction loop');
+      if (animationFrameId) {
+        cancelAnimationFrame(animationFrameId);
       }
+      console.log('🧹 Final memory cleanup');
       forceMemoryCleanup();
     };
-  }, [isMobile, isCameraReady, model]);
+  }, [isMobile, isCameraReady, model, toast]);
 
   // Check for basic MediaDevices API support on component mount
   useEffect(() => {

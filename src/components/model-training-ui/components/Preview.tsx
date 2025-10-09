@@ -381,7 +381,7 @@ useEffect(() => {
   console.log('🚀 Starting camera prediction loop with memory management');
   runCameraPrediction();
   
-  cameraPredictionIntervalRef.current = setInterval(runCameraPrediction, 300);
+  cameraPredictionIntervalRef.current = setInterval(runCameraPrediction, 500);
   
   return () => {
     if (cameraPredictionIntervalRef.current) {

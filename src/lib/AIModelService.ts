@@ -909,58 +909,46 @@ async loadModel(modelId: string): Promise<{
       getTotalClasses: () => importedModel.metadata.labels.length,
       
       predict: async (image: HTMLCanvasElement | HTMLVideoElement, flipped?: boolean) => {
-        console.log('🔮 Making prediction with loaded model');
-  
-        // DON'T use tf.tidy with async - do memory management manually
-        let imageTensor: tf.Tensor | null = null;
-        let normalized: tf.Tensor | null = null;
-        let batched: tf.Tensor | null = null;
-        let features: tf.Tensor | null = null;
-        let predictions: tf.Tensor | null = null;
-  
-        try {
-          // Preprocess image
-          imageTensor = tf.browser.fromPixels(image)
-            .resizeNearestNeighbor([224, 224])
-            .toFloat();
+  console.log('🔮 Making prediction with loaded model');
+
+  // ✅ Wrap EVERYTHING in tf.tidy() - even the preprocessing
+  const results = await tf.tidy(() => {
+    // Preprocess image
+    let imageTensor = tf.browser.fromPixels(image)
+      .resizeNearestNeighbor([224, 224])
+      .toFloat();
+
+    if (flipped) {
+      imageTensor = imageTensor.reverse(1);
+    }
+
+    // Normalize for MobileNet [-1, 1]
+    const normalized = imageTensor.sub(127.5).div(127.5);
+    const batched = normalized.expandDims(0);
+
+    // Extract features using MobileNet
+    const features = importedModel.featureExtractor.predict(batched) as tf.Tensor;
+
+    // Run through classifier
+    const predictions = importedModel.classifier.predict(features) as tf.Tensor;
     
-          if (flipped) {
-            const flippedTensor = imageTensor.reverse(1);
-            imageTensor.dispose();
-            imageTensor = flippedTensor;
-          }
-    
-          // Normalize for MobileNet [-1, 1]
-          normalized = imageTensor.sub(127.5).div(127.5);
-          batched = normalized.expandDims(0);
-    
-          // Extract features using MobileNet
-          features = importedModel.featureExtractor.predict(batched) as tf.Tensor;
-    
-          // Run through classifier
-          predictions = importedModel.classifier.predict(features) as tf.Tensor;
-          const predictionData = await predictions.data();
-    
-          // Convert to results
-          const results: PredictionResult[] = Array.from(predictionData).map((confidence, index) => ({
-            className: importedModel.metadata.labels[index] || `Class ${index}`,
-            confidence: Number(confidence)
-          }));
-    
-          // Sort by confidence
-          results.sort((a, b) => b.confidence - a.confidence);
-    
-          return results;
-    
-        } finally {
-          // Clean up all tensors
-          if (imageTensor) imageTensor.dispose();
-          if (normalized) normalized.dispose();
-          if (batched) batched.dispose();
-          if (features) features.dispose();
-          if (predictions) predictions.dispose();
-        }
-      }
+    // Get prediction data (synchronously - no await inside tidy!)
+    const predictionData = predictions.dataSync();
+
+    // Convert to results (plain JavaScript, no tensors)
+    const results: PredictionResult[] = Array.from(predictionData).map((confidence, index) => ({
+      className: importedModel.metadata.labels[index] || `Class ${index}`,
+      confidence: Number(confidence)
+    }));
+
+    // Sort by confidence
+    results.sort((a, b) => b.confidence - a.confidence);
+
+    return results;
+  });
+
+  return results;
+}
       
       
     };
