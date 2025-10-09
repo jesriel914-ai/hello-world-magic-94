@@ -1307,9 +1307,9 @@ const TakeAttendanceSession = () => {
           </div>
 
           {/* Right Section: Attendance Log - No card on mobile, card on desktop */}
-          <div className="space-y-4">
-            {/* Header */}
-            <div className="flex items-center justify-between">
+          <div>
+            {/* Mobile: Header with badges outside card */}
+            <div className="lg:hidden flex items-center justify-between mb-4">
               <h3 className="text-base font-semibold">Attendance Log</h3>
               <div className="flex gap-2">
                 <Badge className="bg-green-100 text-green-800 hover:bg-green-100">
@@ -1321,8 +1321,22 @@ const TakeAttendanceSession = () => {
               </div>
             </div>
             
-            {/* Content - Card on desktop only */}
-            <div className="lg:bg-white lg:rounded-lg lg:border lg:border-gray-200 lg:shadow-sm lg:p-4">
+            {/* Desktop: Everything inside card */}
+            <div className="lg:bg-white lg:rounded-lg lg:border lg:border-gray-200 lg:shadow-sm">
+              {/* Desktop: Header with badges inside card */}
+              <div className="hidden lg:flex items-center justify-between p-4 pb-3 border-b border-gray-100">
+                <h3 className="text-lg font-semibold">Attendance Log</h3>
+                <div className="flex gap-2">
+                  <Badge className="bg-green-100 text-green-800 hover:bg-green-100">
+                    {attendanceLog.filter(a => a.status === 'present').length} Present
+                  </Badge>
+                  <Badge className="bg-red-100 text-red-800 hover:bg-red-100">
+                    {attendanceLog.filter(a => a.status === 'absent').length} Absent
+                  </Badge>
+                </div>
+              </div>
+              
+              <div className="lg:p-4">
               {attendanceLog.length > 0 ? (
                 <div className="space-y-2 max-h-[400px] overflow-y-auto">
                   {attendanceLog.map((record) => (
@@ -1358,6 +1372,7 @@ const TakeAttendanceSession = () => {
                   <p className="text-gray-500 text-sm">No attendance recorded yet</p>
                 </div>
               )}
+              </div>
             </div>
           </div>
         </div>
