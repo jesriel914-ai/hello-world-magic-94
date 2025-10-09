@@ -1246,7 +1246,8 @@ const TakeAttendanceSession = () => {
                 <Button 
                   onClick={() => markAttendance('present')}
                   disabled={!predictions.length || isPaused}
-                  className="w-full h-12 text-sm bg-green-600 hover:bg-green-700 disabled:opacity-50 disabled:cursor-not-allowed"
+                  className="w-full h-12 text-sm bg-green-600 hover:bg-green-700 active:bg-green-700 focus:bg-green-600 disabled:opacity-50 disabled:cursor-not-allowed transition-none"
+                  onMouseUp={(e) => e.currentTarget.blur()}
                 >
                   Mark Present
                 </Button>
@@ -1254,7 +1255,8 @@ const TakeAttendanceSession = () => {
                   onClick={() => markAttendance('absent')}
                   disabled={!predictions.length || isPaused}
                   variant="outline"
-                  className="w-full h-12 text-sm border-red-300 text-red-600 hover:bg-red-50 disabled:opacity-50 disabled:cursor-not-allowed"
+                  className="w-full h-12 text-sm border-red-300 text-red-600 hover:bg-red-50 active:bg-red-50 focus:bg-white disabled:opacity-50 disabled:cursor-not-allowed transition-none"
+                  onMouseUp={(e) => e.currentTarget.blur()}
                 >
                   Mark Absent
                 </Button>
