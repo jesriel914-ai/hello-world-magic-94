@@ -317,18 +317,36 @@ const Header = ({ isMobile = false }: HeaderProps) => {
     return (
       <header className="sticky top-0 z-50 md:hidden bg-background/95 backdrop-blur supports-[backdrop-filter]:bg-background/60 border-b border-sidebar-border h-14">
         <div className="flex items-center justify-between px-4 h-14">
-          <div className="flex items-center gap-3">
-            <div 
-              className="w-8 h-8 bg-gradient-primary rounded-lg flex items-center justify-center cursor-pointer transition-all duration-200 hover:scale-105"
-              onClick={handleMobileMenuToggle}
-            >
-              <GraduationCap className="w-5 h-5 text-primary-foreground" />
-            </div>
-            <h1 className="text-lg font-bold text-education-navy">AMSUIP</h1>
-          </div>
+          {/* Left: Menu Icon */}
           <Button variant="ghost" size="icon" onClick={handleMobileMenuToggle}>
             <Menu className="h-5 w-5" />
           </Button>
+          
+          {/* Right: Profile Icon with Dropdown */}
+          <DropdownMenu>
+            <DropdownMenuTrigger asChild>
+              <Button variant="ghost" className="relative h-8 w-8 rounded-lg bg-gradient-primary p-0 flex items-center justify-center cursor-pointer transition-all duration-200 hover:scale-105">
+                <UserCircle className="h-5 w-5 text-primary-foreground" />
+              </Button>
+            </DropdownMenuTrigger>
+            <DropdownMenuContent className="w-56" align="end" forceMount>
+              <div className="flex items-center justify-start gap-2 p-2">
+                <div className="flex flex-col space-y-1 leading-none">
+                  <p className="font-medium">{getUserDisplayName()}</p>
+                </div>
+              </div>
+              <DropdownMenuSeparator />
+              <DropdownMenuItem onClick={handleProfileClick}>
+                <User className="mr-2 h-4 w-4" />
+                <span>Profile</span>
+              </DropdownMenuItem>
+              <DropdownMenuSeparator />
+              <DropdownMenuItem onClick={() => setIsLogoutConfirmOpen(true)}>
+                <LogOut className="mr-2 h-4 w-4" />
+                <span>Log out</span>
+              </DropdownMenuItem>
+            </DropdownMenuContent>
+          </DropdownMenu>
         </div>
       </header>
     );
