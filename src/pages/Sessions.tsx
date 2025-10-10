@@ -93,19 +93,17 @@ type SupabaseAttendanceResponse = Array<{
 }>;
 
 // Extend the base Session type with our local requirements
-interface Session extends Omit<SessionType, 'time_in' | 'time_out' | 'capacity'> {
+interface Session extends Omit<SessionType, 'time_in' | 'time_out'> {
   time: string; // Combined time display
   time_in: string;
   time_out: string;
-  location: string;
-  instructor: string;
   students: number;
   present?: number;
   absent?: number;
   program: string;
   year: string;
   section: string;
-  capacity: string; // Changed to only allow string to match the database schema
+  status: 'upcoming' | 'ongoing' | 'completed';
   date: string;
 }
 
@@ -123,6 +121,30 @@ const formatTime = (timeString: string) => {
   const displayHour = hour % 12 || 12; // Convert 0 to 12 for 12 AM
   
   return `${displayHour}:${mins} ${period}`;
+};
+
+// Calculate session status based on date and time
+const calculateSessionStatus = (date: string, timeIn: string, timeOut: string): 'upcoming' | 'ongoing' | 'completed' => {
+  const now = new Date();
+  const sessionDate = new Date(date);
+  
+  // Parse time_in
+  const [inHours, inMinutes] = timeIn.split(':').map(Number);
+  const sessionStart = new Date(sessionDate);
+  sessionStart.setHours(inHours, inMinutes, 0, 0);
+  
+  // Parse time_out
+  const [outHours, outMinutes] = timeOut.split(':').map(Number);
+  const sessionEnd = new Date(sessionDate);
+  sessionEnd.setHours(outHours, outMinutes, 0, 0);
+  
+  if (now < sessionStart) {
+    return 'upcoming';
+  } else if (now >= sessionStart && now <= sessionEnd) {
+    return 'ongoing';
+  } else {
+    return 'completed';
+  }
 };
 
 const formatDateString = (date: Date | string): string => {
@@ -405,6 +427,13 @@ const Schedule = () => {
         const studentCount = studentCountMap.get(sessionKey) || 0;
         const att = attendanceMap.get(session.id) || { present: 0, absent: 0 };
         
+        // Calculate status if not already set in DB
+        const status = session.status || calculateSessionStatus(
+          session.date, 
+          session.time_in || '00:00', 
+          session.time_out || '23:59'
+        );
+        
         return {
           id: session.id,
           title: session.title || 'Untitled Session',
@@ -420,8 +449,7 @@ const Schedule = () => {
           program: session.program || 'General',
           year: session.year || 'All Year Levels',
           section: session.section || 'All Sections',
-          description: session.description || '',
-          capacity: session.capacity ? String(session.capacity) : 'Unlimited',
+          status: status,
           date: session.date,
           created_at: session.created_at || new Date().toISOString(),
           updated_at: session.updated_at || new Date().toISOString()
@@ -566,6 +594,13 @@ const Schedule = () => {
         const sessionKey = `${session.program || 'all'}::${session.year || 'all'}::${session.section || 'all'}`;
         const studentCount = studentCountMap.get(sessionKey) || 0;
         
+        // Calculate status if not already set in DB
+        const status = session.status || calculateSessionStatus(
+          session.date, 
+          session.time_in || '00:00', 
+          session.time_out || '23:59'
+        );
+        
         return {
           id: session.id,
           title: session.title || 'Untitled Session',
@@ -579,8 +614,7 @@ const Schedule = () => {
           program: session.program || 'General',
           year: session.year || 'All Year Levels',
           section: session.section || 'All Sections',
-          description: session.description || '',
-          capacity: session.capacity ? String(session.capacity) : 'Unlimited',
+          status: status,
           date: session.date,
           created_at: session.created_at || new Date().toISOString(),
           updated_at: session.updated_at || new Date().toISOString()
@@ -778,6 +812,13 @@ const Schedule = () => {
       sessionDate = formatDateString(today);
     }
 
+    // Calculate status
+    const status = calculateSessionStatus(
+      sessionDate, 
+      data.timeIn || '00:00', 
+      data.timeOut || '23:59'
+    );
+
     return {
       id: id || Date.now(),
       title: data.title || 'Untitled Session',
@@ -789,9 +830,10 @@ const Schedule = () => {
       program: data.program || 'General',
       year: data.year || 'All Year Levels',
       section: data.section || 'All Sections',
-      description: data.description || '',
-      capacity: data.capacity || 'Unlimited',
-      date: sessionDate
+      status: status,
+      date: sessionDate,
+      created_at: new Date().toISOString(),
+      updated_at: new Date().toISOString()
     } as Session;
   };
 
@@ -806,6 +848,13 @@ const Schedule = () => {
       // Format the date to ensure consistency
       const formattedDate = formatDateString(sessionData.date);
       
+      // Calculate status
+      const status = calculateSessionStatus(
+        formattedDate,
+        sessionData.timeIn,
+        sessionData.timeOut
+      );
+      
       // Prepare the session data for Supabase with proper types
       const sessionForSupabase = {
         title: sessionData.title,
@@ -815,8 +864,7 @@ const Schedule = () => {
         program: sessionData.program || 'General',
         year: sessionData.year || 'All Year Levels',
         section: sessionData.section || 'All Sections',
-        description: sessionData.description || '',
-        capacity: sessionData.capacity ? String(sessionData.capacity) : 'Unlimited',
+        status: status,
         date: formattedDate
       };
 
@@ -828,7 +876,7 @@ const Schedule = () => {
         
         try {
           // Update the backend
-          await updateSession(sessionId, { ...sessionForSupabase, capacity: parseInt(sessionForSupabase.capacity) || 0 });
+          await updateSession(sessionId, sessionForSupabase);
           
           // Calculate student count for the updated session
           let studentCount = 0;
@@ -888,7 +936,7 @@ const Schedule = () => {
       } else {
         // Add new session
         try {
-          const newSession = await createSession({ ...sessionForSupabase, capacity: parseInt(sessionForSupabase.capacity) || 0 });
+          const newSession = await createSession(sessionForSupabase);
           
           // Calculate student count for the new session
           let studentCount = 0;
@@ -1029,9 +1077,6 @@ const Schedule = () => {
         date: session.date,
         timeIn,
         timeOut,
-        description: session.description || '',
-        venue: session.location || 'Not specified',
-        capacity: session.capacity || 'Unlimited',
         attendanceType: (session.type as 'class' | 'event' | 'other') || 'class'
       };
       
@@ -1313,114 +1358,113 @@ const Schedule = () => {
               </div>
             </div>
 
-            {/* Sessions List */}
-            <div className="space-y-2">
-              {isLoading ? (
-                <div className="flex items-center justify-center py-8">
-                  <Loader2 className="w-6 h-6 animate-spin text-education-blue mr-2" />
-                  <span className="text-sm text-muted-foreground">Loading sessions...</span>
-                </div>
-              ) : paginatedSessions.length > 0 ? (
-                [...paginatedSessions].sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime()).map((session) => (
-                <Card key={session.id} className="bg-gradient-card border border-gray-100 shadow-card">
-                  <CardContent className="p-3">
-                    <div className="flex items-center justify-between">
-                      <div className="flex items-start gap-3">
-                        <div className="p-2 rounded-lg bg-gradient-primary/10">
-                          {getTypeIcon(session.type)}
+            {/* Sessions Table */}
+            <div className="border-t border-gray-200 overflow-hidden min-h-[378px]">
+              <table className="min-w-full divide-y divide-gray-200 border-b border-gray-200">
+                <thead className="bg-gray-50">
+                  <tr className="text-xs text-black h-8">
+                    <th scope="col" className="px-3 py-2 text-left font-semibold uppercase">Type</th>
+                    <th scope="col" className="px-3 py-2 text-left font-semibold uppercase">Title</th>
+                    <th scope="col" className="px-3 py-2 text-left font-semibold uppercase">Date</th>
+                    <th scope="col" className="px-3 py-2 text-left font-semibold uppercase">Students</th>
+                    <th scope="col" className="px-3 py-2 text-left font-semibold uppercase">Present</th>
+                    <th scope="col" className="px-3 py-2 text-left font-semibold uppercase">Absent</th>
+                    <th scope="col" className="px-3 py-2 text-left font-semibold uppercase">Status</th>
+                    <th scope="col" className="px-3 py-2 text-center font-semibold uppercase">Actions</th>
+                  </tr>
+                </thead>
+                <tbody className="bg-white divide-y divide-gray-200 text-xs text-gray-500">
+                  {isLoading ? (
+                    <tr className="h-8">
+                      <td colSpan={8} className="px-3 py-1 text-center">
+                        <div className="flex items-center justify-center py-8">
+                          <Loader2 className="w-6 h-6 animate-spin text-education-blue mr-2" />
+                          <span className="text-sm text-muted-foreground">Loading sessions...</span>
                         </div>
-                        <div>
-                          <div className="flex items-center gap-1.5 mb-0.5">
-                            <h4 className="font-medium text-education-navy text-sm">{session.title}</h4>
-                            {getTypeBadge(session.type)}
+                      </td>
+                    </tr>
+                  ) : paginatedSessions.length === 0 ? (
+                    <tr className="h-8">
+                      <td colSpan={8} className="px-3 py-1 text-center text-sm text-gray-500">
+                        {sessions.length === 0 
+                          ? 'No sessions scheduled. Add your first session!'
+                          : 'No sessions match the current filters. Try adjusting your search.'}
+                      </td>
+                    </tr>
+                  ) : (
+                    [...paginatedSessions].sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime()).map((session) => (
+                      <tr key={session.id} className="hover:bg-gray-50 h-8">
+                        <td className="px-3 py-1 whitespace-nowrap">
+                          <div className="flex items-center gap-1">
+                            {getTypeIcon(session.type)}
+                            <span className="text-xs capitalize">{session.type}</span>
                           </div>
-                          <div className="text-xs text-muted-foreground">
-                            <span className="mr-3">{format(new Date(session.date), 'MMM d, yyyy')}</span>
-                            <span className="inline-flex items-center gap-1"><Clock className="w-2.5 h-2.5" />{session.time}</span>
-                          </div>
-                          <p className="text-xs text-muted-foreground mt-0.5">
+                        </td>
+                        <td className="px-3 py-1 whitespace-nowrap">
+                          <div className="font-medium text-gray-900">{session.title}</div>
+                          <div className="text-xs text-gray-500">
                             {session.program} • {session.year}
                             {session.section && ` • ${session.section}`}
-                          </p>
-                        </div>
-                      </div>
-
-                      <div className="flex items-center gap-6">
-                        <div className="hidden sm:flex flex-wrap items-center gap-6">
-                          <div className="text-center">
-                            <div className="flex items-center gap-1 text-xs text-muted-foreground">
-                              <Users className="w-3.5 h-3.5" />
-                              <span>Students</span>
-                            </div>
-                            <div className="text-sm font-bold text-education-navy">{session.students}</div>
                           </div>
-                          <div className="text-center">
-                            <div className="text-xs text-muted-foreground">Present</div>
-                            <div className="text-sm font-bold text-accent">{session.present ?? 0}</div>
+                        </td>
+                        <td className="px-3 py-1 whitespace-nowrap">
+                          <div>{format(new Date(session.date), 'MMM d, yyyy')}</div>
+                          <div className="text-xs text-gray-500">{session.time}</div>
+                        </td>
+                        <td className="px-3 py-1 whitespace-nowrap text-center">
+                          <span className="font-medium">{session.students}</span>
+                        </td>
+                        <td className="px-3 py-1 whitespace-nowrap text-center">
+                          <span className="font-medium text-green-600">{session.present ?? 0}</span>
+                        </td>
+                        <td className="px-3 py-1 whitespace-nowrap text-center">
+                          <span className="font-medium text-red-600">{session.absent ?? 0}</span>
+                        </td>
+                        <td className="px-3 py-1 whitespace-nowrap">
+                          <Badge className={`
+                            ${session.status === 'upcoming' ? 'bg-blue-100 text-blue-800 hover:bg-blue-100' : ''}
+                            ${session.status === 'ongoing' ? 'bg-green-100 text-green-800 hover:bg-green-100' : ''}
+                            ${session.status === 'completed' ? 'bg-gray-100 text-gray-800 hover:bg-gray-100' : ''}
+                          `}>
+                            {session.status}
+                          </Badge>
+                        </td>
+                        <td className="px-3 py-1 whitespace-nowrap">
+                          <div className="flex justify-center gap-1">
+                            <Button 
+                              variant="outline" 
+                              size="sm"
+                              className="h-6 w-6 p-0 transition-all duration-200 hover:scale-105"
+                              onClick={() => handleViewStudents(session.id)}
+                              title="View Students"
+                            >
+                              <List className="h-3 w-3 text-green-600" />
+                            </Button>
+                            <Button 
+                              variant="outline"
+                              size="sm"
+                              className="h-6 w-6 p-0 transition-all duration-200 hover:scale-105"
+                              onClick={() => handleEditSession(session)}
+                              title="Edit Session"
+                            >
+                              <SquarePen className="h-3 w-3 text-yellow-600" />
+                            </Button>
+                            <Button 
+                              variant="outline"
+                              size="sm"
+                              className="h-6 w-6 p-0 transition-all duration-200 hover:scale-105"
+                              onClick={() => confirmDeleteSession(session.id)}
+                              title="Delete Session"
+                            >
+                              <Trash2 className="h-3 w-3 text-red-600" />
+                            </Button>
                           </div>
-                          <div className="text-center">
-                            <div className="text-xs text-muted-foreground">Absent</div>
-                            <div className="text-sm font-bold text-destructive">{session.absent ?? 0}</div>
-                          </div>
-                        </div>
-
-                        <div className="flex gap-1">
-                          <Button 
-                            variant="outline" 
-                            size="sm"
-                            className="h-8 w-8 p-0 transition-all duration-200 hover:scale-105"
-                            onClick={() => handleViewStudents(session.id)}
-                            title="View Students"
-                          >
-                            <List className="h-4 w-4 text-green-600 transform hover:scale-125 transition-transform duration-200 ease-in-out" />
-                          </Button>
-                          <Button 
-                            variant="outline"
-                            size="sm"
-                            className="h-8 w-8 p-0 transition-all duration-200 hover:scale-105"
-                            onClick={() => handleEditSession(session)}
-                            title="Edit Session"
-                          >
-                            <SquarePen className="h-4 w-4 text-yellow-600 transform hover:scale-125 transition-transform duration-200 ease-in-out" />
-                          </Button>
-                          <Button 
-                            variant="outline"
-                            size="sm"
-                            className="h-8 w-8 p-0 transition-all duration-200 hover:scale-105"
-                            onClick={() => confirmDeleteSession(session.id)}
-                            title="Delete Session"
-                          >
-                            <Trash2 className="h-4 w-4 text-red-600 transform hover:scale-125 transition-transform duration-200 ease-in-out" />
-                          </Button>
-                        </div>
-                      </div>
-                    </div>
-                  </CardContent>
-                </Card>
-              ))
-            ) : (
-              <Card className="bg-gradient-card border border-gray-200 shadow-card">
-                <CardContent className="p-8 text-center">
-                  <CalendarClock className="w-10 h-10 mx-auto text-muted-foreground mb-2" />
-                  <h4 className="text-lg font-medium text-education-navy">
-                    {sessions.length === 0 ? 'No sessions scheduled' : 'No matching sessions found'}
-                  </h4>
-                  <p className="text-sm text-muted-foreground mt-1">
-                    {sessions.length === 0 
-                      ? 'There are no scheduled sessions.' 
-                      : 'Try adjusting your search or filters.'}
-                  </p>
-                  <Button 
-                    variant="outline" 
-                    className="mt-4"
-                    onClick={() => setIsModalOpen(true)}
-                  >
-                    <Plus className="w-4 h-4 mr-2" />
-                    Add Session
-                  </Button>
-                </CardContent>
-              </Card>
-              )}
+                        </td>
+                      </tr>
+                    ))
+                  )}
+                </tbody>
+              </table>
             </div>
           </div>
         </div>
