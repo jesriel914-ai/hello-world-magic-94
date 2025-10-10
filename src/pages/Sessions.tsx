@@ -2,13 +2,10 @@ import React, { useCallback, useEffect, useMemo, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { format, addDays, startOfWeek, endOfWeek } from 'date-fns';
 import { 
-  BookOpen, 
-  Calendar,
   Clock, 
   Loader2, 
   Plus, 
   Search,
-  Star, 
   Users, 
   ChevronLeft, 
   ChevronRight, 
@@ -23,7 +20,6 @@ import {
 import Layout from "@/components/Layout";
 import PageWrapper from "@/components/PageWrapper";
 import { Button } from "@/components/ui/button";
-import { Badge } from "@/components/ui/badge";
 import { 
   Dialog, 
   DialogContent, 
@@ -1130,33 +1126,6 @@ const Schedule = () => {
     }
   };
 
-  // Helper function to get icon for session type
-  const getTypeIcon = (type: string) => {
-    switch (type) {
-      case 'class':
-        return <BookOpen className="w-4 h-4 text-primary" />;
-      case 'event':
-        return <Calendar className="w-4 h-4 text-accent" />;
-      case 'other':
-        return <Star className="w-4 h-4 text-education-navy" />;
-      default:
-        return <BookOpen className="w-4 h-4 text-primary" />;
-    }
-  };
-
-  // Helper function to get badge for session type
-  const getTypeBadge = (type: string) => {
-    switch (type) {
-      case 'class':
-        return <Badge className="bg-primary/10 text-primary border-primary/20">Class</Badge>;
-      case 'event':
-        return <Badge className="bg-accent/10 text-accent border-accent/20">Event</Badge>;
-      case 'other':
-        return <Badge className="bg-education-navy/10 text-education-navy border-education-navy/20">Activity</Badge>;
-      default:
-        return <Badge>Unknown</Badge>;
-    }
-  };
 
   // Function to navigate between weeks
   const navigateDate = useCallback((direction: 'prev' | 'next' | 'today') => {
@@ -1395,39 +1364,25 @@ const Schedule = () => {
                     [...paginatedSessions].sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime()).map((session) => (
                       <tr key={session.id} className="hover:bg-gray-50 h-8">
                         <td className="px-3 py-1 whitespace-nowrap">
-                          <div className="flex items-center gap-1">
-                            {getTypeIcon(session.type)}
-                            <span className="text-xs capitalize">{session.type}</span>
-                          </div>
+                          {session.type}
                         </td>
                         <td className="px-3 py-1 whitespace-nowrap">
-                          <div className="font-medium text-gray-900">{session.title}</div>
-                          <div className="text-xs text-gray-500">
-                            {session.program} • {session.year}
-                            {session.section && ` • ${session.section}`}
-                          </div>
+                          {session.title}
                         </td>
                         <td className="px-3 py-1 whitespace-nowrap">
-                          <div>{format(new Date(session.date), 'MMM d, yyyy')}</div>
-                          <div className="text-xs text-gray-500">{session.time}</div>
+                          {format(new Date(session.date), 'MMM d, yyyy')}
                         </td>
                         <td className="px-3 py-1 whitespace-nowrap text-center">
-                          <span className="font-medium">{session.students}</span>
+                          {session.students}
                         </td>
                         <td className="px-3 py-1 whitespace-nowrap text-center">
-                          <span className="font-medium text-green-600">{session.present ?? 0}</span>
+                          {session.present ?? 0}
                         </td>
                         <td className="px-3 py-1 whitespace-nowrap text-center">
-                          <span className="font-medium text-red-600">{session.absent ?? 0}</span>
+                          {session.absent ?? 0}
                         </td>
                         <td className="px-3 py-1 whitespace-nowrap">
-                          <Badge className={`
-                            ${session.status === 'upcoming' ? 'bg-blue-100 text-blue-800 hover:bg-blue-100' : ''}
-                            ${session.status === 'ongoing' ? 'bg-green-100 text-green-800 hover:bg-green-100' : ''}
-                            ${session.status === 'completed' ? 'bg-gray-100 text-gray-800 hover:bg-gray-100' : ''}
-                          `}>
-                            {session.status}
-                          </Badge>
+                          {session.status}
                         </td>
                         <td className="px-3 py-1 whitespace-nowrap">
                           <div className="flex justify-center gap-1">
