@@ -1075,14 +1075,13 @@ const TakeAttendanceSession = () => {
 
   return (
     <Layout>
-      <div className="lg:px-6 lg:py-4">
-        <div className="w-full space-y-6">
-          {/* Session Header - Left Aligned */}
-          <div className="text-left px-6 lg:px-0 pt-6 lg:pt-0">
-            <h1 className="text-3xl font-bold text-education-navy">{session.title}</h1>
-          </div>
+      <div className="w-full space-y-6 lg:px-6 lg:py-4">
+        {/* Session Header - Left Aligned */}
+        <div className="text-left">
+          <h1 className="text-3xl font-bold text-education-navy">{session.title}</h1>
+        </div>
 
-          <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 px-6 lg:px-0">
+        <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
           {/* Left Section: Scan Signatures - Card on desktop only */}
           <div className="lg:bg-white lg:rounded-lg lg:border lg:border-gray-200 lg:shadow-sm lg:p-4">
             <div className="space-y-4">
