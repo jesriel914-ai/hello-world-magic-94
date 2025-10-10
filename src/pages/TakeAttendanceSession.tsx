@@ -1075,7 +1075,7 @@ const TakeAttendanceSession = () => {
 
   return (
     <Layout>
-      <div className="w-full space-y-6">
+      <div className="w-full space-y-6 lg:px-6 lg:py-4">
         {/* Session Header - Left Aligned */}
         <div className="text-left">
           <h1 className="text-3xl font-bold text-education-navy">{session.title}</h1>
@@ -1137,7 +1137,7 @@ const TakeAttendanceSession = () => {
             </div>
             
             {showStudentList ? (
-              <div className="space-y-4">
+              <div className="space-y-4 max-h-[500px] overflow-y-auto">
                 {/* Session Details */}
                 {session && (
                   <div>
@@ -1169,39 +1169,59 @@ const TakeAttendanceSession = () => {
                     </div>
                   </div>
                 )}
-
-                {/* Students List */}
+                
+                {/* Required Attendees List */}
                 <div>
                   <h3 className="text-sm font-semibold text-gray-700 mb-3">Required Attendees</h3>
-                  {loadingStudents ? (
-                    <div className="text-center py-8">
-                      <Loader2 className="w-8 h-8 mx-auto animate-spin text-blue-600 mb-2" />
-                      <p className="text-sm text-gray-500">Loading students...</p>
-                    </div>
-                  ) : sessionStudents.length > 0 ? (
-                    <div className="space-y-1 max-h-64 overflow-y-auto">
-                      {sessionStudents.map((student, index) => (
-                        <div key={student.id} className="p-3 bg-white rounded-lg border shadow-sm hover:bg-gray-50 transition-colors">
-                          <div className="flex items-center gap-3">
-                            <div className="w-8 h-8 bg-blue-100 rounded-full flex items-center justify-center text-blue-600 font-medium text-sm">
-                              {index + 1}
-                            </div>
-                            <div className="flex-1">
-                              <div className="font-medium text-sm text-gray-900">
-                                {student.full_name || `${student.firstname} ${student.surname}`}
+                  <div className="flex gap-2 mb-3">
+                    <Badge className="bg-green-100 text-green-800 hover:bg-green-100">
+                      {sessionStudents.filter(s => attendanceMap.get(s.id)?.status === 'present').length} Present
+                    </Badge>
+                    <Badge className="bg-red-100 text-red-800 hover:bg-red-100">
+                      {sessionStudents.filter(s => attendanceMap.get(s.id)?.status === 'absent').length} Absent
+                    </Badge>
+                  </div>
+                  {sessionStudents.length > 0 ? (
+                    <div className="space-y-2">
+                      {sessionStudents.map((student) => {
+                        const attendanceRecord = attendanceMap.get(student.id);
+                        return (
+                          <div key={student.id} className="p-3 bg-white rounded-lg border shadow-sm">
+                            <div className="flex items-center justify-between">
+                              <div>
+                                <p className="text-sm font-medium text-gray-900">
+                                  {student.full_name || `${student.firstname} ${student.surname}`}
+                                </p>
+                                <p className="text-xs text-gray-500">ID: {student.student_id}</p>
                               </div>
-                              <div className="text-xs text-gray-500">
-                                ID: {student.student_id}
+                              <div className="text-right">
+                                {attendanceRecord ? (
+                                  <>
+                                    <span className={`text-xs font-medium ${
+                                      attendanceRecord.status === 'present' 
+                                        ? 'text-green-600' 
+                                        : 'text-red-600'
+                                    }`}>
+                                      {attendanceRecord.status === 'present' ? 'Present' : 'Absent'}
+                                    </span>
+                                    {attendanceRecord.time_in && (
+                                      <p className="text-xs text-gray-500 mt-1">
+                                        {new Date(attendanceRecord.time_in).toLocaleTimeString()}
+                                      </p>
+                                    )}
+                                  </>
+                                ) : (
+                                  <span className="text-xs text-gray-400">Not marked</span>
+                                )}
                               </div>
                             </div>
                           </div>
-                        </div>
-                      ))}
+                        );
+                      })}
                     </div>
                   ) : (
                     <div className="text-center py-8">
                       <Users className="w-12 h-12 mx-auto mb-4 text-gray-300" />
-                      <h3 className="text-base font-medium text-gray-500 mb-2">No students found</h3>
                       <p className="text-sm text-gray-400">No students registered for this session</p>
                     </div>
                   )}
@@ -1284,7 +1304,9 @@ const TakeAttendanceSession = () => {
                     markAttendance('present');
                   }}
                   disabled={!predictions.length || isPaused}
-                  className="w-full h-12 text-sm bg-green-600 hover:bg-green-700 active:bg-green-800 focus-visible:ring-0 focus-visible:ring-offset-0 disabled:opacity-50 disabled:cursor-not-allowed"
+                  className="w-full h-12 text-sm bg-green-600 text-white focus-visible:ring-0 focus-visible:ring-offset-0 disabled:opacity-50 disabled:cursor-not-allowed pointer-events-auto"
+                  style={{ backgroundColor: !predictions.length || isPaused ? undefined : '#16a34a' }}
+                  onMouseDown={(e) => e.preventDefault()}
                 >
                   Mark Present
                 </Button>
@@ -1294,76 +1316,98 @@ const TakeAttendanceSession = () => {
                     markAttendance('absent');
                   }}
                   disabled={!predictions.length || isPaused}
-                  variant="outline"
-                  className="w-full h-12 text-sm border-red-300 text-red-600 hover:bg-red-50 active:bg-red-100 focus-visible:ring-0 focus-visible:ring-offset-0 disabled:opacity-50 disabled:cursor-not-allowed"
+                  className="w-full h-12 text-sm bg-red-600 text-white focus-visible:ring-0 focus-visible:ring-offset-0 disabled:opacity-50 disabled:cursor-not-allowed pointer-events-auto"
+                  style={{ backgroundColor: !predictions.length || isPaused ? undefined : '#dc2626' }}
+                  onMouseDown={(e) => e.preventDefault()}
                 >
                   Mark Absent
                 </Button>
               </div>
+            )}
+            
+            {/* Mark Completed Button - Only show when camera is NOT active */}
+            {!isCameraReady && (
+              <Button 
+                className="w-full h-12 text-sm bg-blue-600 text-white focus-visible:ring-0 focus-visible:ring-offset-0"
+                style={{ backgroundColor: '#2563eb' }}
+                onMouseDown={(e) => e.preventDefault()}
+              >
+                Mark Completed
+              </Button>
             )}
             </>
             )}
             </div>
           </div>
 
-          {/* Right Section: Attendance Log - No card on mobile, card on desktop */}
-          <div className="space-y-4">
-            {/* Header */}
-            <div className="flex items-center justify-between">
-              <h3 className="text-base font-semibold">Attendance Log</h3>
-              <div className="flex gap-2">
-                <Badge className="bg-green-100 text-green-800 hover:bg-green-100">
-                  {attendanceLog.filter(a => a.status === 'present').length} Present
-                </Badge>
-                <Badge className="bg-red-100 text-red-800 hover:bg-red-100">
-                  {attendanceLog.filter(a => a.status === 'absent').length} Absent
-                </Badge>
+          {/* Right Section: Required Attendees - Card on desktop only, hidden on mobile */}
+          <div className="hidden lg:block lg:bg-white lg:rounded-lg lg:border lg:border-gray-200 lg:shadow-sm lg:p-4">
+            <div className="space-y-4">
+              {/* Header */}
+              <div className="flex items-center justify-between">
+                <h3 className="text-base font-semibold">Required Attendees</h3>
+                <div className="flex gap-2">
+                  <Badge className="bg-green-100 text-green-800 hover:bg-green-100">
+                    {sessionStudents.filter(s => attendanceMap.get(s.id)?.status === 'present').length} Present
+                  </Badge>
+                  <Badge className="bg-red-100 text-red-800 hover:bg-red-100">
+                    {sessionStudents.filter(s => attendanceMap.get(s.id)?.status === 'absent').length} Absent
+                  </Badge>
+                </div>
               </div>
-            </div>
-            
-            {/* Content - Card on desktop only */}
-            <div className="lg:bg-white lg:rounded-lg lg:border lg:border-gray-200 lg:shadow-sm lg:p-4">
-              {attendanceLog.length > 0 ? (
+              
+              {/* Content - All Students */}
+              {sessionStudents.length > 0 ? (
                 <div className="space-y-2 max-h-[400px] overflow-y-auto">
-                  {attendanceLog.map((record) => (
-                    <div key={record.id} className="p-3 rounded-lg border border-gray-200">
-                      <div className="flex items-center justify-between">
-                        <div>
-                          <p className="text-sm font-medium text-gray-900">
-                            {record.students?.firstname} {record.students?.surname}
-                          </p>
-                          <p className="text-xs text-gray-500">ID: {record.students?.student_id}</p>
-                        </div>
-                        <div className="text-right">
-                          <span className={`text-xs font-medium ${
-                            record.status === 'present' 
-                              ? 'text-green-600' 
-                              : 'text-red-600'
-                          }`}>
-                            {record.status === 'present' ? 'Present' : 'Absent'}
-                          </span>
-                          {record.time_in && (
-                            <p className="text-xs text-gray-500 mt-1">
-                              {new Date(record.time_in).toLocaleTimeString()}
+                  {sessionStudents.map((student) => {
+                    const attendanceRecord = attendanceMap.get(student.id);
+                    return (
+                      <div key={student.id} className="p-3 rounded-lg border border-gray-200">
+                        <div className="flex items-center justify-between">
+                          <div>
+                            <p className="text-sm font-medium text-gray-900">
+                              {student.full_name || `${student.firstname} ${student.surname}`}
                             </p>
-                          )}
+                            <p className="text-xs text-gray-500">ID: {student.student_id}</p>
+                          </div>
+                          <div className="text-right">
+                            {attendanceRecord ? (
+                              <>
+                                <span className={`text-xs font-medium ${
+                                  attendanceRecord.status === 'present' 
+                                    ? 'text-green-600' 
+                                    : 'text-red-600'
+                                }`}>
+                                  {attendanceRecord.status === 'present' ? 'Present' : 'Absent'}
+                                </span>
+                                {attendanceRecord.time_in && (
+                                  <p className="text-xs text-gray-500 mt-1">
+                                    {new Date(attendanceRecord.time_in).toLocaleTimeString()}
+                                  </p>
+                                )}
+                              </>
+                            ) : (
+                              <span className="text-xs text-gray-400">Not marked</span>
+                            )}
+                          </div>
                         </div>
                       </div>
-                    </div>
-                  ))}
+                    );
+                  })}
                 </div>
               ) : (
                 <div className="flex flex-col items-center justify-center py-8">
                   <Users className="w-12 h-12 text-gray-300 mb-2" />
-                  <p className="text-gray-500 text-sm">No attendance recorded yet</p>
+                  <p className="text-gray-500 text-sm">No students registered for this session</p>
                 </div>
               )}
             </div>
           </div>
         </div>
+      </div>
         
-        {/* Status Change Confirmation Dialog */}
-        <Dialog open={showChangeConfirm} onOpenChange={setShowChangeConfirm}>
+      {/* Status Change Confirmation Dialog */}
+      <Dialog open={showChangeConfirm} onOpenChange={setShowChangeConfirm}>
           <DialogContent className="max-w-sm w-full">
             <DialogHeader>
               <DialogTitle>Confirm Status Change</DialogTitle>
@@ -1393,7 +1437,6 @@ const TakeAttendanceSession = () => {
             </DialogFooter>
           </DialogContent>
         </Dialog>
-      </div>
     </Layout>
   );
 };

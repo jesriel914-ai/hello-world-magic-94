@@ -2,13 +2,10 @@ import React, { useCallback, useEffect, useMemo, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { format, addDays, startOfWeek, endOfWeek } from 'date-fns';
 import { 
-  BookOpen, 
-  Calendar,
   Clock, 
   Loader2, 
   Plus, 
   Search,
-  Star, 
   Users, 
   ChevronLeft, 
   ChevronRight, 
@@ -23,7 +20,6 @@ import {
 import Layout from "@/components/Layout";
 import PageWrapper from "@/components/PageWrapper";
 import { Button } from "@/components/ui/button";
-import { Badge } from "@/components/ui/badge";
 import { 
   Dialog, 
   DialogContent, 
@@ -93,19 +89,17 @@ type SupabaseAttendanceResponse = Array<{
 }>;
 
 // Extend the base Session type with our local requirements
-interface Session extends Omit<SessionType, 'time_in' | 'time_out' | 'capacity'> {
+interface Session extends Omit<SessionType, 'time_in' | 'time_out'> {
   time: string; // Combined time display
   time_in: string;
   time_out: string;
-  location: string;
-  instructor: string;
   students: number;
   present?: number;
   absent?: number;
   program: string;
   year: string;
   section: string;
-  capacity: string; // Changed to only allow string to match the database schema
+  status: 'not completed' | 'completed';
   date: string;
 }
 
@@ -420,8 +414,7 @@ const Schedule = () => {
           program: session.program || 'General',
           year: session.year || 'All Year Levels',
           section: session.section || 'All Sections',
-          description: session.description || '',
-          capacity: session.capacity ? String(session.capacity) : 'Unlimited',
+          status: session.status || 'not completed',
           date: session.date,
           created_at: session.created_at || new Date().toISOString(),
           updated_at: session.updated_at || new Date().toISOString()
@@ -579,8 +572,7 @@ const Schedule = () => {
           program: session.program || 'General',
           year: session.year || 'All Year Levels',
           section: session.section || 'All Sections',
-          description: session.description || '',
-          capacity: session.capacity ? String(session.capacity) : 'Unlimited',
+          status: session.status || 'not completed',
           date: session.date,
           created_at: session.created_at || new Date().toISOString(),
           updated_at: session.updated_at || new Date().toISOString()
@@ -789,9 +781,10 @@ const Schedule = () => {
       program: data.program || 'General',
       year: data.year || 'All Year Levels',
       section: data.section || 'All Sections',
-      description: data.description || '',
-      capacity: data.capacity || 'Unlimited',
-      date: sessionDate
+      status: 'not completed',
+      date: sessionDate,
+      created_at: new Date().toISOString(),
+      updated_at: new Date().toISOString()
     } as Session;
   };
 
@@ -815,8 +808,7 @@ const Schedule = () => {
         program: sessionData.program || 'General',
         year: sessionData.year || 'All Year Levels',
         section: sessionData.section || 'All Sections',
-        description: sessionData.description || '',
-        capacity: sessionData.capacity ? String(sessionData.capacity) : 'Unlimited',
+        status: 'not completed',
         date: formattedDate
       };
 
@@ -828,7 +820,7 @@ const Schedule = () => {
         
         try {
           // Update the backend
-          await updateSession(sessionId, { ...sessionForSupabase, capacity: parseInt(sessionForSupabase.capacity) || 0 });
+          await updateSession(sessionId, sessionForSupabase);
           
           // Calculate student count for the updated session
           let studentCount = 0;
@@ -888,7 +880,7 @@ const Schedule = () => {
       } else {
         // Add new session
         try {
-          const newSession = await createSession({ ...sessionForSupabase, capacity: parseInt(sessionForSupabase.capacity) || 0 });
+          const newSession = await createSession(sessionForSupabase);
           
           // Calculate student count for the new session
           let studentCount = 0;
@@ -1029,9 +1021,6 @@ const Schedule = () => {
         date: session.date,
         timeIn,
         timeOut,
-        description: session.description || '',
-        venue: session.location || 'Not specified',
-        capacity: session.capacity || 'Unlimited',
         attendanceType: (session.type as 'class' | 'event' | 'other') || 'class'
       };
       
@@ -1085,33 +1074,6 @@ const Schedule = () => {
     }
   };
 
-  // Helper function to get icon for session type
-  const getTypeIcon = (type: string) => {
-    switch (type) {
-      case 'class':
-        return <BookOpen className="w-4 h-4 text-primary" />;
-      case 'event':
-        return <Calendar className="w-4 h-4 text-accent" />;
-      case 'other':
-        return <Star className="w-4 h-4 text-education-navy" />;
-      default:
-        return <BookOpen className="w-4 h-4 text-primary" />;
-    }
-  };
-
-  // Helper function to get badge for session type
-  const getTypeBadge = (type: string) => {
-    switch (type) {
-      case 'class':
-        return <Badge className="bg-primary/10 text-primary border-primary/20">Class</Badge>;
-      case 'event':
-        return <Badge className="bg-accent/10 text-accent border-accent/20">Event</Badge>;
-      case 'other':
-        return <Badge className="bg-education-navy/10 text-education-navy border-education-navy/20">Activity</Badge>;
-      default:
-        return <Badge>Unknown</Badge>;
-    }
-  };
 
   // Function to navigate between weeks
   const navigateDate = useCallback((direction: 'prev' | 'next' | 'today') => {
@@ -1241,12 +1203,12 @@ const Schedule = () => {
           setSelectedSessionId(null);
         }
       }}>
-        <DialogContent className="max-w-6xl max-h-[90vh] flex flex-col">
+        <DialogContent className="max-w-6xl max-h-[90vh]">
           <DialogHeader>
             <DialogTitle className="text-education-navy text-lg">Session Details</DialogTitle>
           </DialogHeader>
           
-          <div className="flex-1 overflow-y-auto flex flex-col">
+          <div className="overflow-y-auto scrollbar-hide" style={{ maxHeight: 'calc(90vh - 80px)' }}>
             {selectedSessionId && (
               <SessionStudents 
                 sessionId={selectedSessionId} 
@@ -1313,114 +1275,99 @@ const Schedule = () => {
               </div>
             </div>
 
-            {/* Sessions List */}
-            <div className="space-y-2">
-              {isLoading ? (
-                <div className="flex items-center justify-center py-8">
-                  <Loader2 className="w-6 h-6 animate-spin text-education-blue mr-2" />
-                  <span className="text-sm text-muted-foreground">Loading sessions...</span>
-                </div>
-              ) : paginatedSessions.length > 0 ? (
-                [...paginatedSessions].sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime()).map((session) => (
-                <Card key={session.id} className="bg-gradient-card border border-gray-100 shadow-card">
-                  <CardContent className="p-3">
-                    <div className="flex items-center justify-between">
-                      <div className="flex items-start gap-3">
-                        <div className="p-2 rounded-lg bg-gradient-primary/10">
-                          {getTypeIcon(session.type)}
+            {/* Sessions Table */}
+            <div className="border-t border-gray-200 overflow-hidden min-h-[378px]">
+              <table className="min-w-full divide-y divide-gray-200 border-b border-gray-200">
+                <thead className="bg-gray-50">
+                  <tr className="text-xs text-black h-8">
+                    <th scope="col" className="px-3 py-2 text-left font-semibold uppercase">Type</th>
+                    <th scope="col" className="px-3 py-2 text-left font-semibold uppercase">Title</th>
+                    <th scope="col" className="px-3 py-2 text-left font-semibold uppercase">Date</th>
+                    <th scope="col" className="px-3 py-2 text-left font-semibold uppercase">Students</th>
+                    <th scope="col" className="px-3 py-2 text-left font-semibold uppercase">Present</th>
+                    <th scope="col" className="px-3 py-2 text-left font-semibold uppercase">Absent</th>
+                    <th scope="col" className="px-3 py-2 text-left font-semibold uppercase">Status</th>
+                    <th scope="col" className="px-3 py-2 text-center font-semibold uppercase">Actions</th>
+                  </tr>
+                </thead>
+                <tbody className="bg-white divide-y divide-gray-200 text-xs text-gray-500">
+                  {isLoading ? (
+                    <tr className="h-8">
+                      <td colSpan={8} className="px-3 py-1 text-center">
+                        <div className="flex items-center justify-center py-8">
+                          <Loader2 className="w-6 h-6 animate-spin text-education-blue mr-2" />
+                          <span className="text-sm text-muted-foreground">Loading sessions...</span>
                         </div>
-                        <div>
-                          <div className="flex items-center gap-1.5 mb-0.5">
-                            <h4 className="font-medium text-education-navy text-sm">{session.title}</h4>
-                            {getTypeBadge(session.type)}
+                      </td>
+                    </tr>
+                  ) : paginatedSessions.length === 0 ? (
+                    <tr className="h-8">
+                      <td colSpan={8} className="px-3 py-1 text-center text-sm text-gray-500">
+                        {sessions.length === 0 
+                          ? 'No sessions scheduled. Add your first session!'
+                          : 'No sessions match the current filters. Try adjusting your search.'}
+                      </td>
+                    </tr>
+                  ) : (
+                    [...paginatedSessions].sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime()).map((session) => (
+                      <tr key={session.id} className="hover:bg-gray-50 h-8">
+                        <td className="px-3 py-1 whitespace-nowrap">
+                          {session.type}
+                        </td>
+                        <td className="px-3 py-1 whitespace-nowrap">
+                          {session.title}
+                        </td>
+                        <td className="px-3 py-1 whitespace-nowrap">
+                          {format(new Date(session.date), 'MMM d, yyyy')}
+                        </td>
+                        <td className="px-3 py-1 whitespace-nowrap text-center">
+                          {session.students}
+                        </td>
+                        <td className="px-3 py-1 whitespace-nowrap text-center">
+                          {session.present ?? 0}
+                        </td>
+                        <td className="px-3 py-1 whitespace-nowrap text-center">
+                          {session.absent ?? 0}
+                        </td>
+                        <td className="px-3 py-1 whitespace-nowrap">
+                          {session.status}
+                        </td>
+                        <td className="px-3 py-1 whitespace-nowrap">
+                          <div className="flex justify-center gap-1">
+                            <Button 
+                              variant="outline" 
+                              size="sm"
+                              className="h-6 w-6 p-0 transition-all duration-200 hover:scale-105"
+                              onClick={() => handleViewStudents(session.id)}
+                              title="View Students"
+                            >
+                              <List className="h-3 w-3 text-green-600" />
+                            </Button>
+                            <Button 
+                              variant="outline"
+                              size="sm"
+                              className="h-6 w-6 p-0 transition-all duration-200 hover:scale-105"
+                              onClick={() => handleEditSession(session)}
+                              title="Edit Session"
+                            >
+                              <SquarePen className="h-3 w-3 text-yellow-600" />
+                            </Button>
+                            <Button 
+                              variant="outline"
+                              size="sm"
+                              className="h-6 w-6 p-0 transition-all duration-200 hover:scale-105"
+                              onClick={() => confirmDeleteSession(session.id)}
+                              title="Delete Session"
+                            >
+                              <Trash2 className="h-3 w-3 text-red-600" />
+                            </Button>
                           </div>
-                          <div className="text-xs text-muted-foreground">
-                            <span className="mr-3">{format(new Date(session.date), 'MMM d, yyyy')}</span>
-                            <span className="inline-flex items-center gap-1"><Clock className="w-2.5 h-2.5" />{session.time}</span>
-                          </div>
-                          <p className="text-xs text-muted-foreground mt-0.5">
-                            {session.program} • {session.year}
-                            {session.section && ` • ${session.section}`}
-                          </p>
-                        </div>
-                      </div>
-
-                      <div className="flex items-center gap-6">
-                        <div className="hidden sm:flex flex-wrap items-center gap-6">
-                          <div className="text-center">
-                            <div className="flex items-center gap-1 text-xs text-muted-foreground">
-                              <Users className="w-3.5 h-3.5" />
-                              <span>Students</span>
-                            </div>
-                            <div className="text-sm font-bold text-education-navy">{session.students}</div>
-                          </div>
-                          <div className="text-center">
-                            <div className="text-xs text-muted-foreground">Present</div>
-                            <div className="text-sm font-bold text-accent">{session.present ?? 0}</div>
-                          </div>
-                          <div className="text-center">
-                            <div className="text-xs text-muted-foreground">Absent</div>
-                            <div className="text-sm font-bold text-destructive">{session.absent ?? 0}</div>
-                          </div>
-                        </div>
-
-                        <div className="flex gap-1">
-                          <Button 
-                            variant="outline" 
-                            size="sm"
-                            className="h-8 w-8 p-0 transition-all duration-200 hover:scale-105"
-                            onClick={() => handleViewStudents(session.id)}
-                            title="View Students"
-                          >
-                            <List className="h-4 w-4 text-green-600 transform hover:scale-125 transition-transform duration-200 ease-in-out" />
-                          </Button>
-                          <Button 
-                            variant="outline"
-                            size="sm"
-                            className="h-8 w-8 p-0 transition-all duration-200 hover:scale-105"
-                            onClick={() => handleEditSession(session)}
-                            title="Edit Session"
-                          >
-                            <SquarePen className="h-4 w-4 text-yellow-600 transform hover:scale-125 transition-transform duration-200 ease-in-out" />
-                          </Button>
-                          <Button 
-                            variant="outline"
-                            size="sm"
-                            className="h-8 w-8 p-0 transition-all duration-200 hover:scale-105"
-                            onClick={() => confirmDeleteSession(session.id)}
-                            title="Delete Session"
-                          >
-                            <Trash2 className="h-4 w-4 text-red-600 transform hover:scale-125 transition-transform duration-200 ease-in-out" />
-                          </Button>
-                        </div>
-                      </div>
-                    </div>
-                  </CardContent>
-                </Card>
-              ))
-            ) : (
-              <Card className="bg-gradient-card border border-gray-200 shadow-card">
-                <CardContent className="p-8 text-center">
-                  <CalendarClock className="w-10 h-10 mx-auto text-muted-foreground mb-2" />
-                  <h4 className="text-lg font-medium text-education-navy">
-                    {sessions.length === 0 ? 'No sessions scheduled' : 'No matching sessions found'}
-                  </h4>
-                  <p className="text-sm text-muted-foreground mt-1">
-                    {sessions.length === 0 
-                      ? 'There are no scheduled sessions.' 
-                      : 'Try adjusting your search or filters.'}
-                  </p>
-                  <Button 
-                    variant="outline" 
-                    className="mt-4"
-                    onClick={() => setIsModalOpen(true)}
-                  >
-                    <Plus className="w-4 h-4 mr-2" />
-                    Add Session
-                  </Button>
-                </CardContent>
-              </Card>
-              )}
+                        </td>
+                      </tr>
+                    ))
+                  )}
+                </tbody>
+              </table>
             </div>
           </div>
         </div>

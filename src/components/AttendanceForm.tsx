@@ -23,9 +23,6 @@ export interface SessionData {
   timeIn: string;
   timeOut: string;
   attendanceType: AttendanceType;
-  venue?: string;
-  description?: string;
-  capacity?: string | number;
 }
 
 interface AttendanceFormProps {
