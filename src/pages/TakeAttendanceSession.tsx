@@ -1360,7 +1360,6 @@ const TakeAttendanceSession = () => {
               )}
             </div>
           </div>
-          </div>
         </div>
       </div>
         
