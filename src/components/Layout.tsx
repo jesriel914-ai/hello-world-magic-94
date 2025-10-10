@@ -1,5 +1,6 @@
 import Navigation from "@/components/ui/navigation";
 import Header from "@/components/Header";
+import MobileBottomNav from "@/components/MobileBottomNav";
 import { useMediaQuery } from "../hooks/use-media-query";
 import { Skeleton } from "@/components/ui/skeleton";
 import { useState, useEffect } from "react";
@@ -28,24 +29,27 @@ const Layout = ({ children }: LayoutProps) => {
 
   return (
     <div className="min-h-screen bg-background">
-      {/* Header Component */}
-      <Header isMobile={!isDesktop} />
+      {/* Header Component - Hidden on mobile */}
+      <div className="hidden lg:block">
+        <Header isMobile={!isDesktop} />
+      </div>
       
-      {/* Navigation Component (handles both desktop and mobile) */}
-      <Navigation />
+      {/* Navigation Component - Hidden on mobile */}
+      <div className="hidden lg:block">
+        <Navigation />
+      </div>
       
       {/* Main Content */}
       <main className={cn(
         "min-w-0",
-        "transition-[margin-left] duration-250 ease-in-out", // Match navigation timing
+        "transition-[margin-left] duration-250 ease-in-out",
         isDesktop 
-          // Collapsed thinner, expanded restored to original
           ? (isCollapsed ? 'ml-12' : 'ml-64') 
-          : 'ml-0 w-full px-4', // Add padding for mobile
-        "pt-2 pb-3 md:pt-2 md:pb-4"
+          : 'ml-0 w-full', // No padding on mobile
+        isDesktop ? "pt-2 pb-3 md:pb-4" : "pb-20" // Extra bottom padding for mobile nav
       )}>
         {isLoading ? (
-          <div className="space-y-4">
+          <div className="space-y-4 px-4">
             <div className="flex items-center justify-between">
               <Skeleton className="h-8 w-64" />
               <Skeleton className="h-9 w-32" />
@@ -64,6 +68,9 @@ const Layout = ({ children }: LayoutProps) => {
           <>{children}</>
         )}
       </main>
+      
+      {/* Mobile Bottom Navigation */}
+      <MobileBottomNav />
     </div>
   );
 };
