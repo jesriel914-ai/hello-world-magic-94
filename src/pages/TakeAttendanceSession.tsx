@@ -103,7 +103,6 @@ const TakeAttendanceSession = () => {
   const [isPaused, setIsPaused] = useState(false);
   const [showChangeConfirm, setShowChangeConfirm] = useState(false);
   const [pendingChange, setPendingChange] = useState<{student: any, newStatus: string} | null>(null);
-  const [showAttendeesList, setShowAttendeesList] = useState(false);
 
   useEffect(() => {
     // Fetch session details when component mounts
@@ -1091,42 +1090,28 @@ const TakeAttendanceSession = () => {
                 <span className="text-base font-semibold">
                   {showStudentList ? 'Details' : 'Scan Signatures'}
                 </span>
-                <div className="flex gap-2">
-                  {/* List icon for mobile - shows/hides attendees list */}
-                  <Button 
-                    variant="ghost" 
-                    size="default"
-                    onClick={() => setShowAttendeesList(!showAttendeesList)}
-                    className="h-10 w-10 p-0 lg:hidden"
-                    title={showAttendeesList ? "Hide Attendees" : "Show Attendees"}
-                  >
-                    <List className="w-5 h-5" />
-                  </Button>
-                  
-                  {/* Details toggle button */}
-                  <Button 
-                    variant="ghost" 
-                    size="default"
-                    onClick={() => {
-                      const newValue = !showStudentList;
-                      
-                      // Stop camera when going to Details
-                      if (newValue && isCameraReady) {
-                        stopCamera();
-                      }
-                      
-                      setShowStudentList(newValue);
-                      
-                      if (newValue && sessionStudents.length === 0) {
-                        loadSessionStudents();
-                      }
-                    }}
-                    className="h-10 w-10 p-0"
-                    title={showStudentList ? "Back to Scanner" : "View Details"}
-                  >
-                    {showStudentList ? <X className="w-5 h-5" /> : <FileText className="w-5 h-5" />}
-                  </Button>
-                </div>
+                <Button 
+                  variant="ghost" 
+                  size="default"
+                  onClick={() => {
+                    const newValue = !showStudentList;
+                    
+                    // Stop camera when going to Details
+                    if (newValue && isCameraReady) {
+                      stopCamera();
+                    }
+                    
+                    setShowStudentList(newValue);
+                    
+                    if (newValue && sessionStudents.length === 0) {
+                      loadSessionStudents();
+                    }
+                  }}
+                  className="h-10 w-10 p-0"
+                  title={showStudentList ? "Back to Scanner" : "View Details"}
+                >
+                  {showStudentList ? <X className="w-5 h-5" /> : <List className="w-5 h-5" />}
+                </Button>
               </div>
               
               {/* Camera On/Off Switch - Only in Scan Signatures view */}
@@ -1152,7 +1137,7 @@ const TakeAttendanceSession = () => {
             </div>
             
             {showStudentList ? (
-              <div className="space-y-4">
+              <div className="space-y-4 max-h-[500px] overflow-y-auto">
                 {/* Session Details */}
                 {session && (
                   <div>
@@ -1184,6 +1169,63 @@ const TakeAttendanceSession = () => {
                     </div>
                   </div>
                 )}
+                
+                {/* Required Attendees List */}
+                <div>
+                  <h3 className="text-sm font-semibold text-gray-700 mb-3">Required Attendees</h3>
+                  <div className="flex gap-2 mb-3">
+                    <Badge className="bg-green-100 text-green-800 hover:bg-green-100">
+                      {sessionStudents.filter(s => attendanceMap.get(s.id)?.status === 'present').length} Present
+                    </Badge>
+                    <Badge className="bg-red-100 text-red-800 hover:bg-red-100">
+                      {sessionStudents.filter(s => attendanceMap.get(s.id)?.status === 'absent').length} Absent
+                    </Badge>
+                  </div>
+                  {sessionStudents.length > 0 ? (
+                    <div className="space-y-2">
+                      {sessionStudents.map((student) => {
+                        const attendanceRecord = attendanceMap.get(student.id);
+                        return (
+                          <div key={student.id} className="p-3 bg-white rounded-lg border shadow-sm">
+                            <div className="flex items-center justify-between">
+                              <div>
+                                <p className="text-sm font-medium text-gray-900">
+                                  {student.full_name || `${student.firstname} ${student.surname}`}
+                                </p>
+                                <p className="text-xs text-gray-500">ID: {student.student_id}</p>
+                              </div>
+                              <div className="text-right">
+                                {attendanceRecord ? (
+                                  <>
+                                    <span className={`text-xs font-medium ${
+                                      attendanceRecord.status === 'present' 
+                                        ? 'text-green-600' 
+                                        : 'text-red-600'
+                                    }`}>
+                                      {attendanceRecord.status === 'present' ? 'Present' : 'Absent'}
+                                    </span>
+                                    {attendanceRecord.time_in && (
+                                      <p className="text-xs text-gray-500 mt-1">
+                                        {new Date(attendanceRecord.time_in).toLocaleTimeString()}
+                                      </p>
+                                    )}
+                                  </>
+                                ) : (
+                                  <span className="text-xs text-gray-400">Not marked</span>
+                                )}
+                              </div>
+                            </div>
+                          </div>
+                        );
+                      })}
+                    </div>
+                  ) : (
+                    <div className="text-center py-8">
+                      <Users className="w-12 h-12 mx-auto mb-4 text-gray-300" />
+                      <p className="text-sm text-gray-400">No students registered for this session</p>
+                    </div>
+                  )}
+                </div>
               </div>
             ) : (
               <>
