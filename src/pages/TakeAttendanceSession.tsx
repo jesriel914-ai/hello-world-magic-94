@@ -1091,28 +1091,42 @@ const TakeAttendanceSession = () => {
                 <span className="text-base font-semibold">
                   {showStudentList ? 'Details' : 'Scan Signatures'}
                 </span>
-                <Button 
-                  variant="ghost" 
-                  size="default"
-                  onClick={() => {
-                    const newValue = !showStudentList;
-                    
-                    // Stop camera when going to Details
-                    if (newValue && isCameraReady) {
-                      stopCamera();
-                    }
-                    
-                    setShowStudentList(newValue);
-                    
-                    if (newValue && sessionStudents.length === 0) {
-                      loadSessionStudents();
-                    }
-                  }}
-                  className="h-10 w-10 p-0"
-                  title={showStudentList ? "Back to Scanner" : "View Details"}
-                >
-                  {showStudentList ? <X className="w-5 h-5" /> : <List className="w-5 h-5" />}
-                </Button>
+                <div className="flex gap-2">
+                  {/* List icon for mobile - shows/hides attendees list */}
+                  <Button 
+                    variant="ghost" 
+                    size="default"
+                    onClick={() => setShowAttendeesList(!showAttendeesList)}
+                    className="h-10 w-10 p-0 lg:hidden"
+                    title={showAttendeesList ? "Hide Attendees" : "Show Attendees"}
+                  >
+                    <List className="w-5 h-5" />
+                  </Button>
+                  
+                  {/* Details toggle button */}
+                  <Button 
+                    variant="ghost" 
+                    size="default"
+                    onClick={() => {
+                      const newValue = !showStudentList;
+                      
+                      // Stop camera when going to Details
+                      if (newValue && isCameraReady) {
+                        stopCamera();
+                      }
+                      
+                      setShowStudentList(newValue);
+                      
+                      if (newValue && sessionStudents.length === 0) {
+                        loadSessionStudents();
+                      }
+                    }}
+                    className="h-10 w-10 p-0"
+                    title={showStudentList ? "Back to Scanner" : "View Details"}
+                  >
+                    {showStudentList ? <X className="w-5 h-5" /> : <FileText className="w-5 h-5" />}
+                  </Button>
+                </div>
               </div>
               
               {/* Camera On/Off Switch - Only in Scan Signatures view */}
@@ -1248,7 +1262,9 @@ const TakeAttendanceSession = () => {
                     markAttendance('present');
                   }}
                   disabled={!predictions.length || isPaused}
-                  className="w-full h-12 text-sm bg-green-600 hover:bg-green-700 active:bg-green-800 focus-visible:ring-0 focus-visible:ring-offset-0 disabled:opacity-50 disabled:cursor-not-allowed"
+                  className="w-full h-12 text-sm bg-green-600 text-white focus-visible:ring-0 focus-visible:ring-offset-0 disabled:opacity-50 disabled:cursor-not-allowed pointer-events-auto"
+                  style={{ backgroundColor: !predictions.length || isPaused ? undefined : '#16a34a' }}
+                  onMouseDown={(e) => e.preventDefault()}
                 >
                   Mark Present
                 </Button>
@@ -1258,20 +1274,32 @@ const TakeAttendanceSession = () => {
                     markAttendance('absent');
                   }}
                   disabled={!predictions.length || isPaused}
-                  variant="outline"
-                  className="w-full h-12 text-sm border-red-300 text-red-600 hover:bg-red-50 active:bg-red-100 focus-visible:ring-0 focus-visible:ring-offset-0 disabled:opacity-50 disabled:cursor-not-allowed"
+                  className="w-full h-12 text-sm bg-red-600 text-white focus-visible:ring-0 focus-visible:ring-offset-0 disabled:opacity-50 disabled:cursor-not-allowed pointer-events-auto"
+                  style={{ backgroundColor: !predictions.length || isPaused ? undefined : '#dc2626' }}
+                  onMouseDown={(e) => e.preventDefault()}
                 >
                   Mark Absent
                 </Button>
               </div>
+            )}
+            
+            {/* Mark Completed Button - Only show when camera is NOT active */}
+            {!isCameraReady && (
+              <Button 
+                className="w-full h-12 text-sm bg-blue-600 text-white focus-visible:ring-0 focus-visible:ring-offset-0"
+                style={{ backgroundColor: '#2563eb' }}
+                onMouseDown={(e) => e.preventDefault()}
+              >
+                Mark Completed
+              </Button>
             )}
             </>
             )}
             </div>
           </div>
 
-          {/* Right Section: Required Attendees - Card on desktop only */}
-          <div className="lg:bg-white lg:rounded-lg lg:border lg:border-gray-200 lg:shadow-sm lg:p-4">
+          {/* Right Section: Required Attendees - Card on desktop only, hidden on mobile unless toggled */}
+          <div className={`lg:bg-white lg:rounded-lg lg:border lg:border-gray-200 lg:shadow-sm lg:p-4 ${showAttendeesList ? 'block' : 'hidden lg:block'}`}>
             <div className="space-y-4">
               {/* Header */}
               <div className="flex items-center justify-between">
