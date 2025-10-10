@@ -1340,8 +1340,8 @@ const TakeAttendanceSession = () => {
             </div>
           </div>
 
-          {/* Right Section: Required Attendees - Card on desktop only, hidden on mobile unless toggled */}
-          <div className={`lg:bg-white lg:rounded-lg lg:border lg:border-gray-200 lg:shadow-sm lg:p-4 ${showAttendeesList ? 'block' : 'hidden lg:block'}`}>
+          {/* Right Section: Required Attendees - Card on desktop only, hidden on mobile */}
+          <div className="hidden lg:block lg:bg-white lg:rounded-lg lg:border lg:border-gray-200 lg:shadow-sm lg:p-4">
             <div className="space-y-4">
               {/* Header */}
               <div className="flex items-center justify-between">
