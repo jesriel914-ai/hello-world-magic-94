@@ -16,6 +16,7 @@ import { predictFromCanvas, forceMemoryCleanup } from '@/components/model-traini
 import { fetchSessionStudents } from '@/lib/supabaseService';
 import { Switch } from '@/components/ui/switch';
 import { Label } from '@/components/ui/label';
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from '@/components/ui/dialog';
 
 interface PredictionResult {
   className: string;
@@ -92,6 +93,16 @@ const TakeAttendanceSession = () => {
   const [sessionStudents, setSessionStudents] = useState<any[]>([]);
   const [loadingStudents, setLoadingStudents] = useState(false);
   const cameraPredictionIntervalRef = useRef<NodeJS.Timeout | null>(null);
+  
+  // Attendance tracking
+  const [attendanceLog, setAttendanceLog] = useState<any[]>([]);
+  const [attendanceMap, setAttendanceMap] = useState<Map<number, any>>(new Map());
+  const [overlayMessage, setOverlayMessage] = useState<string | null>(null);
+  const [overlayStudentName, setOverlayStudentName] = useState<string | null>(null);
+  const [overlayType, setOverlayType] = useState<'success' | 'error' | 'warning'>('success');
+  const [isPaused, setIsPaused] = useState(false);
+  const [showChangeConfirm, setShowChangeConfirm] = useState(false);
+  const [pendingChange, setPendingChange] = useState<{student: any, newStatus: string} | null>(null);
 
   useEffect(() => {
     // Fetch session details when component mounts
@@ -106,6 +117,36 @@ const TakeAttendanceSession = () => {
 
         if (error) throw error;
         setSession(data);
+        
+        // Auto-load students and attendance when session is loaded
+        if (data) {
+          const response = await fetchSessionStudents(data.id);
+          if (response?.students) {
+            setSessionStudents(response.students);
+          }
+          
+          // Load attendance records
+          const { data: attendanceData } = await supabase
+            .from('attendance')
+            .select(`
+              *,
+              students (
+                id,
+                student_id,
+                firstname,
+                surname
+              )
+            `)
+            .eq('session_id', data.id)
+            .order('created_at', { ascending: false });
+          
+          const map = new Map();
+          (attendanceData || []).forEach((record: any) => {
+            map.set(record.student_id, record);
+          });
+          setAttendanceMap(map);
+          setAttendanceLog(attendanceData || []);
+        }
       } catch (err) {
         console.error('Error fetching session:', err);
         setError('Failed to load session details');
@@ -264,6 +305,9 @@ const TakeAttendanceSession = () => {
       
       console.log('Students loaded:', response.students.length);
       setSessionStudents(response.students);
+      
+      // Also load existing attendance records
+      await loadAttendanceRecords();
     } catch (error) {
       console.error('Error fetching session students:', error);
       toast.error('Failed to load students');
@@ -272,6 +316,169 @@ const TakeAttendanceSession = () => {
       setLoadingStudents(false);
     }
   }, [session]);
+
+  // Load attendance records for this session
+  const loadAttendanceRecords = useCallback(async () => {
+    if (!session) return;
+    
+    try {
+      const { data, error } = await supabase
+        .from('attendance')
+        .select(`
+          *,
+          students (
+            id,
+            student_id,
+            firstname,
+            surname
+          )
+        `)
+        .eq('session_id', session.id)
+        .order('created_at', { ascending: false });
+      
+      if (error) throw error;
+      
+      // Create map for quick lookup
+      const map = new Map();
+      (data || []).forEach((record: any) => {
+        map.set(record.student_id, record);
+      });
+      setAttendanceMap(map);
+      setAttendanceLog(data || []);
+    } catch (error) {
+      console.error('Error loading attendance records:', error);
+    }
+  }, [session]);
+
+  // Mark attendance function
+  const markAttendance = async (status: 'present' | 'absent') => {
+    console.log('🎯 Mark attendance clicked:', status);
+    console.log('Predictions:', predictions);
+    console.log('Session:', session);
+    console.log('Session students:', sessionStudents);
+    
+    if (!predictions.length || !session) {
+      console.log('❌ No predictions or session');
+      toast.error('No student detected');
+      return;
+    }
+    
+    const predictedName = predictions[0].className;
+    console.log('🔍 Looking for student:', predictedName);
+    
+    // Find student in session students list - try multiple formats
+    const student = sessionStudents.find(s => {
+      const format1 = `${s.student_id} - ${s.firstname} ${s.surname}`;
+      const format2 = `${s.firstname} ${s.surname}`;
+      const format3 = s.full_name;
+      
+      console.log('Checking:', { format1, format2, format3, predictedName });
+      
+      return format1 === predictedName || 
+             format2 === predictedName || 
+             format3 === predictedName;
+    });
+    
+    console.log('Found student:', student);
+    
+    if (!student) {
+      // Student not in required attendees
+      console.log('⚠️ Student not in session');
+      showOverlay(predictedName, 'Student not included in this session', 'warning');
+      return;
+    }
+    
+    // Check if already marked
+    const existingRecord = attendanceMap.get(student.id);
+    console.log('Existing record:', existingRecord);
+    
+    if (existingRecord) {
+      if (existingRecord.status === status) {
+        // Same status - just show message
+        const studentName = `${student.firstname} ${student.surname}`;
+        console.log('⚠️ Already marked:', status);
+        showOverlay(studentName, `Already marked ${status}`, 'warning');
+        return;
+      } else {
+        // Different status - ask for confirmation
+        console.log('🔄 Status change requested');
+        setPendingChange({ student, newStatus: status });
+        setShowChangeConfirm(true);
+        return;
+      }
+    }
+    
+    // New record - insert
+    console.log('✅ Saving new attendance record');
+    await saveAttendance(student, status);
+  };
+
+  // Save attendance to database
+  const saveAttendance = async (student: any, status: string) => {
+    try {
+      console.log('💾 Saving to database:', {
+        session_id: session!.id,
+        student_id: student.id,
+        status: status
+      });
+      
+      const { data, error } = await supabase
+        .from('attendance')
+        .upsert({
+          session_id: session!.id,
+          student_id: student.id,
+          status: status,
+          time_in: status === 'present' ? new Date().toISOString() : null,
+          updated_at: new Date().toISOString()
+        }, {
+          onConflict: 'session_id,student_id'
+        })
+        .select();
+      
+      if (error) {
+        console.error('❌ Database error:', error);
+        throw error;
+      }
+      
+      console.log('✅ Saved successfully:', data);
+      
+      // Reload attendance records
+      await loadAttendanceRecords();
+      
+      // Show success overlay with student name
+      const studentName = `${student.firstname} ${student.surname}`;
+      showOverlay(studentName, `Marked ${status === 'present' ? 'Present' : 'Absent'}`, 'success');
+      
+      console.log('✅ Overlay shown');
+    } catch (error) {
+      console.error('❌ Error saving attendance:', error);
+      toast.error('Failed to save attendance: ' + (error as any)?.message);
+    }
+  };
+
+  // Show overlay and pause camera
+  const showOverlay = (studentName: string, message: string, type: 'success' | 'error' | 'warning') => {
+    setOverlayStudentName(studentName);
+    setOverlayMessage(message);
+    setOverlayType(type);
+    setIsPaused(true);
+    
+    // Hide overlay and resume after 1 second
+    setTimeout(() => {
+      setOverlayMessage(null);
+      setOverlayStudentName(null);
+      setIsPaused(false);
+    }, 1000);
+  };
+
+  // Confirm status change
+  const confirmStatusChange = async () => {
+    if (!pendingChange) return;
+    
+    await saveAttendance(pendingChange.student, pendingChange.newStatus);
+    setShowChangeConfirm(false);
+    setPendingChange(null);
+  };
 
   // Auto-load latest model on page open
   useEffect(() => {
@@ -331,111 +538,111 @@ const TakeAttendanceSession = () => {
     loadLatestModel();
   }, []);
 
-  // Camera prediction loop (only top 1 prediction)
-useEffect(() => {
-  if (!isMobile || !isCameraReady || !mobileWebcam.current || !model) {
-    setPredictions([]);
-    console.log('🛑 Camera prediction loop stopped');
-    return;
-  }
-  
-  let isRunning = false;
-  let consecutiveErrors = 0;
-  const MAX_ERRORS = 3;
-  let successCount = 0;
-  let lastCleanupTime = Date.now();
-  let lastPredictionTime = 0;
-  const CLEANUP_INTERVAL = 5000;
-  const MIN_PREDICTION_INTERVAL = 500; // ✅ Adjust this for your hardware (300-700ms)
-  
-  const runCameraPrediction = async () => {
-    if (isRunning) return;
-    if (!mobileWebcam.current || !model) return;
+  // Camera prediction loop (only top 1 prediction) - Using improved version from master with requestAnimationFrame
+  useEffect(() => {
+    if (!isMobile || !isCameraReady || !mobileWebcam.current || !model) {
+      setPredictions([]);
+      console.log('🛑 Camera prediction loop stopped');
+      return;
+    }
     
-    isRunning = true;
+    let isRunning = false;
+    let consecutiveErrors = 0;
+    const MAX_ERRORS = 3;
+    let successCount = 0;
+    let lastCleanupTime = Date.now();
+    let lastPredictionTime = 0;
+    const CLEANUP_INTERVAL = 5000;
+    const MIN_PREDICTION_INTERVAL = 500; // ✅ Adjust this for your hardware (300-700ms)
     
-    try {
+    const runCameraPrediction = async () => {
+      if (isRunning) return;
+      if (!mobileWebcam.current || !model) return;
+      
+      isRunning = true;
+      
+      try {
+        const now = Date.now();
+        if (now - lastCleanupTime > CLEANUP_INTERVAL) {
+          forceMemoryCleanup();
+          lastCleanupTime = now;
+        }
+        
+        const videoElement = mobileWebcam.current.getVideo();
+        if (!videoElement) throw new Error('Video element is null');
+        if (videoElement.paused || videoElement.ended) throw new Error('Video is paused or ended');
+        if (videoElement.readyState < 2) throw new Error(`Video not ready (readyState: ${videoElement.readyState})`);
+        
+        const canvas = mobileWebcam.current.captureFrame();
+        if (!canvas) throw new Error('captureFrame() returned null');
+        if (canvas.width !== 224 || canvas.height !== 224) throw new Error(`Invalid canvas size: ${canvas.width}x${canvas.height}`);
+        
+        const predictions = await predictFromCanvas(model, canvas, false);
+        if (!predictions || predictions.length === 0) throw new Error('Model returned empty predictions');
+        
+        consecutiveErrors = 0;
+        successCount++;
+        
+        const sortedPredictions = predictions.sort((a, b) => b.confidence - a.confidence);
+        
+        if (successCount % 30 === 0) {
+          const memory = tf.memory();
+          console.log(`📊 Memory stats after ${successCount} predictions:`, {
+            numTensors: memory.numTensors,
+            numBytes: (memory.numBytes / 1024 / 1024).toFixed(2) + ' MB'
+          });
+        }
+        
+        setPredictions(sortedPredictions);
+        
+      } catch (error) {
+        consecutiveErrors++;
+        console.error(`❌ Camera prediction error #${consecutiveErrors}:`, error);
+        
+        if (consecutiveErrors >= MAX_ERRORS) {
+          console.error('🛑 Too many consecutive errors, stopping predictions');
+          toast({
+            title: 'Camera Prediction Failed',
+            description: 'Unable to process camera feed. Please try restarting the camera.',
+            variant: 'destructive',
+          });
+          setPredictions([]);
+        }
+      } finally {
+        isRunning = false;
+      }
+    };
+    
+    // ✅ Use requestAnimationFrame for smooth predictions
+    let animationFrameId: number;
+    
+    const predictionLoop = async () => {
       const now = Date.now();
-      if (now - lastCleanupTime > CLEANUP_INTERVAL) {
-        forceMemoryCleanup();
-        lastCleanupTime = now;
+      
+      // Throttle predictions to MIN_PREDICTION_INTERVAL
+      if (now - lastPredictionTime >= MIN_PREDICTION_INTERVAL) {
+        await runCameraPrediction();
+        lastPredictionTime = now;
       }
       
-      const videoElement = mobileWebcam.current.getVideo();
-      if (!videoElement) throw new Error('Video element is null');
-      if (videoElement.paused || videoElement.ended) throw new Error('Video is paused or ended');
-      if (videoElement.readyState < 2) throw new Error(`Video not ready (readyState: ${videoElement.readyState})`);
-      
-      const canvas = mobileWebcam.current.captureFrame();
-      if (!canvas) throw new Error('captureFrame() returned null');
-      if (canvas.width !== 224 || canvas.height !== 224) throw new Error(`Invalid canvas size: ${canvas.width}x${canvas.height}`);
-      
-      const predictions = await predictFromCanvas(model, canvas, false);
-      if (!predictions || predictions.length === 0) throw new Error('Model returned empty predictions');
-      
-      consecutiveErrors = 0;
-      successCount++;
-      
-      const sortedPredictions = predictions.sort((a, b) => b.confidence - a.confidence);
-      
-      if (successCount % 30 === 0) {
-        const memory = tf.memory();
-        console.log(`📊 Memory stats after ${successCount} predictions:`, {
-          numTensors: memory.numTensors,
-          numBytes: (memory.numBytes / 1024 / 1024).toFixed(2) + ' MB'
-        });
+      // Continue loop if camera is still active
+      if (isCameraReady && model) {
+        animationFrameId = requestAnimationFrame(predictionLoop);
       }
-      
-      setPredictions(sortedPredictions);
-      
-    } catch (error) {
-      consecutiveErrors++;
-      console.error(`❌ Camera prediction error #${consecutiveErrors}:`, error);
-      
-      if (consecutiveErrors >= MAX_ERRORS) {
-        console.error('🛑 Too many consecutive errors, stopping predictions');
-        toast({
-          title: 'Camera Prediction Failed',
-          description: 'Unable to process camera feed. Please try restarting the camera.',
-          variant: 'destructive',
-        });
-        setPredictions([]);
-      }
-    } finally {
-      isRunning = false;
-    }
-  };
-  
-  // ✅ Use requestAnimationFrame for smooth predictions
-  let animationFrameId: number;
-  
-  const predictionLoop = async () => {
-    const now = Date.now();
+    };
     
-    // Throttle predictions to MIN_PREDICTION_INTERVAL
-    if (now - lastPredictionTime >= MIN_PREDICTION_INTERVAL) {
-      await runCameraPrediction();
-      lastPredictionTime = now;
-    }
+    console.log('🚀 Starting camera prediction loop with requestAnimationFrame');
+    predictionLoop();
     
-    // Continue loop if camera is still active
-    if (isCameraReady && model) {
-      animationFrameId = requestAnimationFrame(predictionLoop);
-    }
-  };
-  
-  console.log('🚀 Starting camera prediction loop with requestAnimationFrame');
-  predictionLoop();
-  
-  return () => {
-    console.log('🛑 Stopping camera prediction loop');
-    if (animationFrameId) {
-      cancelAnimationFrame(animationFrameId);
-    }
-    console.log('🧹 Final memory cleanup');
-    forceMemoryCleanup();
-  };
-}, [isMobile, isCameraReady, model, toast]);
+    return () => {
+      console.log('🛑 Stopping camera prediction loop');
+      if (animationFrameId) {
+        cancelAnimationFrame(animationFrameId);
+      }
+      console.log('🧹 Final memory cleanup');
+      forceMemoryCleanup();
+    };
+  }, [isMobile, isCameraReady, model, isPaused, toast]);
 
   // Check for basic MediaDevices API support on component mount
   useEffect(() => {
@@ -875,8 +1082,9 @@ useEffect(() => {
         </div>
 
         <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-          {/* Left Section: Scan Signatures */}
-          <div className="space-y-4">
+          {/* Left Section: Scan Signatures - Card on desktop only */}
+          <div className="lg:bg-white lg:rounded-lg lg:border lg:border-gray-200 lg:shadow-sm lg:p-4">
+            <div className="space-y-4">
             <div className="space-y-3">
               <div className="flex items-center justify-between">
                 <span className="text-base font-semibold">
@@ -1039,7 +1247,7 @@ useEffect(() => {
               )}
               
               {/* Prediction Overlay - Lower-left when camera is active */}
-              {isCameraReady && predictions.length > 0 && (
+              {isCameraReady && predictions.length > 0 && !overlayMessage && (
                 <>
                   {/* Lower-left: Student Name */}
                   <div className="absolute bottom-2 left-2 bg-black/70 text-white px-2 py-1 rounded text-xs font-medium z-30">
@@ -1051,21 +1259,43 @@ useEffect(() => {
                   </div>
                 </>
               )}
+              
+              {/* Status Overlay - Shows after marking */}
+              {overlayMessage && (
+                <div className={`absolute top-1/2 left-1/2 transform -translate-x-1/2 -translate-y-1/2 z-40 rounded-lg px-4 py-3 shadow-lg ${
+                  overlayType === 'success' ? 'bg-green-600' : 
+                  overlayType === 'warning' ? 'bg-yellow-600' : 
+                  'bg-red-600'
+                }`}>
+                  <div className="text-center text-white">
+                    <p className="font-bold text-sm">{overlayStudentName}</p>
+                    <p className="text-xs mt-1">{overlayMessage}</p>
+                  </div>
+                </div>
+              )}
             </div>
             
             {/* Attendance Buttons - Only show when camera is active */}
             {isCameraReady && (
               <div className="space-y-2">
                 <Button 
-                  onClick={() => console.log('Present clicked')}
-                  className="w-full h-12 text-sm bg-green-600 hover:bg-green-700"
+                  onClick={(e) => {
+                    e.currentTarget.blur();
+                    markAttendance('present');
+                  }}
+                  disabled={!predictions.length || isPaused}
+                  className="w-full h-12 text-sm bg-green-600 hover:bg-green-700 active:bg-green-800 focus-visible:ring-0 focus-visible:ring-offset-0 disabled:opacity-50 disabled:cursor-not-allowed"
                 >
                   Mark Present
                 </Button>
                 <Button 
-                  onClick={() => console.log('Absent clicked')}
+                  onClick={(e) => {
+                    e.currentTarget.blur();
+                    markAttendance('absent');
+                  }}
+                  disabled={!predictions.length || isPaused}
                   variant="outline"
-                  className="w-full h-12 text-sm border-red-300 text-red-600 hover:bg-red-50"
+                  className="w-full h-12 text-sm border-red-300 text-red-600 hover:bg-red-50 active:bg-red-100 focus-visible:ring-0 focus-visible:ring-offset-0 disabled:opacity-50 disabled:cursor-not-allowed"
                 >
                   Mark Absent
                 </Button>
@@ -1073,26 +1303,96 @@ useEffect(() => {
             )}
             </>
             )}
+            </div>
           </div>
 
-          {/* Right Section: Attendance Log */}
-          <Card className="shadow-sm">
-            <CardHeader className="p-4 pb-2">
-              <div className="flex items-center justify-between">
-                <CardTitle className="text-lg">Attendance Log</CardTitle>
+          {/* Right Section: Attendance Log - No card on mobile, card on desktop */}
+          <div className="space-y-4">
+            {/* Header */}
+            <div className="flex items-center justify-between">
+              <h3 className="text-base font-semibold">Attendance Log</h3>
+              <div className="flex gap-2">
                 <Badge className="bg-green-100 text-green-800 hover:bg-green-100">
-                  {stats.matched} captured
+                  {attendanceLog.filter(a => a.status === 'present').length} Present
+                </Badge>
+                <Badge className="bg-red-100 text-red-800 hover:bg-red-100">
+                  {attendanceLog.filter(a => a.status === 'absent').length} Absent
                 </Badge>
               </div>
-            </CardHeader>
-            <CardContent className="p-0">
-              <div className="w-full h-48 bg-muted/10 flex flex-col items-center justify-center">
-                <Users className="w-12 h-12 text-muted-300 mb-2" />
-                <p className="text-muted-500">No signatures captured yet</p>
-              </div>
-            </CardContent>
-          </Card>
+            </div>
+            
+            {/* Content - Card on desktop only */}
+            <div className="lg:bg-white lg:rounded-lg lg:border lg:border-gray-200 lg:shadow-sm lg:p-4">
+              {attendanceLog.length > 0 ? (
+                <div className="space-y-2 max-h-[400px] overflow-y-auto">
+                  {attendanceLog.map((record) => (
+                    <div key={record.id} className="p-3 rounded-lg border border-gray-200">
+                      <div className="flex items-center justify-between">
+                        <div>
+                          <p className="text-sm font-medium text-gray-900">
+                            {record.students?.firstname} {record.students?.surname}
+                          </p>
+                          <p className="text-xs text-gray-500">ID: {record.students?.student_id}</p>
+                        </div>
+                        <div className="text-right">
+                          <span className={`text-xs font-medium ${
+                            record.status === 'present' 
+                              ? 'text-green-600' 
+                              : 'text-red-600'
+                          }`}>
+                            {record.status === 'present' ? 'Present' : 'Absent'}
+                          </span>
+                          {record.time_in && (
+                            <p className="text-xs text-gray-500 mt-1">
+                              {new Date(record.time_in).toLocaleTimeString()}
+                            </p>
+                          )}
+                        </div>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              ) : (
+                <div className="flex flex-col items-center justify-center py-8">
+                  <Users className="w-12 h-12 text-gray-300 mb-2" />
+                  <p className="text-gray-500 text-sm">No attendance recorded yet</p>
+                </div>
+              )}
+            </div>
+          </div>
         </div>
+        
+        {/* Status Change Confirmation Dialog */}
+        <Dialog open={showChangeConfirm} onOpenChange={setShowChangeConfirm}>
+          <DialogContent className="max-w-sm w-full">
+            <DialogHeader>
+              <DialogTitle>Confirm Status Change</DialogTitle>
+            </DialogHeader>
+            <p>
+              <strong>{pendingChange?.student && `${pendingChange.student.firstname} ${pendingChange.student.surname}`}</strong> is already marked as{' '}
+              <strong>{pendingChange?.student && attendanceMap.get(pendingChange.student.id)?.status}</strong>. 
+              Do you want to change it to <strong>{pendingChange?.newStatus}</strong>?
+            </p>
+            <DialogFooter className="flex flex-row gap-2">
+              <Button 
+                variant="outline" 
+                onClick={() => {
+                  setShowChangeConfirm(false);
+                  setPendingChange(null);
+                }}
+                className="flex-1"
+              >
+                No
+              </Button>
+              <Button 
+                onClick={confirmStatusChange}
+                className="flex-1"
+              >
+                Yes
+              </Button>
+            </DialogFooter>
+          </DialogContent>
+        </Dialog>
       </div>
     </Layout>
   );

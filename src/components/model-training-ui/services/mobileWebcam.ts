@@ -91,10 +91,103 @@ export class MobileWebcam {
     }
 
     const constraintSets: MediaStreamConstraints[] = [
+      // 1. Try 4K Ultra HD (3840x2160) - Best quality with MAXIMUM stabilization
       {
         video: {
-          width: { ideal: 1280 },    // ✅ Changed from 1920
-          height: { ideal: 720 },    // ✅ Changed from 1080
+          width: { ideal: 3840 },
+          height: { ideal: 2160 },
+          facingMode: this.config.facingMode,
+          // @ts-ignore - Request ALL stabilization features
+          zoom: this.config.zoom,
+          focusMode: 'continuous',
+          focusDistance: { ideal: 0.15 },
+          // ===== Standard Stabilization (All Brands) =====
+          imageStabilization: true,           // OIS - Optical Image Stabilization
+          videoStabilization: true,           // EIS - Electronic Image Stabilization
+          opticalStabilization: true,         // Explicit OIS request
+          stabilizationMode: 'on',            // Force enable
+          // ===== Apple (iPhone) =====
+          sensorShiftStabilization: true,     // iPhone 12 Pro Max+ Sensor-Shift
+          cinematicStabilization: true,       // iPhone Cinematic mode
+          // ===== Samsung (Galaxy) =====
+          superSteady: true,                  // Samsung Super Steady (Hybrid OIS+EIS)
+          superSteady2: true,                 // Samsung Super Steady 2.0
+          VDIS: true,                         // Samsung Video Digital IS
+          // ===== Google Pixel =====
+          fusedEIS: true,                     // Google Fused EIS
+          superResZoom: true,                 // Google stabilization + zoom
+          // ===== Sony Xperia =====
+          steadyShot: true,                   // Sony SteadyShot
+          opticalSteadyShot: true,            // Sony Optical SteadyShot
+          flawlessEye: true,                  // Sony FlawlessEye OIS
+          flawlessEyeOIS: true,               // Sony FlawlessEye explicit
+          // ===== Huawei =====
+          AIS: true,                          // Huawei AI Image Stabilization
+          aiImageStabilization: true,         // Huawei AIS explicit
+          // ===== Xiaomi / Redmi / Poco (Your Redmi Note 14!) =====
+          superStabilization: true,           // Xiaomi Super Stabilization
+          ultraSteadyVideo: true,             // Xiaomi/Redmi Ultra Steady
+          // ===== OnePlus =====
+          superStableVideo: true,             // OnePlus Super Stable Video
+          // ===== Oppo / Realme =====
+          ultraSteady: true,                  // Oppo/Realme Ultra Steady Video
+          ultraSteadyPro: true,               // Oppo/Realme Ultra Steady Pro
+          HIS: true,                          // Oppo Hybrid Image Stabilization
+          // ===== Vivo =====
+          gimbalOIS: true,                    // Vivo Gimbal OIS (5-axis)
+          gimbalStabilization: true,          // Vivo Gimbal Stabilization
+          fiveAxisGimbal: true,               // Vivo 5-axis explicit
+          // ===== Tecno (Your Tecno Pova 7!) =====
+          ultraSteadyVideo: true,             // Tecno Ultra Steady
+          gimbalOIS: true,                    // Tecno uses Gimbal on premium
+          gyroEIS: true,                      // Tecno Gyro-EIS
+          // ===== Infinix =====
+          gyroEIS: true,                      // Infinix Gyro-EIS
+          // ===== Asus ROG Phone =====
+          hyperSteady: true,                  // Asus HyperSteady
+          rockSteady: true,                   // Asus Rock Steady
+          // ===== Honor =====
+          // ===== ZTE / Nubia =====
+          // (Use standard OIS/EIS)
+          advanced: [{
+            focusMode: 'continuous',
+            zoom: this.config.zoom,
+            imageStabilization: true,
+            videoStabilization: true,
+            opticalStabilization: true
+          }]
+        }
+      },
+      // 2. Try 2K Quad HD (2560x1440) - Good quality with full stabilization
+      {
+        video: {
+          width: { ideal: 2560 },
+          height: { ideal: 1440 },
+          facingMode: this.config.facingMode,
+          // @ts-ignore
+          zoom: this.config.zoom,
+          focusMode: 'continuous',
+          focusDistance: { ideal: 0.15 },
+          imageStabilization: true,
+          videoStabilization: true,
+          opticalStabilization: true,
+          superStabilization: true,          // Xiaomi/Redmi
+          ultraSteady: true,                 // Oppo/Realme/Tecno
+          superSteady: true,                 // Samsung
+          gimbalOIS: true,                   // Vivo/Tecno
+          advanced: [{
+            focusMode: 'continuous',
+            zoom: this.config.zoom,
+            imageStabilization: true,
+            videoStabilization: true
+          }]
+        }
+      },
+      // 3. Try Full HD / 1080p (1920x1080) - Standard quality with stabilization
+      {
+        video: {
+          width: { ideal: 1920 },
+          height: { ideal: 1080 },
           facingMode: this.config.facingMode,
           // @ts-ignore
           zoom: this.config.zoom,
@@ -104,25 +197,12 @@ export class MobileWebcam {
           videoStabilization: true,
           advanced: [{
             focusMode: 'continuous',
-            zoom: this.config.zoom
+            zoom: this.config.zoom,
+            imageStabilization: true
           }]
         }
       },
-      {
-        video: {
-          width: { ideal: 1280 },
-          height: { ideal: 720 },
-          facingMode: this.config.facingMode,
-          // @ts-ignore
-          zoom: this.config.zoom,
-          focusMode: 'continuous',
-          focusDistance: { ideal: 0.15 },
-          advanced: [{
-            focusMode: 'continuous',
-            zoom: this.config.zoom
-          }]
-        }
-      },
+      // 4. Try HD / 720p (1280x720) - Basic quality for older phones
       {
         video: {
           width: { ideal: 1280 },
@@ -130,23 +210,24 @@ export class MobileWebcam {
           facingMode: this.config.facingMode,
           // @ts-ignore
           focusMode: 'continuous',
-          focusDistance: { ideal: 0.15 }
+          imageStabilization: true
         }
       },
+      // 5. Try SD (640x480) - Compatibility for very old phones
       {
         video: {
-          width: { ideal: 1280 },
-          height: { ideal: 720 },
-          facingMode: this.config.facingMode,
-          // @ts-ignore
-          focusMode: 'continuous'
+          width: { ideal: 640 },
+          height: { ideal: 480 },
+          facingMode: this.config.facingMode
         }
       },
+      // 6. Fallback: Just request any camera with facing mode
       {
         video: {
           facingMode: this.config.facingMode
         }
       },
+      // 7. Final fallback: Any camera at all
       {
         video: true
       }

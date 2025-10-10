@@ -524,7 +524,14 @@ const MobileDrawer = ({ isOpen, onClose }: { isOpen: boolean; onClose: () => voi
           animationFillMode: 'forwards'
         }}
       >
-        <div className="flex justify-end items-center mb-8">
+        {/* Logo and AMSUIP at top */}
+        <div className="flex items-center justify-between mb-8">
+          <div className="flex items-center gap-3">
+            <div className="w-8 h-8 bg-gradient-primary rounded-lg flex items-center justify-center">
+              <GraduationCap className="w-5 h-5 text-primary-foreground" />
+            </div>
+            <h1 className="text-lg font-bold text-education-navy">AMSUIP</h1>
+          </div>
           <Button variant="ghost" size="icon" onClick={onClose}>
             <X className="h-5 w-5" />
           </Button>

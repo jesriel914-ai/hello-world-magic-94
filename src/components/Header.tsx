@@ -307,302 +307,323 @@ const Header = ({ isMobile = false }: HeaderProps) => {
     }
   };
 
-  if (isMobile) {
-    const handleMobileMenuToggle = () => {
-      if (window.mobileDrawerState) {
-        window.mobileDrawerState.toggle();
-      }
-    };
+  const handleMobileMenuToggle = () => {
+    if (window.mobileDrawerState) {
+      window.mobileDrawerState.toggle();
+    }
+  };
 
-    return (
-      <header className="sticky top-0 z-50 md:hidden bg-background/95 backdrop-blur supports-[backdrop-filter]:bg-background/60 border-b border-sidebar-border h-14">
-        <div className="flex items-center justify-between px-4 h-14">
-          <div className="flex items-center gap-3">
-            <div 
-              className="w-8 h-8 bg-gradient-primary rounded-lg flex items-center justify-center cursor-pointer transition-all duration-200 hover:scale-105"
-              onClick={handleMobileMenuToggle}
-            >
-              <GraduationCap className="w-5 h-5 text-primary-foreground" />
-            </div>
-            <h1 className="text-lg font-bold text-education-navy">AMSUIP</h1>
-          </div>
-          <Button variant="ghost" size="icon" onClick={handleMobileMenuToggle}>
-            <Menu className="h-5 w-5" />
-          </Button>
-        </div>
-      </header>
-    );
-  }
-
+  // Render mobile or desktop header
   return (
-    <header className="sticky top-0 z-40 bg-background/95 backdrop-blur supports-[backdrop-filter]:bg-background/60 border-b border-sidebar-border h-14">
-      <div className="flex items-center justify-between pr-6 pl-2 h-14">
-        {/* Left side - Logo and toggle */}
-        <div className="flex items-center gap-4">
-          <div 
-            className="w-8 h-8 bg-gradient-primary rounded-lg flex items-center justify-center cursor-pointer transition-all duration-200 hover:scale-105"
-            onClick={toggleSidebar}
-          >
-            <GraduationCap className="w-5 h-5 text-primary-foreground" />
-          </div>
-          <h1 className="text-lg font-bold text-education-navy">AMSUIP</h1>
-        </div>
-
-        {/* Right side - Academic first, then Panel label, then User dropdown */}
-        <div className="flex items-center gap-4">
-          {/* Academic Year and Semester */}
-          {academicYear && (
-            <div className="flex items-center gap-2 text-sm text-muted-foreground">
-              <span>Current A.Y.:</span>
-              <span>{academicYear.year}</span>
-              <span>{academicYear.semester}</span>
-            </div>
-          )}
-
-          {/* Vertical Separator */}
-          {academicYear && (
-            <div className="h-4 w-px bg-gray-300"></div>
-          )}
-
-          {/* Panel Label */}
-          <div className="text-sm font-medium text-muted-foreground">
-            {getPanelLabel()}
-          </div>
-
-          {/* User Dropdown */}
-          <DropdownMenu>
-            <DropdownMenuTrigger asChild>
-              <Button variant="ghost" className="relative h-8 w-8 rounded-lg bg-gradient-primary p-0 flex items-center justify-center cursor-pointer transition-all duration-200 hover:scale-105">
-                <UserCircle className="h-5 w-5 text-primary-foreground" />
-              </Button>
-            </DropdownMenuTrigger>
-            <DropdownMenuContent className="w-56" align="end" forceMount>
-              <div className="flex items-center justify-start gap-2 p-2">
-                <div className="flex flex-col space-y-1 leading-none">
-                  <p className="font-medium">{getUserDisplayName()}</p>
+    <>
+      {isMobile ? (
+        /* Mobile Header */
+        <header className="sticky top-0 z-50 md:hidden bg-background/95 backdrop-blur supports-[backdrop-filter]:bg-background/60 border-b border-sidebar-border h-14">
+          <div className="flex items-center justify-between px-4 h-14">
+            {/* Left: Menu Icon */}
+            <Button variant="ghost" size="icon" onClick={handleMobileMenuToggle}>
+              <Menu className="h-5 w-5" />
+            </Button>
+            
+            {/* Right: Profile Icon with Dropdown */}
+            <DropdownMenu>
+              <DropdownMenuTrigger asChild>
+                <Button variant="ghost" className="relative h-8 w-8 rounded-lg bg-gradient-primary p-0 flex items-center justify-center cursor-pointer transition-all duration-200 hover:scale-105">
+                  <UserCircle className="h-5 w-5 text-primary-foreground" />
+                </Button>
+              </DropdownMenuTrigger>
+              <DropdownMenuContent className="w-56" align="end" forceMount>
+                <div className="flex items-center justify-start gap-2 p-2">
+                  <div className="flex flex-col space-y-1 leading-none">
+                    <p className="font-medium">{getUserDisplayName()}</p>
+                  </div>
                 </div>
+                <DropdownMenuSeparator />
+                <DropdownMenuItem onClick={handleProfileClick}>
+                  <User className="mr-2 h-4 w-4" />
+                  <span>Profile</span>
+                </DropdownMenuItem>
+                <DropdownMenuItem onClick={() => setIsLogoutConfirmOpen(true)}>
+                  <LogOut className="mr-2 h-4 w-4" />
+                  <span>Log out</span>
+                </DropdownMenuItem>
+              </DropdownMenuContent>
+            </DropdownMenu>
+          </div>
+        </header>
+      ) : (
+        /* Desktop Header */
+        <header className="sticky top-0 z-40 bg-background/95 backdrop-blur supports-[backdrop-filter]:bg-background/60 border-b border-sidebar-border h-14">
+          <div className="flex items-center justify-between pr-6 pl-2 h-14">
+            {/* Left side - Logo and toggle */}
+            <div className="flex items-center gap-4">
+              <div 
+                className="w-8 h-8 bg-gradient-primary rounded-lg flex items-center justify-center cursor-pointer transition-all duration-200 hover:scale-105"
+                onClick={toggleSidebar}
+              >
+                <GraduationCap className="w-5 h-5 text-primary-foreground" />
               </div>
-              <DropdownMenuSeparator />
-              <DropdownMenuItem onClick={handleProfileClick}>
-                <User className="mr-2 h-4 w-4" />
-                <span>Profile</span>
-              </DropdownMenuItem>
-              <DropdownMenuSeparator />
-              <DropdownMenuItem onClick={() => setIsLogoutConfirmOpen(true)}>
-                <LogOut className="mr-2 h-4 w-4" />
-                <span>Log out</span>
-              </DropdownMenuItem>
-            </DropdownMenuContent>
-          </DropdownMenu>
-        </div>
-      </div>
+              <h1 className="text-lg font-bold text-education-navy">AMSUIP</h1>
+            </div>
+
+            {/* Right side - Academic first, then Panel label, then User dropdown */}
+            <div className="flex items-center gap-4">
+              {/* Academic Year and Semester */}
+              {academicYear && (
+                <div className="flex items-center gap-2 text-sm text-muted-foreground">
+                  <span>Current A.Y.:</span>
+                  <span>{academicYear.year}</span>
+                  <span>{academicYear.semester}</span>
+                </div>
+              )}
+
+              {/* Vertical Separator */}
+              {academicYear && (
+                <div className="h-4 w-px bg-gray-300"></div>
+              )}
+
+              {/* Panel Label */}
+              <div className="text-sm font-medium text-muted-foreground">
+                {getPanelLabel()}
+              </div>
+
+              {/* User Dropdown */}
+              <DropdownMenu>
+                <DropdownMenuTrigger asChild>
+                  <Button variant="ghost" className="relative h-8 w-8 rounded-lg bg-gradient-primary p-0 flex items-center justify-center cursor-pointer transition-all duration-200 hover:scale-105">
+                    <UserCircle className="h-5 w-5 text-primary-foreground" />
+                  </Button>
+                </DropdownMenuTrigger>
+                <DropdownMenuContent className="w-56" align="end" forceMount>
+                  <div className="flex items-center justify-start gap-2 p-2">
+                    <div className="flex flex-col space-y-1 leading-none">
+                      <p className="font-medium">{getUserDisplayName()}</p>
+                    </div>
+                  </div>
+                  <DropdownMenuSeparator />
+                  <DropdownMenuItem onClick={handleProfileClick}>
+                    <User className="mr-2 h-4 w-4" />
+                    <span>Profile</span>
+                  </DropdownMenuItem>
+                  <DropdownMenuItem onClick={() => setIsLogoutConfirmOpen(true)}>
+                    <LogOut className="mr-2 h-4 w-4" />
+                    <span>Log out</span>
+                  </DropdownMenuItem>
+                </DropdownMenuContent>
+              </DropdownMenu>
+            </div>
+          </div>
+        </header>
+      )}
+      
+      {/* Shared Dialogs for Both Mobile and Desktop */}
       {/* Profile Dialog */}
       <Dialog open={isProfileOpen} onOpenChange={setIsProfileOpen}>
-        <DialogContent className="max-w-md w-full">
-          <DialogHeader>
-            <DialogTitle>Profile Information</DialogTitle>
-          </DialogHeader>
-          
-          {/* Fixed height container to prevent layout shifts */}
-          <div className="min-h-[300px] space-y-4">
+          <DialogContent className="max-w-md w-full">
+            <DialogHeader>
+              <DialogTitle>Profile Information</DialogTitle>
+            </DialogHeader>
             
-            {/* Display Mode - Default */}
-            {profileMode === 'display' && (
-              <div className="flex flex-col h-full">
-                <div className="space-y-3">
-                  <div>
-                    <span className="text-sm font-medium text-gray-700">Full Name:</span>
-                    <p className="text-sm text-gray-900 mt-1">{profileForm.full_name || 'Not set'}</p>
-                  </div>
-                  <div>
-                    <span className="text-sm font-medium text-gray-700">Email:</span>
-                    <p className="text-sm text-gray-900 mt-1">{profileForm.email}</p>
-                  </div>
-                  <div>
-                    <span className="text-sm font-medium text-gray-700">Role:</span>
-                    <p className="text-sm text-gray-900 mt-1">{getPanelLabel()}</p>
-                  </div>
-                </div>
-                
-                <div className="flex gap-3 mt-auto pt-4 justify-center">
-                  <Button 
-                    variant="outline" 
-                    onClick={() => setProfileMode('edit')}
-                    className="w-32"
-                  >
-                    Edit Profile
-                  </Button>
-                  <Button 
-                    variant="outline" 
-                    onClick={() => setProfileMode('password')}
-                    className="w-32"
-                  >
-                    Change Password
-                  </Button>
-                </div>
-              </div>
-            )}
-
-            {/* Edit Mode */}
-            {profileMode === 'edit' && (
-              <div className="flex flex-col h-full">
-                <div className="space-y-4">
-                  <div className="grid grid-cols-2 gap-4">
+            {/* Fixed height container to prevent layout shifts */}
+            <div className="min-h-[300px] space-y-4">
+              
+              {/* Display Mode - Default */}
+              {profileMode === 'display' && (
+                <div className="flex flex-col h-full">
+                  <div className="space-y-3">
                     <div>
-                      <Label htmlFor="first_name">First Name</Label>
-                      <Input 
-                        id="first_name" 
-                        value={profileForm.first_name || ''} 
-                        onChange={(e) => setProfileForm(p => ({ ...p, first_name: e.target.value }))} 
-                        placeholder="Enter your first name"
-                      />
+                      <span className="text-sm font-medium text-gray-700">Full Name:</span>
+                      <p className="text-sm text-gray-900 mt-1">{profileForm.full_name || 'Not set'}</p>
                     </div>
                     <div>
-                      <Label htmlFor="last_name">Last Name</Label>
+                      <span className="text-sm font-medium text-gray-700">Email:</span>
+                      <p className="text-sm text-gray-900 mt-1">{profileForm.email}</p>
+                    </div>
+                    <div>
+                      <span className="text-sm font-medium text-gray-700">Role:</span>
+                      <p className="text-sm text-gray-900 mt-1">{getPanelLabel()}</p>
+                    </div>
+                  </div>
+                  
+                  <div className="flex gap-3 mt-auto pt-4 justify-center">
+                    <Button 
+                      variant="outline" 
+                      onClick={() => setProfileMode('edit')}
+                      className="w-32"
+                    >
+                      Edit Profile
+                    </Button>
+                    <Button 
+                      variant="outline" 
+                      onClick={() => setProfileMode('password')}
+                      className="w-32"
+                    >
+                      Change Password
+                    </Button>
+                  </div>
+                </div>
+              )}
+
+              {/* Edit Mode */}
+              {profileMode === 'edit' && (
+                <div className="flex flex-col h-full">
+                  <div className="space-y-4">
+                    <div className="grid grid-cols-2 gap-4">
+                      <div>
+                        <Label htmlFor="first_name">First Name</Label>
+                        <Input 
+                          id="first_name" 
+                          value={profileForm.first_name || ''} 
+                          onChange={(e) => setProfileForm(p => ({ ...p, first_name: e.target.value }))} 
+                          placeholder="Enter your first name"
+                        />
+                      </div>
+                      <div>
+                        <Label htmlFor="last_name">Last Name</Label>
+                        <Input 
+                          id="last_name" 
+                          value={profileForm.last_name || ''} 
+                          onChange={(e) => setProfileForm(p => ({ ...p, last_name: e.target.value }))} 
+                          placeholder="Enter your last name"
+                        />
+                      </div>
+                    </div>
+                    <div>
+                      <Label htmlFor="email">Email</Label>
                       <Input 
-                        id="last_name" 
-                        value={profileForm.last_name || ''} 
-                        onChange={(e) => setProfileForm(p => ({ ...p, last_name: e.target.value }))} 
-                        placeholder="Enter your last name"
+                        id="email" 
+                        value={profileForm.email} 
+                        disabled 
+                        className="bg-gray-50"
                       />
                     </div>
                   </div>
-                  <div>
-                    <Label htmlFor="email">Email</Label>
-                    <Input 
-                      id="email" 
-                      value={profileForm.email} 
-                      disabled 
-                      className="bg-gray-50"
-                    />
+                  
+                  <div className="flex gap-3 mt-auto pt-4 justify-center">
+                    <Button 
+                      variant="outline" 
+                      onClick={() => setProfileMode('display')}
+                      className="w-32"
+                    >
+                      Cancel
+                    </Button>
+                    <Button 
+                      onClick={handleProfileSave} 
+                      disabled={isUpdatingProfile}
+                      className="w-32"
+                    >
+                      {isUpdatingProfile ? 'Saving...' : 'Save'}
+                    </Button>
                   </div>
                 </div>
-                
-                <div className="flex gap-3 mt-auto pt-4 justify-center">
-                  <Button 
-                    variant="outline" 
-                    onClick={() => setProfileMode('display')}
-                    className="w-32"
-                  >
-                    Cancel
-                  </Button>
-                  <Button 
-                    onClick={handleProfileSave} 
-                    disabled={isUpdatingProfile}
-                    className="w-32"
-                  >
-                    {isUpdatingProfile ? 'Saving...' : 'Save'}
-                  </Button>
-                </div>
-              </div>
-            )}
+              )}
 
-            {/* Password Change Mode */}
-            {profileMode === 'password' && (
-              <div className="flex flex-col h-full">
-                <div className="space-y-4">
-                  <div>
-                    <Label htmlFor="currentPassword">Current Password</Label>
-                    <div className="relative">
-                      <Input
-                        id="currentPassword"
-                        type={showPasswords.current ? "text" : "password"}
-                        value={passwordForm.currentPassword}
-                        onChange={(e) => setPasswordForm(p => ({ ...p, currentPassword: e.target.value }))}
-                        placeholder="Enter your current password"
-                      />
-                      <Button
-                        type="button"
-                        variant="ghost"
-                        size="sm"
-                        className="absolute right-0 top-0 h-full px-3 py-2 hover:bg-transparent"
-                        onClick={() => setShowPasswords(p => ({ ...p, current: !p.current }))}
-                      >
-                        {showPasswords.current ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
-                      </Button>
+              {/* Password Change Mode */}
+              {profileMode === 'password' && (
+                <div className="flex flex-col h-full">
+                  <div className="space-y-4">
+                    <div>
+                      <Label htmlFor="currentPassword">Current Password</Label>
+                      <div className="relative">
+                        <Input
+                          id="currentPassword"
+                          type={showPasswords.current ? "text" : "password"}
+                          value={passwordForm.currentPassword}
+                          onChange={(e) => setPasswordForm(p => ({ ...p, currentPassword: e.target.value }))}
+                          placeholder="Enter your current password"
+                        />
+                        <Button
+                          type="button"
+                          variant="ghost"
+                          size="sm"
+                          className="absolute right-0 top-0 h-full px-3 py-2 hover:bg-transparent"
+                          onClick={() => setShowPasswords(p => ({ ...p, current: !p.current }))}
+                        >
+                          {showPasswords.current ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
+                        </Button>
+                      </div>
+                    </div>
+                    <div>
+                      <Label htmlFor="newPassword">New Password</Label>
+                      <div className="relative">
+                        <Input
+                          id="newPassword"
+                          type={showPasswords.new ? "text" : "password"}
+                          value={passwordForm.newPassword}
+                          onChange={(e) => setPasswordForm(p => ({ ...p, newPassword: e.target.value }))}
+                          placeholder="Enter your new password"
+                        />
+                        <Button
+                          type="button"
+                          variant="ghost"
+                          size="sm"
+                          className="absolute right-0 top-0 h-full px-3 py-2 hover:bg-transparent"
+                          onClick={() => setShowPasswords(p => ({ ...p, new: !p.new }))}
+                        >
+                          {showPasswords.new ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
+                        </Button>
+                      </div>
+                    </div>
+                    <div>
+                      <Label htmlFor="confirmPassword">Confirm New Password</Label>
+                      <div className="relative">
+                        <Input
+                          id="confirmPassword"
+                          type={showPasswords.confirm ? "text" : "password"}
+                          value={passwordForm.confirmPassword}
+                          onChange={(e) => setPasswordForm(p => ({ ...p, confirmPassword: e.target.value }))}
+                          placeholder="Confirm your new password"
+                        />
+                        <Button
+                          type="button"
+                          variant="ghost"
+                          size="sm"
+                          className="absolute right-0 top-0 h-full px-3 py-2 hover:bg-transparent"
+                          onClick={() => setShowPasswords(p => ({ ...p, confirm: !p.confirm }))}
+                        >
+                          {showPasswords.confirm ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
+                        </Button>
+                      </div>
                     </div>
                   </div>
-                  <div>
-                    <Label htmlFor="newPassword">New Password</Label>
-                    <div className="relative">
-                      <Input
-                        id="newPassword"
-                        type={showPasswords.new ? "text" : "password"}
-                        value={passwordForm.newPassword}
-                        onChange={(e) => setPasswordForm(p => ({ ...p, newPassword: e.target.value }))}
-                        placeholder="Enter your new password"
-                      />
-                      <Button
-                        type="button"
-                        variant="ghost"
-                        size="sm"
-                        className="absolute right-0 top-0 h-full px-3 py-2 hover:bg-transparent"
-                        onClick={() => setShowPasswords(p => ({ ...p, new: !p.new }))}
-                      >
-                        {showPasswords.new ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
-                      </Button>
-                    </div>
-                  </div>
-                  <div>
-                    <Label htmlFor="confirmPassword">Confirm New Password</Label>
-                    <div className="relative">
-                      <Input
-                        id="confirmPassword"
-                        type={showPasswords.confirm ? "text" : "password"}
-                        value={passwordForm.confirmPassword}
-                        onChange={(e) => setPasswordForm(p => ({ ...p, confirmPassword: e.target.value }))}
-                        placeholder="Confirm your new password"
-                      />
-                      <Button
-                        type="button"
-                        variant="ghost"
-                        size="sm"
-                        className="absolute right-0 top-0 h-full px-3 py-2 hover:bg-transparent"
-                        onClick={() => setShowPasswords(p => ({ ...p, confirm: !p.confirm }))}
-                      >
-                        {showPasswords.confirm ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
-                      </Button>
-                    </div>
+                  
+                  <div className="flex gap-3 mt-auto pt-4 justify-center">
+                    <Button 
+                      variant="outline" 
+                      onClick={() => setProfileMode('display')}
+                      className="w-32"
+                    >
+                      Cancel
+                    </Button>
+                    <Button 
+                      onClick={handlePasswordChange} 
+                      disabled={isChangingPassword}
+                      className="w-32"
+                    >
+                      {isChangingPassword ? 'Changing...' : 'Change'}
+                    </Button>
                   </div>
                 </div>
-                
-                <div className="flex gap-3 mt-auto pt-4 justify-center">
-                  <Button 
-                    variant="outline" 
-                    onClick={() => setProfileMode('display')}
-                    className="w-32"
-                  >
-                    Cancel
-                  </Button>
-                  <Button 
-                    onClick={handlePasswordChange} 
-                    disabled={isChangingPassword}
-                    className="w-32"
-                  >
-                    {isChangingPassword ? 'Changing...' : 'Change'}
-                  </Button>
-                </div>
-              </div>
-            )}
-            
-          </div>
+              )}
+              
+            </div>
+          </DialogContent>
+        </Dialog>
+
+        {/* Logout Confirmation Dialog - Shared with desktop */}
+        <Dialog open={isLogoutConfirmOpen} onOpenChange={setIsLogoutConfirmOpen}>
+          <DialogContent className="max-w-sm w-full">
+            <DialogHeader>
+              <DialogTitle>Confirm Logout</DialogTitle>
+            </DialogHeader>
+            <p>Are you sure you want to log out?</p>
+            <DialogFooter className="flex flex-row gap-2 sm:gap-3">
+              <Button variant="outline" onClick={() => setIsLogoutConfirmOpen(false)} className="flex-1">Cancel</Button>
+              <Button variant="destructive" onClick={handleLogout} className="flex-1">Log Out</Button>
+            </DialogFooter>
         </DialogContent>
       </Dialog>
-
-      {/* Logout Confirmation Dialog */}
-      <Dialog open={isLogoutConfirmOpen} onOpenChange={setIsLogoutConfirmOpen}>
-        <DialogContent className="max-w-sm w-full">
-          <DialogHeader>
-            <DialogTitle>Confirm Logout</DialogTitle>
-          </DialogHeader>
-          <p>Are you sure you want to log out?</p>
-          <DialogFooter>
-            <Button variant="outline" onClick={() => setIsLogoutConfirmOpen(false)}>Cancel</Button>
-            <Button variant="destructive" onClick={handleLogout}>Log Out</Button>
-          </DialogFooter>
-        </DialogContent>
-      </Dialog>
-    </header>
+    </>
   );
 };
 
