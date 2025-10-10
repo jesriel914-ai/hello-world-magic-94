@@ -19,6 +19,7 @@ import AllowedTerms from "./pages/AllowedTerms";
 import Subjects from "./pages/Subjects";
 import AISignatureModelTraining from "./pages/AISignatureModelTraining";
 import SiameseSignatureModelTraining from "./pages/SiameseSignatureModelTraining";
+import Profile from "./pages/Profile";
 import { AuthProvider } from "./contexts/AuthContext";
 import { SidebarProvider } from "./contexts/SidebarContext";
 import { useAuth } from "./hooks/useAuth";
@@ -178,6 +179,14 @@ const AppRoutes = () => {
           <RoleProtectedRoute allowedRoles={['admin']}>
             <SiameseSignatureModelTraining />
           </RoleProtectedRoute>
+        </ProtectedRoute>
+      }
+    />
+    <Route
+      path="/profile"
+      element={
+        <ProtectedRoute>
+          <Profile />
         </ProtectedRoute>
       }
     />

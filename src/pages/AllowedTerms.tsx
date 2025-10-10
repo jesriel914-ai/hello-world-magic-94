@@ -181,7 +181,7 @@ const AllowedTermsContent = () => {
   };
 
   return (
-    <div className="px-6 py-4">
+    <div className="lg:px-6 lg:py-4">
       <div className="mb-3">
         <div>
           <h1 className="text-2xl font-bold text-education-navy">ALLOWED TERMS</h1>

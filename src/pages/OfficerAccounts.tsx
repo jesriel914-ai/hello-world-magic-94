@@ -152,7 +152,7 @@ export default function OfficerAccounts() {
   return (
     <Layout>
       <PageWrapper skeletonType="table">
-        <div className="px-6 py-4">
+        <div className="lg:px-6 lg:py-4">
           <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-4">
             <div>
               <h1 className="text-lg font-bold tracking-tight">OFFICER ACCOUNT MANAGEMENT</h1>

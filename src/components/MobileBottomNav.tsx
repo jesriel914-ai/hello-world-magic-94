@@ -29,8 +29,8 @@ const MobileBottomNav = () => {
     if (userRole === 'admin') {
       return [
         { path: '/take-attendance', icon: Camera, label: 'Attendance' },
-        { path: '/sessions', icon: Calendar, label: 'Sessions' },
-        { path: '/ai-signature-model-training', icon: Brain, label: 'Training' },
+        { path: '/schedule', icon: Calendar, label: 'Sessions' },
+        { path: '/model-training-signature-classify', icon: Brain, label: 'Training' },
         { path: '/profile', icon: User, label: 'Profile' },
       ];
     }
@@ -38,7 +38,7 @@ const MobileBottomNav = () => {
     // ROTC admin, Instructor, SSG officer see Take Attendance, Sessions, Profile
     return [
       { path: '/take-attendance', icon: Camera, label: 'Attendance' },
-      { path: '/sessions', icon: Calendar, label: 'Sessions' },
+      { path: '/schedule', icon: Calendar, label: 'Sessions' },
       { path: '/profile', icon: User, label: 'Profile' },
     ];
   };
