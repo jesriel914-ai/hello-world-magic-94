@@ -1075,13 +1075,14 @@ const TakeAttendanceSession = () => {
 
   return (
     <Layout>
-      <div className="w-full space-y-6">
-        {/* Session Header - Left Aligned */}
-        <div className="text-left">
-          <h1 className="text-3xl font-bold text-education-navy">{session.title}</h1>
-        </div>
+      <div className="px-6 py-4">
+        <div className="w-full space-y-6">
+          {/* Session Header - Left Aligned */}
+          <div className="text-left">
+            <h1 className="text-3xl font-bold text-education-navy">{session.title}</h1>
+          </div>
 
-        <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+          <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
           {/* Left Section: Scan Signatures - Card on desktop only */}
           <div className="lg:bg-white lg:rounded-lg lg:border lg:border-gray-200 lg:shadow-sm lg:p-4">
             <div className="space-y-4">
@@ -1306,23 +1307,23 @@ const TakeAttendanceSession = () => {
             </div>
           </div>
 
-          {/* Right Section: Attendance Log - No card on mobile, card on desktop */}
-          <div className="space-y-4">
-            {/* Header */}
-            <div className="flex items-center justify-between">
-              <h3 className="text-base font-semibold">Attendance Log</h3>
-              <div className="flex gap-2">
-                <Badge className="bg-green-100 text-green-800 hover:bg-green-100">
-                  {attendanceLog.filter(a => a.status === 'present').length} Present
-                </Badge>
-                <Badge className="bg-red-100 text-red-800 hover:bg-red-100">
-                  {attendanceLog.filter(a => a.status === 'absent').length} Absent
-                </Badge>
+          {/* Right Section: Attendance Log - Card on desktop only */}
+          <div className="lg:bg-white lg:rounded-lg lg:border lg:border-gray-200 lg:shadow-sm lg:p-4">
+            <div className="space-y-4">
+              {/* Header */}
+              <div className="flex items-center justify-between">
+                <h3 className="text-base font-semibold">Attendance Log</h3>
+                <div className="flex gap-2">
+                  <Badge className="bg-green-100 text-green-800 hover:bg-green-100">
+                    {attendanceLog.filter(a => a.status === 'present').length} Present
+                  </Badge>
+                  <Badge className="bg-red-100 text-red-800 hover:bg-red-100">
+                    {attendanceLog.filter(a => a.status === 'absent').length} Absent
+                  </Badge>
+                </div>
               </div>
-            </div>
-            
-            {/* Content - Card on desktop only */}
-            <div className="lg:bg-white lg:rounded-lg lg:border lg:border-gray-200 lg:shadow-sm lg:p-4">
+              
+              {/* Content */}
               {attendanceLog.length > 0 ? (
                 <div className="space-y-2 max-h-[400px] overflow-y-auto">
                   {attendanceLog.map((record) => (
@@ -1360,10 +1361,12 @@ const TakeAttendanceSession = () => {
               )}
             </div>
           </div>
+          </div>
         </div>
+      </div>
         
-        {/* Status Change Confirmation Dialog */}
-        <Dialog open={showChangeConfirm} onOpenChange={setShowChangeConfirm}>
+      {/* Status Change Confirmation Dialog */}
+      <Dialog open={showChangeConfirm} onOpenChange={setShowChangeConfirm}>
           <DialogContent className="max-w-sm w-full">
             <DialogHeader>
               <DialogTitle>Confirm Status Change</DialogTitle>
@@ -1393,7 +1396,6 @@ const TakeAttendanceSession = () => {
             </DialogFooter>
           </DialogContent>
         </Dialog>
-      </div>
     </Layout>
   );
 };
