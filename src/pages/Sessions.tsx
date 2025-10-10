@@ -99,7 +99,7 @@ interface Session extends Omit<SessionType, 'time_in' | 'time_out'> {
   program: string;
   year: string;
   section: string;
-  status: 'upcoming' | 'ongoing' | 'completed';
+  status: 'not completed' | 'completed';
   date: string;
 }
 
@@ -117,30 +117,6 @@ const formatTime = (timeString: string) => {
   const displayHour = hour % 12 || 12; // Convert 0 to 12 for 12 AM
   
   return `${displayHour}:${mins} ${period}`;
-};
-
-// Calculate session status based on date and time
-const calculateSessionStatus = (date: string, timeIn: string, timeOut: string): 'upcoming' | 'ongoing' | 'completed' => {
-  const now = new Date();
-  const sessionDate = new Date(date);
-  
-  // Parse time_in
-  const [inHours, inMinutes] = timeIn.split(':').map(Number);
-  const sessionStart = new Date(sessionDate);
-  sessionStart.setHours(inHours, inMinutes, 0, 0);
-  
-  // Parse time_out
-  const [outHours, outMinutes] = timeOut.split(':').map(Number);
-  const sessionEnd = new Date(sessionDate);
-  sessionEnd.setHours(outHours, outMinutes, 0, 0);
-  
-  if (now < sessionStart) {
-    return 'upcoming';
-  } else if (now >= sessionStart && now <= sessionEnd) {
-    return 'ongoing';
-  } else {
-    return 'completed';
-  }
 };
 
 const formatDateString = (date: Date | string): string => {
@@ -423,13 +399,6 @@ const Schedule = () => {
         const studentCount = studentCountMap.get(sessionKey) || 0;
         const att = attendanceMap.get(session.id) || { present: 0, absent: 0 };
         
-        // Calculate status if not already set in DB
-        const status = session.status || calculateSessionStatus(
-          session.date, 
-          session.time_in || '00:00', 
-          session.time_out || '23:59'
-        );
-        
         return {
           id: session.id,
           title: session.title || 'Untitled Session',
@@ -445,7 +414,7 @@ const Schedule = () => {
           program: session.program || 'General',
           year: session.year || 'All Year Levels',
           section: session.section || 'All Sections',
-          status: status,
+          status: session.status || 'not completed',
           date: session.date,
           created_at: session.created_at || new Date().toISOString(),
           updated_at: session.updated_at || new Date().toISOString()
@@ -590,13 +559,6 @@ const Schedule = () => {
         const sessionKey = `${session.program || 'all'}::${session.year || 'all'}::${session.section || 'all'}`;
         const studentCount = studentCountMap.get(sessionKey) || 0;
         
-        // Calculate status if not already set in DB
-        const status = session.status || calculateSessionStatus(
-          session.date, 
-          session.time_in || '00:00', 
-          session.time_out || '23:59'
-        );
-        
         return {
           id: session.id,
           title: session.title || 'Untitled Session',
@@ -610,7 +572,7 @@ const Schedule = () => {
           program: session.program || 'General',
           year: session.year || 'All Year Levels',
           section: session.section || 'All Sections',
-          status: status,
+          status: session.status || 'not completed',
           date: session.date,
           created_at: session.created_at || new Date().toISOString(),
           updated_at: session.updated_at || new Date().toISOString()
@@ -808,13 +770,6 @@ const Schedule = () => {
       sessionDate = formatDateString(today);
     }
 
-    // Calculate status
-    const status = calculateSessionStatus(
-      sessionDate, 
-      data.timeIn || '00:00', 
-      data.timeOut || '23:59'
-    );
-
     return {
       id: id || Date.now(),
       title: data.title || 'Untitled Session',
@@ -826,7 +781,7 @@ const Schedule = () => {
       program: data.program || 'General',
       year: data.year || 'All Year Levels',
       section: data.section || 'All Sections',
-      status: status,
+      status: 'not completed',
       date: sessionDate,
       created_at: new Date().toISOString(),
       updated_at: new Date().toISOString()
@@ -844,13 +799,6 @@ const Schedule = () => {
       // Format the date to ensure consistency
       const formattedDate = formatDateString(sessionData.date);
       
-      // Calculate status
-      const status = calculateSessionStatus(
-        formattedDate,
-        sessionData.timeIn,
-        sessionData.timeOut
-      );
-      
       // Prepare the session data for Supabase with proper types
       const sessionForSupabase = {
         title: sessionData.title,
@@ -860,7 +808,7 @@ const Schedule = () => {
         program: sessionData.program || 'General',
         year: sessionData.year || 'All Year Levels',
         section: sessionData.section || 'All Sections',
-        status: status,
+        status: 'not completed',
         date: formattedDate
       };
 
@@ -1255,12 +1203,12 @@ const Schedule = () => {
           setSelectedSessionId(null);
         }
       }}>
-        <DialogContent className="max-w-6xl max-h-[90vh] flex flex-col">
+        <DialogContent className="max-w-6xl max-h-[90vh]">
           <DialogHeader>
             <DialogTitle className="text-education-navy text-lg">Session Details</DialogTitle>
           </DialogHeader>
           
-          <div className="flex-1 overflow-y-auto flex flex-col">
+          <div className="overflow-y-auto scrollbar-hide" style={{ maxHeight: 'calc(90vh - 80px)' }}>
             {selectedSessionId && (
               <SessionStudents 
                 sessionId={selectedSessionId} 

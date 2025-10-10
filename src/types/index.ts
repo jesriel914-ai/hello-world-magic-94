@@ -84,7 +84,7 @@ export interface Session {
   program: string;
   year: string;
   section: string;
-  status: 'upcoming' | 'ongoing' | 'completed';
+  status: 'not completed' | 'completed';
   date: string;
   created_at: string;
   updated_at: string;
