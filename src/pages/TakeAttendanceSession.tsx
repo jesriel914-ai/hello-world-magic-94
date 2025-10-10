@@ -103,6 +103,7 @@ const TakeAttendanceSession = () => {
   const [isPaused, setIsPaused] = useState(false);
   const [showChangeConfirm, setShowChangeConfirm] = useState(false);
   const [pendingChange, setPendingChange] = useState<{student: any, newStatus: string} | null>(null);
+  const [showAttendeesList, setShowAttendeesList] = useState(false);
 
   useEffect(() => {
     // Fetch session details when component mounts
