@@ -237,7 +237,7 @@ export default function SessionStudents({ sessionId, onClose }: SessionStudentsF
 
   if (loading) {
     return (
-      <div className="p-8 flex flex-col items-center justify-center min-h-screen">
+      <div className="p-8 flex flex-col items-center justify-center" style={{ height: '600px' }}>
         <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-primary mb-4"></div>
         <p className="text-muted-foreground">Loading session details...</p>
       </div>
@@ -246,7 +246,7 @@ export default function SessionStudents({ sessionId, onClose }: SessionStudentsF
 
   if (error) {
     return (
-      <div className="p-8">
+      <div className="p-8" style={{ height: '600px' }}>
         <div className="text-center py-12">
           <h2 className="text-2xl font-bold text-education-navy mb-4">
             {error.includes('not found') ? 'Session Not Found' : 'Error Loading Session'}
@@ -277,7 +277,7 @@ export default function SessionStudents({ sessionId, onClose }: SessionStudentsF
 
   if (!session) {
     return (
-      <div className="p-8">
+      <div className="p-8" style={{ height: '600px' }}>
         <div className="text-center py-12">
           <h2 className="text-2xl font-bold text-education-navy mb-4">Session not found</h2>
           <Button onClick={onClose} variant="outline">
@@ -290,7 +290,7 @@ export default function SessionStudents({ sessionId, onClose }: SessionStudentsF
   }
 
   return (
-    <div className="flex flex-col h-full">
+    <div className="flex flex-col" style={{ height: '600px' }}>
       {/* Scrollable Content */}
       <ScrollArea className="flex-1 hide-scrollbar">
         <div className="space-y-6 pr-4">
@@ -420,24 +420,21 @@ export default function SessionStudents({ sessionId, onClose }: SessionStudentsF
                         <td className="px-4 py-3 whitespace-nowrap">
                           {attendance ? (
                             attendance.status === 'present' ? (
-                              <Badge className="bg-green-100 text-green-800 hover:bg-green-100 flex items-center gap-1 w-fit">
-                                <CheckCircle className="w-3 h-3" />
+                              <span className="text-sm font-medium text-green-600">
                                 Present
-                              </Badge>
+                              </span>
                             ) : attendance.status === 'absent' ? (
-                              <Badge className="bg-red-100 text-red-800 hover:bg-red-100 flex items-center gap-1 w-fit">
-                                <XCircle className="w-3 h-3" />
+                              <span className="text-sm font-medium text-red-600">
                                 Absent
-                              </Badge>
+                              </span>
                             ) : attendance.status === 'late' ? (
-                              <Badge className="bg-yellow-100 text-yellow-800 hover:bg-yellow-100 flex items-center gap-1 w-fit">
-                                <Clock className="w-3 h-3" />
+                              <span className="text-sm font-medium text-yellow-600">
                                 Late
-                              </Badge>
+                              </span>
                             ) : (
-                              <Badge className="bg-blue-100 text-blue-800 hover:bg-blue-100 flex items-center gap-1 w-fit">
+                              <span className="text-sm font-medium text-blue-600">
                                 {attendance.status}
-                              </Badge>
+                              </span>
                             )
                           ) : (
                             <span className="text-xs text-gray-400 italic">Not recorded</span>
@@ -475,6 +472,15 @@ export default function SessionStudents({ sessionId, onClose }: SessionStudentsF
             )}
         </div>
       </ScrollArea>
+      
+      {/* Mark Completed Button - Fixed at bottom */}
+      <div className="p-4 border-t bg-white flex justify-end">
+        <Button 
+          type="button"
+        >
+          Mark Completed
+        </Button>
+      </div>
     </div>
   );
 }

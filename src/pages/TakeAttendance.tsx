@@ -275,21 +275,13 @@ const TakeAttendanceContent: React.FC = () => {
   }
 
   return (
-    <div className="flex-1 flex flex-col space-y-4 px-6 py-4">
-      <div className="flex items-center justify-between">
-        <div>
-          <h1 className="text-lg font-bold text-education-navy">TAKE ATTENDANCE</h1>
-          <p className="text-sm text-muted-foreground">
-            Select a session to take attendance
-          </p>
-        </div>
-      </div>
-
-      {/* Space between title and content to match other pages */}
-      <div className="mb-16"></div>
-
-      <div className="flex items-center space-x-4">
-        {/* Search removed as per user request */}
+    <div className="w-full space-y-6 lg:px-6 lg:py-4">
+      {/* Page Header - Left Aligned */}
+      <div className="text-left">
+        <h1 className="text-3xl font-bold text-education-navy">Take Attendance</h1>
+        <p className="text-sm text-muted-foreground mt-1">
+          Select a session to take attendance
+        </p>
       </div>
 
       <Tabs defaultValue="today" className="space-y-4">
@@ -371,7 +363,7 @@ interface SessionCardProps {
 
 const SessionCard: React.FC<SessionCardProps> = ({ session, onStartAttendance }) => {
   return (
-    <Card className="relative overflow-hidden shadow-sm">
+    <Card className="relative overflow-hidden shadow-sm hover:shadow-md transition-shadow">
       <div className="absolute top-2 right-2">
         {session.type === 'class' && (
           <Badge className="bg-primary/10 text-primary border-primary/20 text-xs">Class</Badge>
@@ -383,42 +375,39 @@ const SessionCard: React.FC<SessionCardProps> = ({ session, onStartAttendance })
           <Badge className="bg-education-navy/10 text-education-navy border-education-navy/20 text-xs">Activity</Badge>
         )}
       </div>
-      <CardHeader className="p-3 pb-1">
+      <CardHeader className="p-4 pb-2">
         <div className="flex items-center gap-2">
           {session.type === 'class' && <BookOpen className="h-4 w-4 text-primary" />}
           {session.type === 'event' && <CalendarIcon className="h-4 w-4 text-accent" />}
           {session.type === 'other' && <Star className="h-4 w-4 text-education-navy" />}
           <CardTitle className="text-base">{session.title}</CardTitle>
         </div>
-        <div className="text-xs text-muted-foreground mt-0.5">
+        <div className="text-xs text-muted-foreground mt-1">
           {session.program} • {session.year} {session.section && `• ${session.section}`}
         </div>
       </CardHeader>
-      <CardContent className="p-3 pt-0">
-        <div className="grid grid-cols-2 gap-2 text-xs">
-          <div className="space-y-1">
-            <div className="flex items-center text-muted-foreground">
-              <CalendarIcon className="h-3.5 w-3.5 mr-1.5" />
-              <span>{formatDate(session.date)}</span>
-            </div>
-            <div className="flex items-center text-muted-foreground">
-              <Clock className="h-3.5 w-3.5 mr-1.5" />
-              <span>{formatTime(session.time_in)} - {formatTime(session.time_out)}</span>
-            </div>
+      <CardContent className="p-4 pt-0">
+        <div className="space-y-2 text-sm">
+          <div className="flex items-center text-muted-foreground">
+            <CalendarIcon className="h-4 w-4 mr-2" />
+            <span>{formatDate(session.date)}</span>
           </div>
-          <div className="space-y-1">
-            <div className="text-muted-foreground text-ellipsis overflow-hidden">
-              <span className="font-medium">Created by:</span> {
-                session.creator
-                  ? `${session.creator.role} (${session.creator.first_name} ${session.creator.last_name})`
-                  : 'System'
-              }
-            </div>
+          <div className="flex items-center text-muted-foreground">
+            <Clock className="h-4 w-4 mr-2" />
+            <span>{formatTime(session.time_in)} - {formatTime(session.time_out)}</span>
+          </div>
+          <div className="flex items-center text-muted-foreground">
+            <Users className="h-4 w-4 mr-2" />
+            <span className="text-xs">Created by: {
+              session.creator
+                ? `${session.creator.first_name} ${session.creator.last_name}`
+                : 'System'
+            }</span>
           </div>
         </div>
         <Button 
           size="sm"
-          className="w-full mt-3 text-xs h-8 bg-teal-300 text-teal-900 hover:bg-teal-200 shadow-glow hover:shadow-elegant transition-all duration-200"
+          className="w-full mt-4 text-sm h-10 bg-teal-300 text-teal-900 hover:bg-teal-200 shadow-glow hover:shadow-elegant transition-all duration-200"
           onClick={() => onStartAttendance(session.id)}
         >
           Start Attendance

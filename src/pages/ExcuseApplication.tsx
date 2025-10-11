@@ -746,9 +746,6 @@ const ExcuseApplicationContent = () => {
         <DialogContent className="max-w-md">
           <DialogHeader>
             <DialogTitle>{isEditMode ? 'Edit Excuse Application' : 'New Excuse Application'}</DialogTitle>
-            <DialogDescription>
-              {isEditMode ? 'Update the excuse application details.' : 'Submit a new excuse application for a student absence.'}
-            </DialogDescription>
           </DialogHeader>
           <div className="space-y-4">
             <div>
@@ -797,7 +794,7 @@ const ExcuseApplicationContent = () => {
             </div>
 
             <div>
-              <Label htmlFor="session">Session *</Label>
+              <Label htmlFor="session">Session</Label>
               <Popover open={openSessionSelect} onOpenChange={setOpenSessionSelect}>
                 <PopoverTrigger asChild>
                   <Button
@@ -851,7 +848,7 @@ const ExcuseApplicationContent = () => {
 
 
             <div>
-              <Label htmlFor="excuse-image">Handwritten Excuse Letter</Label>
+              <Label htmlFor="excuse-image">Attach Excuse Letter</Label>
               <Input
                 id="excuse-image"
                 type="file"
@@ -865,9 +862,6 @@ const ExcuseApplicationContent = () => {
                  }}
                 className="cursor-pointer"
               />
-              <p className="text-xs text-muted-foreground mt-1">
-                Please attach a clear photo of your handwritten excuse letter
-              </p>
             </div>
 
 

@@ -350,7 +350,7 @@ const TakeAttendanceSession = () => {
     }
   }, [session]);
 
-  // Mark attendance function
+  // Mark attendance function with optimistic UI update
   const markAttendance = async (status: 'present' | 'absent') => {
     console.log('🎯 Mark attendance clicked:', status);
     console.log('Predictions:', predictions);
@@ -388,7 +388,7 @@ const TakeAttendanceSession = () => {
       return;
     }
     
-    // Check if already marked
+    // Check if already marked (using local state for instant check)
     const existingRecord = attendanceMap.get(student.id);
     console.log('Existing record:', existingRecord);
     
@@ -408,15 +408,35 @@ const TakeAttendanceSession = () => {
       }
     }
     
-    // New record - insert
-    console.log('✅ Saving new attendance record');
-    await saveAttendance(student, status);
+    // New record - optimistic UI update
+    console.log('✅ Optimistic UI update for new attendance record');
+    const studentName = `${student.firstname} ${student.surname}`;
+    const overlayType = status === 'present' ? 'success' : 'error';
+    
+    // 1. Immediately update local state
+    const newRecord = {
+      session_id: session.id,
+      student_id: student.id,
+      status: status,
+      time_in: status === 'present' ? new Date().toISOString() : null,
+      created_at: new Date().toISOString(),
+      updated_at: new Date().toISOString()
+    };
+    
+    setAttendanceMap(prev => new Map(prev).set(student.id, newRecord));
+    setAttendanceLog(prev => [newRecord, ...prev]);
+    
+    // 2. Immediately show overlay
+    showOverlay(studentName, `Marked ${status === 'present' ? 'Present' : 'Absent'}`, overlayType);
+    
+    // 3. Save to database in background (don't await)
+    saveAttendanceToDatabase(student, status, newRecord);
   };
 
-  // Save attendance to database
-  const saveAttendance = async (student: any, status: string) => {
+  // Save attendance to database (background operation)
+  const saveAttendanceToDatabase = async (student: any, status: string, optimisticRecord: any) => {
     try {
-      console.log('💾 Saving to database:', {
+      console.log('💾 Saving to database in background:', {
         session_id: session!.id,
         student_id: student.id,
         status: status
@@ -437,23 +457,60 @@ const TakeAttendanceSession = () => {
       
       if (error) {
         console.error('❌ Database error:', error);
+        
+        // Revert optimistic update on error
+        setAttendanceMap(prev => {
+          const newMap = new Map(prev);
+          newMap.delete(student.id);
+          return newMap;
+        });
+        setAttendanceLog(prev => prev.filter(record => record.student_id !== student.id));
+        
+        toast.error('Failed to save attendance. Please try again.');
         throw error;
       }
       
-      console.log('✅ Saved successfully:', data);
+      console.log('✅ Saved successfully to database:', data);
       
-      // Reload attendance records
-      await loadAttendanceRecords();
-      
-      // Show success overlay with student name
-      const studentName = `${student.firstname} ${student.surname}`;
-      showOverlay(studentName, `Marked ${status === 'present' ? 'Present' : 'Absent'}`, 'success');
-      
-      console.log('✅ Overlay shown');
+      // Update with actual database record
+      if (data && data[0]) {
+        setAttendanceMap(prev => new Map(prev).set(student.id, data[0]));
+        setAttendanceLog(prev => {
+          const filtered = prev.filter(record => record.student_id !== student.id);
+          return [data[0], ...filtered];
+        });
+      }
     } catch (error) {
       console.error('❌ Error saving attendance:', error);
-      toast.error('Failed to save attendance: ' + (error as any)?.message);
     }
+  };
+  
+  // Save attendance with optimistic update (for confirmation dialog)
+  const saveAttendance = async (student: any, status: string) => {
+    const studentName = `${student.firstname} ${student.surname}`;
+    const overlayType = status === 'present' ? 'success' : 'error';
+    
+    // 1. Immediately update local state
+    const newRecord = {
+      session_id: session!.id,
+      student_id: student.id,
+      status: status,
+      time_in: status === 'present' ? new Date().toISOString() : null,
+      created_at: new Date().toISOString(),
+      updated_at: new Date().toISOString()
+    };
+    
+    setAttendanceMap(prev => new Map(prev).set(student.id, newRecord));
+    setAttendanceLog(prev => {
+      const filtered = prev.filter(record => record.student_id !== student.id);
+      return [newRecord, ...filtered];
+    });
+    
+    // 2. Immediately show overlay
+    showOverlay(studentName, `Marked ${status === 'present' ? 'Present' : 'Absent'}`, overlayType);
+    
+    // 3. Save to database in background
+    await saveAttendanceToDatabase(student, status, newRecord);
   };
 
   // Show overlay and pause camera
@@ -475,9 +532,16 @@ const TakeAttendanceSession = () => {
   const confirmStatusChange = async () => {
     if (!pendingChange) return;
     
-    await saveAttendance(pendingChange.student, pendingChange.newStatus);
+    // Store the pending change before clearing
+    const student = pendingChange.student;
+    const newStatus = pendingChange.newStatus;
+    
+    // 1. Immediately close dialog and clear state
     setShowChangeConfirm(false);
     setPendingChange(null);
+    
+    // 2. Then update attendance in background
+    await saveAttendance(student, newStatus);
   };
 
   // Auto-load latest model on page open
@@ -1165,28 +1229,44 @@ const TakeAttendanceSession = () => {
                         <p className="text-sm">
                           <span className="text-gray-500">Time:</span> <span className="font-medium text-gray-900">{session.time_in} - {session.time_out}</span>
                         </p>
+                        <p className="text-sm">
+                          <span className="text-gray-500">Students:</span> <span className="font-medium text-gray-900">{sessionStudents.length} total</span>
+                        </p>
                       </div>
                     </div>
                   </div>
                 )}
                 
-                {/* Required Attendees List */}
-                <div>
-                  <h3 className="text-sm font-semibold text-gray-700 mb-3">Required Attendees</h3>
-                  <div className="flex gap-2 mb-3">
-                    <Badge className="bg-green-100 text-green-800 hover:bg-green-100">
-                      {sessionStudents.filter(s => attendanceMap.get(s.id)?.status === 'present').length} Present
-                    </Badge>
-                    <Badge className="bg-red-100 text-red-800 hover:bg-red-100">
-                      {sessionStudents.filter(s => attendanceMap.get(s.id)?.status === 'absent').length} Absent
-                    </Badge>
+                {/* Students List - Hidden on desktop (lg:hidden), shown on mobile only */}
+                <div className="lg:hidden">
+                  <div className="flex items-center justify-between mb-3">
+                    <h3 className="text-sm font-semibold text-gray-700">Students</h3>
+                    <div className="flex items-center gap-3">
+                      <span className="text-xs text-green-600 font-medium">
+                        {sessionStudents.filter(s => attendanceMap.get(s.id)?.status === 'present').length} Present
+                      </span>
+                      <span className="text-xs text-red-600 font-medium">
+                        {sessionStudents.filter(s => attendanceMap.get(s.id)?.status === 'absent').length} Absent
+                      </span>
+                    </div>
                   </div>
                   {sessionStudents.length > 0 ? (
-                    <div className="space-y-2">
-                      {sessionStudents.map((student) => {
+                    <div className="space-y-1.5">
+                      {[...sessionStudents].sort((a, b) => {
+                        const aRecord = attendanceMap.get(a.id);
+                        const bRecord = attendanceMap.get(b.id);
+                        
+                        // Sort by: 1) Has attendance record, 2) Most recent first
+                        if (!aRecord && !bRecord) return 0;
+                        if (!aRecord) return 1;
+                        if (!bRecord) return -1;
+                        
+                        return new Date(bRecord.created_at || bRecord.updated_at || 0).getTime() - 
+                               new Date(aRecord.created_at || aRecord.updated_at || 0).getTime();
+                      }).map((student) => {
                         const attendanceRecord = attendanceMap.get(student.id);
                         return (
-                          <div key={student.id} className="p-3 bg-white rounded-lg border shadow-sm">
+                          <div key={student.id} className="p-2 bg-white rounded-lg border shadow-sm">
                             <div className="flex items-center justify-between">
                               <div>
                                 <p className="text-sm font-medium text-gray-900">
@@ -1237,12 +1317,6 @@ const TakeAttendanceSession = () => {
                 className="absolute inset-[2px] flex items-center justify-center z-0 rounded-lg overflow-hidden"
               />
               
-              {isCameraStarting && (
-                <div className="absolute inset-[2px] flex items-center justify-center bg-gray-50 bg-opacity-75 z-20 rounded-lg">
-                  <Loader2 className="w-8 h-8 animate-spin text-blue-600" />
-                </div>
-              )}
-              
               {cameraError && (
                 <div className="absolute inset-[2px] flex items-center justify-center bg-red-50 z-20 rounded-lg">
                   <div className="text-center p-4">
@@ -1284,6 +1358,7 @@ const TakeAttendanceSession = () => {
               {overlayMessage && (
                 <div className={`absolute top-1/2 left-1/2 transform -translate-x-1/2 -translate-y-1/2 z-40 rounded-lg px-4 py-3 shadow-lg ${
                   overlayType === 'success' ? 'bg-green-600' : 
+                  overlayType === 'error' ? 'bg-red-600' :
                   overlayType === 'warning' ? 'bg-yellow-600' : 
                   'bg-red-600'
                 }`}>
@@ -1340,29 +1415,40 @@ const TakeAttendanceSession = () => {
             </div>
           </div>
 
-          {/* Right Section: Required Attendees - Card on desktop only, hidden on mobile */}
+          {/* Right Section: Students - Card on desktop only, hidden on mobile */}
           <div className="hidden lg:block lg:bg-white lg:rounded-lg lg:border lg:border-gray-200 lg:shadow-sm lg:p-4">
             <div className="space-y-4">
               {/* Header */}
               <div className="flex items-center justify-between">
-                <h3 className="text-base font-semibold">Required Attendees</h3>
-                <div className="flex gap-2">
-                  <Badge className="bg-green-100 text-green-800 hover:bg-green-100">
+                <h3 className="text-base font-semibold">Students</h3>
+                <div className="flex items-center gap-3">
+                  <span className="text-sm text-green-600 font-medium">
                     {sessionStudents.filter(s => attendanceMap.get(s.id)?.status === 'present').length} Present
-                  </Badge>
-                  <Badge className="bg-red-100 text-red-800 hover:bg-red-100">
+                  </span>
+                  <span className="text-sm text-red-600 font-medium">
                     {sessionStudents.filter(s => attendanceMap.get(s.id)?.status === 'absent').length} Absent
-                  </Badge>
+                  </span>
                 </div>
               </div>
               
               {/* Content - All Students */}
               {sessionStudents.length > 0 ? (
-                <div className="space-y-2 max-h-[400px] overflow-y-auto">
-                  {sessionStudents.map((student) => {
+                <div className="space-y-1.5 max-h-[400px] overflow-y-auto">
+                  {[...sessionStudents].sort((a, b) => {
+                    const aRecord = attendanceMap.get(a.id);
+                    const bRecord = attendanceMap.get(b.id);
+                    
+                    // Sort by: 1) Has attendance record, 2) Most recent first
+                    if (!aRecord && !bRecord) return 0;
+                    if (!aRecord) return 1;
+                    if (!bRecord) return -1;
+                    
+                    return new Date(bRecord.created_at || bRecord.updated_at || 0).getTime() - 
+                           new Date(aRecord.created_at || aRecord.updated_at || 0).getTime();
+                  }).map((student) => {
                     const attendanceRecord = attendanceMap.get(student.id);
                     return (
-                      <div key={student.id} className="p-3 rounded-lg border border-gray-200">
+                      <div key={student.id} className="p-2 rounded-lg border border-gray-200">
                         <div className="flex items-center justify-between">
                           <div>
                             <p className="text-sm font-medium text-gray-900">
@@ -1417,22 +1503,22 @@ const TakeAttendanceSession = () => {
               <strong>{pendingChange?.student && attendanceMap.get(pendingChange.student.id)?.status}</strong>. 
               Do you want to change it to <strong>{pendingChange?.newStatus}</strong>?
             </p>
-            <DialogFooter className="flex flex-row gap-2">
+            <DialogFooter className="flex flex-col gap-2">
+              <Button 
+                onClick={confirmStatusChange}
+                className="w-full h-12"
+              >
+                Yes
+              </Button>
               <Button 
                 variant="outline" 
                 onClick={() => {
                   setShowChangeConfirm(false);
                   setPendingChange(null);
                 }}
-                className="flex-1"
+                className="w-full h-12"
               >
                 No
-              </Button>
-              <Button 
-                onClick={confirmStatusChange}
-                className="flex-1"
-              >
-                Yes
               </Button>
             </DialogFooter>
           </DialogContent>

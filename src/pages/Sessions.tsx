@@ -506,6 +506,25 @@ const Schedule = () => {
         
       if (error) throw error;
       
+      // Fetch attendance data for all sessions
+      const sessionIds = sessions.map(s => s.id);
+      const { data: attendanceData } = await supabase
+        .from('attendance')
+        .select('session_id, status')
+        .in('session_id', sessionIds);
+      
+      // Create a map of session_id -> { present: count, absent: count }
+      const attendanceMap = new Map<number, { present: number; absent: number }>();
+      (attendanceData || []).forEach((record: any) => {
+        const existing = attendanceMap.get(record.session_id) || { present: 0, absent: 0 };
+        if (record.status === 'present') {
+          existing.present++;
+        } else if (record.status === 'absent') {
+          existing.absent++;
+        }
+        attendanceMap.set(record.session_id, existing);
+      });
+      
       // Get unique program, year, section combinations to minimize queries
       const uniqueCombinations = new Set(
         sessions
@@ -554,10 +573,11 @@ const Schedule = () => {
         studentCountMap.set(`${program}::${year}::${section}`, count);
       });
       
-      // Format sessions with student counts
+      // Format sessions with student counts and attendance counts
       const formattedSessions = sessions.map(session => {
         const sessionKey = `${session.program || 'all'}::${session.year || 'all'}::${session.section || 'all'}`;
         const studentCount = studentCountMap.get(sessionKey) || 0;
+        const attendance = attendanceMap.get(session.id) || { present: 0, absent: 0 };
         
         return {
           id: session.id,
@@ -569,6 +589,8 @@ const Schedule = () => {
             ? `${formatTime(session.time_in)} - ${formatTime(session.time_out)}` 
             : '',
           students: studentCount,
+          present: attendance.present,
+          absent: attendance.absent,
           program: session.program || 'General',
           year: session.year || 'All Year Levels',
           section: session.section || 'All Sections',
@@ -1208,7 +1230,7 @@ const Schedule = () => {
             <DialogTitle className="text-education-navy text-lg">Session Details</DialogTitle>
           </DialogHeader>
           
-          <div className="overflow-y-auto scrollbar-hide" style={{ maxHeight: 'calc(90vh - 80px)' }}>
+          <div className="overflow-y-auto scrollbar-hide" style={{ height: '600px' }}>
             {selectedSessionId && (
               <SessionStudents 
                 sessionId={selectedSessionId} 

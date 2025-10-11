@@ -389,11 +389,9 @@ const BatchUpload: React.FC<BatchUploadProps> = ({
             Batch Upload - Student Signatures
           </DialogTitle>
           <DialogDescription className="text-sm text-gray-500 mt-2">
-            Select folders with student signatures. Each folder must contain "genuine" and "forged" subfolders.
+            Select folders with student signatures.  Each folder must be named: "student_id - firstname surname"
             <br />
-            Format: "student_id - firstname surname" / "genuine" / "images"
-            <br />
-            Format: "student_id - firstname surname" / "forged" / "images" (optional)
+            and contain "genuine" and "forged" subfolders.
           </DialogDescription>
         </DialogHeader>
 

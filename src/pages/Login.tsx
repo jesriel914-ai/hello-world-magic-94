@@ -142,7 +142,7 @@ export default function Login() {
                   <Input
                     id="signin-email"
                     type="text"
-                    placeholder="username or email@gmail.com"
+                    placeholder="email@gmail.com"
                     value={email}
                     onChange={(e) => setEmail(e.target.value)}
                     required
@@ -240,7 +240,7 @@ export default function Login() {
                   <Input
                     id="signup-email"
                     type="text"
-                    placeholder="username or email@gmail.com"
+                    placeholder="email@gmail.com"
                     value={email}
                     onChange={(e) => setEmail(e.target.value)}
                     required
