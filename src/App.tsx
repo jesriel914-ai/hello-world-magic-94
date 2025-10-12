@@ -104,7 +104,7 @@ const AppRoutes = () => {
         }
       />
       <Route
-        path=":sessionId"
+        path=":sessionId/:sessionTitle?"
         element={
           <ProtectedRoute>
             <TakeAttendanceSession />

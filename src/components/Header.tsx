@@ -438,8 +438,11 @@ const Header = ({ isMobile = false }: HeaderProps) => {
           setShowPasswords({ current: false, new: false, confirm: false });
         }
       }}>
-        <DialogContent className="max-w-[700px] w-[700px] p-4">
-          <div className="w-full flex flex-col" style={{ height: '460px' }}>
+        <DialogContent 
+          className="w-[95vw] max-w-[95vw] lg:max-w-[700px] lg:w-[700px] p-4"
+          onOpenAutoFocus={(e) => e.preventDefault()}
+        >
+          <div className="w-full flex flex-col h-auto lg:h-[460px]">
             {/* Header */}
             <div className="pb-2 mb-3 flex-shrink-0">
               <h2 className="text-education-navy text-xl font-semibold">
@@ -451,27 +454,27 @@ const Header = ({ isMobile = false }: HeaderProps) => {
             <div className="border-t border-gray-200 mb-4"></div>
 
             {/* Form Content */}
-            <div className="flex-1 overflow-y-auto">
+            <div className="flex-1 overflow-y-auto max-h-[60vh] lg:max-h-none">
               <div className="space-y-3">
                 {/* Role */}
-                <div className="flex items-center">
-                  <Label className="text-sm w-[200px]">Role:</Label>
-                  <div className="h-9 px-3 py-2 text-sm bg-gray-100 rounded-md border border-input flex items-center w-[350px] ml-auto">
+                <div className="flex flex-col space-y-1.5 lg:flex-row lg:items-center lg:space-y-0">
+                  <Label className="text-sm text-left w-full lg:w-[200px]">Role:</Label>
+                  <div className="h-9 px-3 py-2 text-sm bg-gray-100 rounded-md border border-input flex items-center w-full lg:w-[350px] lg:ml-auto">
                     {getPanelLabel()}
                   </div>
                 </div>
 
                 {/* Email */}
-                <div className="flex items-center">
-                  <Label className="text-sm w-[200px]">Email:</Label>
-                  <div className="h-9 px-3 py-2 text-sm bg-gray-100 rounded-md border border-input flex items-center w-[350px] ml-auto">
+                <div className="flex flex-col space-y-1.5 lg:flex-row lg:items-center lg:space-y-0">
+                  <Label className="text-sm text-left w-full lg:w-[200px]">Email:</Label>
+                  <div className="h-9 px-3 py-2 text-sm bg-gray-100 rounded-md border border-input flex items-center w-full lg:w-[350px] lg:ml-auto">
                     {profileForm.email}
                   </div>
                 </div>
 
                 {/* Firstname */}
-                <div className="flex items-center">
-                  <Label htmlFor="firstname" className="text-sm w-[200px]">Firstname:</Label>
+                <div className="flex flex-col space-y-1.5 lg:flex-row lg:items-center lg:space-y-0">
+                  <Label htmlFor="firstname" className="text-sm text-left w-full lg:w-[200px]">Firstname:</Label>
                   <Input
                     id="firstname"
                     value={profileForm.first_name || ''}
@@ -479,14 +482,14 @@ const Header = ({ isMobile = false }: HeaderProps) => {
                       setProfileForm(p => ({ ...p, first_name: e.target.value }));
                     }}
                     placeholder="Enter your first name"
-                    className="h-9 text-sm bg-gray-100 w-[350px] ml-auto"
+                    className="h-9 text-sm bg-gray-100 w-full lg:w-[350px] lg:ml-auto"
                     autoFocus={false}
                   />
                 </div>
 
                 {/* Lastname */}
-                <div className="flex items-center">
-                  <Label htmlFor="lastname" className="text-sm w-[200px]">Lastname:</Label>
+                <div className="flex flex-col space-y-1.5 lg:flex-row lg:items-center lg:space-y-0">
+                  <Label htmlFor="lastname" className="text-sm text-left w-full lg:w-[200px]">Lastname:</Label>
                   <Input
                     id="lastname"
                     value={profileForm.last_name || ''}
@@ -494,14 +497,14 @@ const Header = ({ isMobile = false }: HeaderProps) => {
                       setProfileForm(p => ({ ...p, last_name: e.target.value }));
                     }}
                     placeholder="Enter your last name"
-                    className="h-9 text-sm bg-gray-100 w-[350px] ml-auto"
+                    className="h-9 text-sm bg-gray-100 w-full lg:w-[350px] lg:ml-auto"
                   />
                 </div>
 
                 {/* Password */}
-                <div className="flex items-center">
-                  <Label className="text-sm w-[200px]">Password:</Label>
-                  <div className="relative w-[350px] ml-auto">
+                <div className="flex flex-col space-y-1.5 lg:flex-row lg:items-center lg:space-y-0">
+                  <Label className="text-sm text-left w-full lg:w-[200px]">Password:</Label>
+                  <div className="relative w-full lg:w-[350px] lg:ml-auto">
                     {profileMode === 'password' ? (
                       <>
                         <Input
@@ -545,16 +548,16 @@ const Header = ({ isMobile = false }: HeaderProps) => {
                 {/* New Password - shown when edit clicked */}
                 {profileMode === 'password' && (
                   <>
-                    <div className="flex items-center">
-                      <Label htmlFor="newPassword" className="text-sm w-[200px]">New Password:</Label>
-                      <div className="relative w-[350px] ml-auto">
+                    <div className="flex flex-col space-y-1.5 lg:flex-row lg:items-center lg:space-y-0">
+                      <Label htmlFor="newPassword" className="text-sm text-left w-full lg:w-[200px]">New Password:</Label>
+                      <div className="relative w-full lg:w-[350px] lg:ml-auto">
                         <Input
                           id="newPassword"
                           type={showPasswords.new ? "text" : "password"}
                           value={passwordForm.newPassword}
                           onChange={(e) => setPasswordForm(p => ({ ...p, newPassword: e.target.value }))}
                           placeholder="Enter new password"
-                          className="h-9 text-sm bg-gray-100 pr-10"
+                          className="h-9 text-sm bg-gray-100 pr-10 w-full"
                         />
                         <Button
                           type="button"
@@ -568,16 +571,16 @@ const Header = ({ isMobile = false }: HeaderProps) => {
                       </div>
                     </div>
 
-                    <div className="flex items-center">
-                      <Label htmlFor="confirmPassword" className="text-sm w-[200px]">Confirm New Password:</Label>
-                      <div className="relative w-[350px] ml-auto">
+                    <div className="flex flex-col space-y-1.5 lg:flex-row lg:items-center lg:space-y-0">
+                      <Label htmlFor="confirmPassword" className="text-sm text-left w-full lg:w-[200px]">Confirm New Password:</Label>
+                      <div className="relative w-full lg:w-[350px] lg:ml-auto">
                         <Input
                           id="confirmPassword"
                           type={showPasswords.confirm ? "text" : "password"}
                           value={passwordForm.confirmPassword}
                           onChange={(e) => setPasswordForm(p => ({ ...p, confirmPassword: e.target.value }))}
                           placeholder="Confirm new password"
-                          className="h-9 text-sm bg-gray-100 pr-10"
+                          className="h-9 text-sm bg-gray-100 pr-10 w-full"
                         />
                         <Button
                           type="button"

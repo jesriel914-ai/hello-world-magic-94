@@ -17,6 +17,7 @@ import { fetchSessionStudents } from '@/lib/supabaseService';
 import { Switch } from '@/components/ui/switch';
 import { Label } from '@/components/ui/label';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from '@/components/ui/dialog';
+import { clearAllSessionCaches, clearTakeAttendanceCache } from '@/lib/cacheManager';
 
 interface PredictionResult {
   className: string;
@@ -41,10 +42,11 @@ type Session = {
   date: string;
   time_in: string;
   time_out: string;
+  status?: 'not completed' | 'completed';
 };
 
 const TakeAttendanceSession = () => {
-  const { sessionId } = useParams<{ sessionId: string }>();
+  const { sessionId, sessionTitle } = useParams<{ sessionId: string; sessionTitle?: string }>();
   const navigate = useNavigate();
   const [session, setSession] = useState<Session | null>(null);
   const [loading, setLoading] = useState(true);
@@ -103,19 +105,31 @@ const TakeAttendanceSession = () => {
   const [isPaused, setIsPaused] = useState(false);
   const [showChangeConfirm, setShowChangeConfirm] = useState(false);
   const [pendingChange, setPendingChange] = useState<{student: any, newStatus: string} | null>(null);
+  const [isMarkingCompleted, setIsMarkingCompleted] = useState(false);
 
   useEffect(() => {
     // Fetch session details when component mounts
     const fetchSession = async () => {
       try {
         setLoading(true);
+        
+        console.log('TakeAttendanceSession: URL params:', { sessionId, sessionTitle });
+        
         const { data, error } = await supabase
           .from('sessions')
-          .select('*')
+          .select('*, status')
           .eq('id', parseInt(sessionId))
           .single();
 
         if (error) throw error;
+        
+        // Check if session is completed - block access if it is
+        if (data.status === 'completed') {
+          toast.error('This session has been completed and is no longer accessible.');
+          navigate('/take-attendance', { replace: true });
+          return;
+        }
+        
         setSession(data);
         
         // Auto-load students and attendance when session is loaded
@@ -176,7 +190,92 @@ const TakeAttendanceSession = () => {
       permissionGranted.current = false;
       setCameraActive(false);
     };
-  }, [sessionId]);
+  }, [sessionId, navigate]);
+
+  // Update page title when session is loaded
+  useEffect(() => {
+    if (session?.title) {
+      document.title = `${session.title} - AMSUIP`;
+    }
+    
+    // Cleanup on unmount
+    return () => {
+      document.title = 'Take Attendance - AMSUIP';
+    };
+  }, [session?.title]);
+
+  // Helper function to format time to AM/PM
+  const formatTimeToAMPM = (timeString: string) => {
+    if (!timeString) return '';
+    
+    // Handle both 'HH:mm' and 'HH:mm:ss' formats
+    const [hours, minutes] = timeString.split(':');
+    const hour = parseInt(hours, 10);
+    const mins = minutes || '00';
+    
+    const period = hour >= 12 ? 'PM' : 'AM';
+    const displayHour = hour % 12 || 12; // Convert 0 to 12 for 12 AM
+    
+    return `${displayHour}:${mins} ${period}`;
+  };
+
+  // Handle marking session as completed
+  const handleMarkCompleted = async () => {
+    if (!session || isMarkingCompleted) return;
+
+    try {
+      setIsMarkingCompleted(true);
+
+      // Get all students without attendance records
+      const studentsToMarkAbsent = sessionStudents.filter(student => {
+        const record = attendanceMap.get(student.id);
+        return !record || !record.status || record.status === 'Not recorded';
+      });
+
+      // Mark all students without records as absent
+      if (studentsToMarkAbsent.length > 0) {
+        const absentRecords = studentsToMarkAbsent.map(student => ({
+          session_id: session.id,
+          student_id: student.id,
+          status: 'absent'
+        }));
+
+        const { error: attendanceError } = await supabase
+          .from('attendance')
+          .upsert(absentRecords, {
+            onConflict: 'session_id,student_id'
+          });
+
+        if (attendanceError) throw attendanceError;
+      }
+
+      // Update session status to completed
+      const { error: sessionError } = await supabase
+        .from('sessions')
+        .update({ status: 'completed' })
+        .eq('id', session.id);
+
+      if (sessionError) throw sessionError;
+
+      // Clear all caches
+      console.log('TakeAttendanceSession: Clearing caches after marking completed...');
+      clearAllSessionCaches();
+      clearTakeAttendanceCache();
+
+      toast.success('Session marked as completed successfully!');
+      
+      // Redirect to take attendance page
+      setTimeout(() => {
+        navigate('/take-attendance');
+      }, 1000);
+
+    } catch (error) {
+      console.error('Error marking session as completed:', error);
+      toast.error('Failed to mark session as completed');
+    } finally {
+      setIsMarkingCompleted(false);
+    }
+  };
 
   // Camera functions from Preview.tsx
   const startCamera = useCallback(async () => {
@@ -1227,7 +1326,9 @@ const TakeAttendanceSession = () => {
                           </span>
                         </p>
                         <p className="text-sm">
-                          <span className="text-gray-500">Time:</span> <span className="font-medium text-gray-900">{session.time_in} - {session.time_out}</span>
+                          <span className="text-gray-500">Time:</span> <span className="font-medium text-gray-900">
+                            {session.time_in && formatTimeToAMPM(session.time_in)} - {session.time_out && formatTimeToAMPM(session.time_out)}
+                          </span>
                         </p>
                         <p className="text-sm">
                           <span className="text-gray-500">Students:</span> <span className="font-medium text-gray-900">{sessionStudents.length} total</span>
@@ -1286,7 +1387,11 @@ const TakeAttendanceSession = () => {
                                     </span>
                                     {attendanceRecord.time_in && (
                                       <p className="text-xs text-gray-500 mt-1">
-                                        {new Date(attendanceRecord.time_in).toLocaleTimeString()}
+                                        {new Date(attendanceRecord.time_in).toLocaleTimeString('en-US', { 
+                                          hour: 'numeric',
+                                          minute: '2-digit',
+                                          hour12: true 
+                                        })}
                                       </p>
                                     )}
                                   </>
@@ -1401,13 +1506,22 @@ const TakeAttendanceSession = () => {
             )}
             
             {/* Mark Completed Button - Only show when camera is NOT active */}
-            {!isCameraReady && (
+            {!isCameraReady && session && session.status !== 'completed' && (
               <Button 
                 className="w-full h-12 text-sm bg-blue-600 text-white focus-visible:ring-0 focus-visible:ring-offset-0"
                 style={{ backgroundColor: '#2563eb' }}
                 onMouseDown={(e) => e.preventDefault()}
+                onClick={handleMarkCompleted}
+                disabled={isMarkingCompleted}
               >
-                Mark Completed
+                {isMarkingCompleted ? (
+                  <>
+                    <Loader2 className="h-4 w-4 animate-spin mr-2" />
+                    Marking...
+                  </>
+                ) : (
+                  'Mark Completed'
+                )}
               </Button>
             )}
             </>
@@ -1468,7 +1582,11 @@ const TakeAttendanceSession = () => {
                                 </span>
                                 {attendanceRecord.time_in && (
                                   <p className="text-xs text-gray-500 mt-1">
-                                    {new Date(attendanceRecord.time_in).toLocaleTimeString()}
+                                    {new Date(attendanceRecord.time_in).toLocaleTimeString('en-US', { 
+                                      hour: 'numeric',
+                                      minute: '2-digit',
+                                      hour12: true 
+                                    })}
                                   </p>
                                 )}
                               </>

@@ -255,7 +255,7 @@ export default function SessionStudents({ sessionId, onClose, onSessionUpdated }
   };
 
   return (
-    <div className="w-full flex flex-col" style={{ height: '670px' }}>
+    <div className="w-full flex flex-col" style={{ height: '675px' }}>
       {/* Header */}
       <div className="pb-2 mb-3 flex-shrink-0">
         <h2 className="text-education-navy text-xl font-semibold">

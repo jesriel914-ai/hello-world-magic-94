@@ -333,7 +333,10 @@ const AllowedTermsContent = () => {
           setFormData({ academic_year: '', semester: '', start_date: '', end_date: '' });
         }
       }}>
-        <DialogContent className="max-w-[700px] w-[700px] p-4">
+        <DialogContent 
+          className="max-w-[700px] w-[700px] p-4"
+          onOpenAutoFocus={(e) => e.preventDefault()}
+        >
           <div className="w-full flex flex-col" style={{ height: '360px' }}>
             {/* Header */}
             <div className="pb-2 mb-3 flex-shrink-0">

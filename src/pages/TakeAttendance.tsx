@@ -277,8 +277,15 @@ const TakeAttendanceContent: React.FC = () => {
     const sessionDate = new Date(session.date);
     return isBefore(sessionDate, todayStart);
   });
-  const handleStartAttendance = useCallback((sessionId: number) => {
-    navigate(`/take-attendance/${sessionId}`);
+  const handleStartAttendance = useCallback((session: Session) => {
+    // Create URL-friendly slug from session title
+    const slug = session.title
+      .toLowerCase()
+      .replace(/[^a-z0-9]+/g, '-') // Replace non-alphanumeric with hyphens
+      .replace(/^-+|-+$/g, ''); // Remove leading/trailing hyphens
+    
+    // Use format: /take-attendance/{id}/{title-slug}
+    navigate(`/take-attendance/${session.id}/${slug}`);
   }, [navigate]);
 
   const renderSessionList = (sessions: Session[]) => {
@@ -402,7 +409,7 @@ const TakeAttendanceContent: React.FC = () => {
 // SessionCard component to render individual session cards
 interface SessionCardProps {
   session: Session;
-  onStartAttendance: (id: number) => void;
+  onStartAttendance: (session: Session) => void;
 }
 
 const SessionCard: React.FC<SessionCardProps> = ({ session, onStartAttendance }) => {
@@ -452,7 +459,7 @@ const SessionCard: React.FC<SessionCardProps> = ({ session, onStartAttendance })
         <Button 
           size="sm"
           className="w-full mt-4 text-sm h-10 bg-teal-300 text-teal-900 hover:bg-teal-200 shadow-glow hover:shadow-elegant transition-all duration-200"
-          onClick={() => onStartAttendance(session.id)}
+          onClick={() => onStartAttendance(session)}
         >
           Start Attendance
         </Button>

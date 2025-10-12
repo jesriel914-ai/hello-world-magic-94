@@ -464,7 +464,7 @@ const AttendanceForm = ({ onSuccess, onSubmit, initialData }: AttendanceFormProp
   };
 
   return (
-    <div className="w-full flex flex-col" style={{ height: '660px' }}>
+    <div className="w-full flex flex-col" style={{ height: '685px' }}>
       {/* Header - Reduced spacing */}
       <div className="pb-2 mb-3 flex-shrink-0">
         <h2 className="text-education-navy text-xl font-semibold">

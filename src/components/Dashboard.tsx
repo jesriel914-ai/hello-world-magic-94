@@ -141,11 +141,12 @@ const Dashboard = () => {
 
   const fetchRecentSessions = useCallback(async () => {
     try {
-      // Fetch 5 latest sessions ordered by created_at
+      // Fetch 5 latest COMPLETED sessions ordered by updated_at (when they were marked completed)
       const { data: sessions, error } = await supabase
         .from('sessions')
-        .select('id, title, type, date, time_in, time_out, program, year, section')
-        .order('created_at', { ascending: false })
+        .select('id, title, type, date, time_in, time_out, program, year, section, status')
+        .eq('status', 'completed')
+        .order('updated_at', { ascending: false })
         .limit(5);
       
       if (error) throw error;

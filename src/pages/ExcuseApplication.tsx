@@ -12,6 +12,7 @@ import { Label } from "@/components/ui/label";
 import { useUnsavedChanges } from "@/hooks/useUnsavedChanges";
 import { UnsavedChangesDialog } from "@/components/UnsavedChangesDialog";
 import PageWrapper from "@/components/PageWrapper";
+import ExcuseForm from "@/components/ExcuseForm";
 
 import { 
   Calendar as CalendarIcon,
@@ -94,19 +95,11 @@ const ExcuseApplicationContent = () => {
   const [isFormOpen, setIsFormOpen] = useState(false);
   const [isViewOpen, setIsViewOpen] = useState(false);
   const [selectedExcuse, setSelectedExcuse] = useState<ExcuseApplication | null>(null);
-  const [formData, setFormData] = useState<ExcuseFormData>({
-    student_id: '',
-    absence_date: '', // Keep for type compatibility but won't be used
-  });
-  const [students, setStudents] = useState<any[]>([]);
-  const [sessions, setSessions] = useState<any[]>([]);
-  const [openStudentSelect, setOpenStudentSelect] = useState(false);
-  const [openSessionSelect, setOpenSessionSelect] = useState(false);
+  const [editingExcuse, setEditingExcuse] = useState<ExcuseApplication | null>(null);
   const [imageZoom, setImageZoom] = useState(1);
   const [imagePan, setImagePan] = useState({ x: 0, y: 0 });
   const [isDragging, setIsDragging] = useState(false);
   const [dragStart, setDragStart] = useState({ x: 0, y: 0 });
-  const [isEditMode, setIsEditMode] = useState(false);
   const [viewMode, setViewMode] = useState<'view' | 'edit'>('view');
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
   const [deleteTarget, setDeleteTarget] = useState<number | null>(null);
@@ -129,23 +122,24 @@ const ExcuseApplicationContent = () => {
   } = useUnsavedChanges({
     onClose: () => {
       setIsFormOpen(false);
-      setIsEditMode(false);
-      setSelectedExcuse(null);
-      setFormData({ 
-        student_id: '', 
-        session_id: '',
-        absence_date: '',
-        documentation_url: ''
-      });
+      setEditingExcuse(null);
     },
     enabled: isFormOpen,
   });
 
   useEffect(() => {
     fetchExcuses();
-    fetchStudents();
-    fetchSessions();
   }, []);
+
+  const handleFormSuccess = () => {
+    fetchExcuses();
+    setIsFormOpen(false);
+    setEditingExcuse(null);
+    toast({
+      title: "Success",
+      description: editingExcuse ? "Excuse application updated successfully" : "Excuse application submitted successfully",
+    });
+  };
 
   const fetchExcuses = async () => {
     try {
@@ -211,114 +205,6 @@ const ExcuseApplicationContent = () => {
     }
   }, [totalExcusesCount, displayPageSize]);
 
-  const fetchStudents = async () => {
-    try {
-      const { data, error } = await supabase
-        .from('students')
-        .select('id, firstname, surname, student_id, program, year, section')
-        .order('firstname');
-
-      if (error) throw error;
-      setStudents(data || []);
-    } catch (error) {
-      console.error('Error fetching students:', error);
-    }
-  };
-
-  const fetchSessions = async () => {
-    try {
-      const { data, error } = await supabase
-        .from('sessions')
-        .select('id, title, date')
-        .order('date', { ascending: false });
-
-      if (error) throw error;
-      setSessions(data || []);
-    } catch (error) {
-      console.error('Error fetching sessions:', error);
-    }
-  };
-
-  const handleSubmitExcuse = async () => {
-    try {
-      let excuse_image_url = null;
-      
-      // Upload image if provided
-      if (formData.excuse_image) {
-        const fileExt = formData.excuse_image.name.split('.').pop();
-        const fileName = `${Date.now()}-${Math.random().toString(36).substring(2, 15)}.${fileExt}`;
-        const filePath = `excuse-letters/${fileName}`;
-        
-        const { error: uploadError } = await supabase.storage
-          .from('excuse-letters')
-          .upload(filePath, formData.excuse_image);
-          
-        if (uploadError) throw uploadError;
-        
-        const { data: { publicUrl } } = supabase.storage
-          .from('excuse-letters')
-          .getPublicUrl(filePath);
-          
-        excuse_image_url = publicUrl;
-      }
-
-      if (isEditMode && selectedExcuse) {
-        // Update existing excuse
-        const { error } = await supabase
-          .from('excuse_applications')
-          .update({
-            student_id: parseInt(formData.student_id),
-            session_id: formData.session_id ? parseInt(formData.session_id) : null,
-            absence_date: formData.absence_date,
-            documentation_url: excuse_image_url || formData.documentation_url,
-            updated_at: new Date().toISOString()
-          })
-        .eq('id', selectedExcuse.id);
-
-        if (error) throw error;
-
-        toast({
-          title: "Success",
-          description: "Excuse application updated successfully",
-        });
-      } else {
-        // Create new excuse
-        const { error } = await supabase
-          .from('excuse_applications')
-          .insert([{
-            student_id: parseInt(formData.student_id),
-            session_id: formData.session_id ? parseInt(formData.session_id) : null,
-            absence_date: formData.absence_date || new Date().toISOString().split('T')[0],
-            documentation_url: excuse_image_url || formData.documentation_url,
-            status: 'pending'
-          }]);
-
-        if (error) throw error;
-
-        toast({
-          title: "Success",
-          description: "Excuse application submitted successfully",
-        });
-      }
-
-      markAsSaved();
-      setIsFormOpen(false);
-      setIsEditMode(false);
-      setSelectedExcuse(null);
-      setFormData({
-        student_id: '',
-        absence_date: '',
-      });
-      fetchExcuses();
-    } catch (error) {
-      console.error('Error submitting excuse:', error);
-      toast({
-        title: "Error",
-        description: isEditMode ? "Failed to update excuse application" : "Failed to submit excuse application",
-        variant: "destructive",
-      });
-    }
-  };
 
   const handleUpdateStatus = async (id: number, status: ExcuseStatus, notes?: string) => {
     try {
@@ -705,15 +591,7 @@ const ExcuseApplicationContent = () => {
                             size="sm"
                             className="h-6 w-6 p-0 transition-all duration-200 hover:scale-105"
                             onClick={() => {
-                              setSelectedExcuse(excuse);
-                              setViewMode('edit');
-                              setIsEditMode(true);
-                              setFormData({
-                                student_id: excuse.student_id?.toString() || '',
-                                session_id: excuse.session_id?.toString() || '',
-                                absence_date: excuse.absence_date || '',
-                                documentation_url: excuse.documentation_url || ''
-                              });
+                              setEditingExcuse(excuse);
                               setIsFormOpen(true);
                             }}
                           >
@@ -744,196 +622,18 @@ const ExcuseApplicationContent = () => {
       {/* Form Dialog */}
       <Dialog open={isFormOpen} onOpenChange={handleOpenChange}>
         <DialogContent className="max-w-[96vw] w-[96vw] max-h-[90vh] p-4">
-          <div className="w-full flex flex-col" style={{ height: '660px' }}>
-            {/* Header */}
-            <div className="pb-2 mb-3 flex-shrink-0">
-              <h2 className="text-education-navy text-xl font-semibold">
-                {isEditMode ? 'Edit Excuse Application' : 'New Excuse Application'}
-              </h2>
-            </div>
-
-            {/* Main Content */}
-            <div className="flex-1 flex flex-col min-h-0 overflow-hidden">
-              <div className="grid grid-cols-[400px_1px_1fr] gap-0 overflow-hidden" style={{ height: 'calc(100% - 50px)' }}>
-                {/* Left Column - Form Fields */}
-                <div className="pr-6 space-y-3 overflow-y-auto">
-                  {/* Student */}
-                  <div className="space-y-1.5">
-                    <Label className="text-sm">Student</Label>
-                    <Popover open={openStudentSelect} onOpenChange={setOpenStudentSelect}>
-                      <PopoverTrigger asChild>
-                        <Button
-                          variant="outline"
-                          role="combobox"
-                          aria-expanded={openStudentSelect}
-                          className="w-full h-9 justify-between text-sm bg-gray-100"
-                        >
-                          <span className="truncate">
-                            {formData.student_id
-                              ? students.find((student) => student.id.toString() === formData.student_id)?.firstname + ' ' + students.find((student) => student.id.toString() === formData.student_id)?.surname + ' (' + students.find((student) => student.id.toString() === formData.student_id)?.student_id + ')'
-                              : "Select student..."}
-                          </span>
-                          <ChevronsUpDown className="ml-2 h-4 w-4 shrink-0 opacity-50" />
-                        </Button>
-                      </PopoverTrigger>
-                      <PopoverContent className="w-full p-0 z-[150]">
-                        <Command>
-                          <CommandInput placeholder="Search students..." />
-                          <CommandEmpty>No student found.</CommandEmpty>
-                          <CommandGroup className="max-h-64 overflow-auto">
-                            {students.map((student) => (
-                              <CommandItem
-                                key={student.id}
-                                onSelect={() => {
-                                  setFormData(prev => ({ ...prev, student_id: student.id.toString() }));
-                                  setOpenStudentSelect(false);
-                                  markAsChanged();
-                                }}
-                              >
-                                <Check
-                                  className={cn(
-                                    "mr-2 h-4 w-4",
-                                    formData.student_id === student.id.toString() ? "opacity-100" : "opacity-0"
-                                  )}
-                                />
-                                {student.firstname} {student.surname} ({student.student_id})
-                              </CommandItem>
-                            ))}
-                          </CommandGroup>
-                        </Command>
-                      </PopoverContent>
-                    </Popover>
-                  </div>
-
-                  {/* Session */}
-                  <div className="space-y-1.5">
-                    <Label className="text-sm">Session</Label>
-                    <Popover open={openSessionSelect} onOpenChange={setOpenSessionSelect}>
-                      <PopoverTrigger asChild>
-                        <Button
-                          variant="outline"
-                          role="combobox"
-                          aria-expanded={openSessionSelect}
-                          className="w-full h-9 justify-between text-sm bg-gray-100"
-                        >
-                          <span className="truncate">
-                            {formData.session_id
-                              ? sessions.find((session) => session.id.toString() === formData.session_id)?.title + ' - ' + format(new Date(sessions.find((session) => session.id.toString() === formData.session_id)?.date), 'MMM d, yyyy')
-                              : "Select session..."}
-                          </span>
-                          <ChevronsUpDown className="ml-2 h-4 w-4 shrink-0 opacity-50" />
-                        </Button>
-                      </PopoverTrigger>
-                      <PopoverContent className="w-full p-0 z-[150]">
-                        <Command>
-                          <CommandInput placeholder="Search sessions..." />
-                          <CommandEmpty>No session found.</CommandEmpty>
-                          <CommandGroup className="max-h-64 overflow-auto">
-                            {sessions.map((session) => (
-                              <CommandItem
-                                key={session.id}
-                                onSelect={() => {
-                                  setFormData(prev => ({ ...prev, session_id: session.id.toString() }));
-                                  setOpenSessionSelect(false);
-                                  markAsChanged();
-                                }}
-                              >
-                                <Check
-                                  className={cn(
-                                    "mr-2 h-4 w-4",
-                                    formData.session_id === session.id.toString() ? "opacity-100" : "opacity-0"
-                                  )}
-                                />
-                                <div className="flex flex-col">
-                                  <span>{session.title}</span>
-                                  <span className="text-sm text-muted-foreground">
-                                    {format(new Date(session.date), 'EEEE, MMM d, yyyy')}
-                                  </span>
-                                </div>
-                              </CommandItem>
-                            ))}
-                          </CommandGroup>
-                        </Command>
-                      </PopoverContent>
-                    </Popover>
-                  </div>
-
-                  {/* Excuse Letter */}
-                  <div className="space-y-1.5">
-                    <Label htmlFor="excuse-image" className="text-sm">Handwritten Excuse Letter</Label>
-                    <Input
-                      id="excuse-image"
-                      type="file"
-                      accept="image/*"
-                      onChange={(e) => {
-                        const file = e.target.files?.[0];
-                        if (file) {
-                          setFormData(prev => ({ ...prev, excuse_image: file }));
-                          markAsChanged();
-                        }
-                      }}
-                      className="h-9 text-sm bg-gray-100 cursor-pointer"
-                    />
-                    <p className="text-xs text-muted-foreground">
-                      Attach a clear photo of your handwritten excuse letter
-                    </p>
-                  </div>
-                </div>
-
-                {/* Vertical Divider */}
-                <div className="bg-gray-200 w-px"></div>
-
-                {/* Right Column - Image Preview */}
-                <div className="pl-6 flex flex-col min-h-0 overflow-hidden">
-                  <h3 className="font-semibold text-sm mb-3 flex-shrink-0">Preview</h3>
-                  
-                  <div className="border rounded-lg flex-1 min-h-0 overflow-hidden bg-gray-50">
-                    {formData.excuse_image ? (
-                      <div className="h-full overflow-auto visible-scrollbar">
-                        <img 
-                          src={URL.createObjectURL(formData.excuse_image)} 
-                          alt="Excuse letter preview" 
-                          className="w-full object-contain"
-                        />
-                      </div>
-                    ) : formData.documentation_url ? (
-                      <div className="h-full overflow-auto visible-scrollbar">
-                        <img 
-                          src={formData.documentation_url} 
-                          alt="Excuse letter" 
-                          className="w-full object-contain"
-                        />
-                      </div>
-                    ) : (
-                      <div className="h-full flex items-center justify-center">
-                        <div className="text-center text-gray-400">
-                          <FileImage className="h-16 w-16 mx-auto mb-2 opacity-50" />
-                          <p className="text-sm">No image selected</p>
-                          <p className="text-xs">Upload an image to see preview</p>
-                        </div>
-                      </div>
-                    )}
-                  </div>
-                </div>
-              </div>
-
-              {/* Submit Button */}
-              <div className="pt-1 flex justify-end flex-shrink-0">
-                <div className="flex gap-2">
-                  <Button variant="outline" onClick={handleClose}>
-                    Cancel
-                  </Button>
-                  <Button 
-                    onClick={handleSubmitExcuse}
-                    disabled={!formData.student_id || !formData.session_id || (!formData.excuse_image && !formData.documentation_url)}
-                    className="bg-education-blue hover:bg-education-blue/90"
-                  >
-                    Submit Application
-                  </Button>
-                </div>
-              </div>
-            </div>
-          </div>
+          <ExcuseForm
+            initialData={editingExcuse ? {
+              id: editingExcuse.id,
+              student_id: editingExcuse.student_id?.toString(),
+              session_id: editingExcuse.session_id?.toString(),
+              absence_date: editingExcuse.absence_date,
+              documentation_url: editingExcuse.documentation_url
+            } : undefined}
+            onSuccess={handleFormSuccess}
+            onCancel={handleClose}
+            markAsChanged={markAsChanged}
+          />
         </DialogContent>
       </Dialog>
 
