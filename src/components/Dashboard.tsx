@@ -1,6 +1,8 @@
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
+import { Dialog, DialogContent } from "@/components/ui/dialog";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { CalendarDays, Users, UserCheck, BarChart3, CalendarClock, CheckCircle, TrendingUp, TrendingDown, Activity } from "lucide-react";
 import { useAuth } from "@/hooks/useAuth";
 import { useNavigate } from "react-router-dom";
@@ -8,6 +10,8 @@ import { useEffect, useState, useRef, useCallback, useMemo } from "react";
 import { supabase } from "@/lib/supabase";
 import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer } from 'recharts';
 import { fetchUserRole } from "@/lib/getUserRole";
+import SessionStudents from "@/components/SessionStudents";
+import { format as formatDate } from 'date-fns';
 
 // Use the same role caching system as navigation
 const getCachedUserRole = (): string | null => {
@@ -122,67 +126,75 @@ const Dashboard = () => {
   
   // Recent Sessions interface and state
   interface RecentSession {
-    id: string;
-    course: string;
+    id: number;
+    title: string;
     students: number;
-    time: string;
-    timeAgo: string;
-    status: 'completed' | 'ongoing' | 'upcoming';
-    attendanceRate?: number;
+    date: string;
+    time_in: string;
+    time_out: string;
+    type: 'class' | 'event' | 'other';
   }
   
   const [recentSessions, setRecentSessions] = useState<RecentSession[]>([]);
+  const [selectedSessionId, setSelectedSessionId] = useState<number | null>(null);
+  const [isStudentsModalOpen, setIsStudentsModalOpen] = useState(false);
 
   const fetchRecentSessions = useCallback(async () => {
     try {
-      const mockSessions: RecentSession[] = [
-        {
-          id: '1',
-          course: 'CS 101 - Introduction to Programming',
-          students: 45,
-          time: '9:00 AM - 10:30 AM',
-          timeAgo: '2 min ago',
-          status: 'completed',
-          attendanceRate: 93
-        },
-        {
-          id: '2',
-          course: 'MATH 201 - Calculus II',
-          students: 38,
-          time: '11:00 AM - 12:30 PM',
-          timeAgo: '15 min ago',
-          status: 'ongoing',
-          attendanceRate: 87
-        },
-        {
-          id: '3',
-          course: 'ENG 101 - English Composition',
-          students: 42,
-          time: '2:00 PM - 3:30 PM',
-          timeAgo: '1 hour ago',
-          status: 'upcoming'
-        },
-        {
-          id: '4',
-          course: 'PHY 101 - Physics Fundamentals',
-          students: 35,
-          time: '4:00 PM - 5:30 PM',
-          timeAgo: '3 hours ago',
-          status: 'completed',
-          attendanceRate: 91
-        },
-        {
-          id: '5',
-          course: 'CHEM 101 - General Chemistry',
-          students: 40,
-          time: '8:00 AM - 9:30 AM',
-          timeAgo: '5 hours ago',
-          status: 'completed',
-          attendanceRate: 88
-        }
-      ];
+      // Fetch 5 latest sessions ordered by created_at
+      const { data: sessions, error } = await supabase
+        .from('sessions')
+        .select('id, title, type, date, time_in, time_out, program, year, section')
+        .order('created_at', { ascending: false })
+        .limit(5);
       
-      setRecentSessions(mockSessions);
+      if (error) throw error;
+      
+      // Calculate student count for each session
+      const sessionsWithCounts = await Promise.all(
+        (sessions || []).map(async (session) => {
+          let studentCount = 0;
+          
+          try {
+            let countQuery = supabase
+              .from('students')
+              .select('*', { count: 'exact', head: true });
+            
+            if (session.program && !session.program.toLowerCase().includes('all')) {
+              countQuery = countQuery.eq('program', session.program);
+            }
+            
+            if (session.year && !session.year.toLowerCase().includes('all')) {
+              let yearValue = session.year;
+              if (yearValue.endsWith(' Year')) {
+                yearValue = yearValue.replace(' Year', '');
+              }
+              countQuery = countQuery.eq('year', yearValue);
+            }
+            
+            if (session.section && !session.section.toLowerCase().includes('all')) {
+              countQuery = countQuery.eq('section', session.section);
+            }
+            
+            const { count } = await countQuery;
+            studentCount = count || 0;
+          } catch (error) {
+            console.error('Error counting students:', error);
+          }
+          
+          return {
+            id: session.id,
+            title: session.title,
+            students: studentCount,
+            date: session.date,
+            time_in: session.time_in,
+            time_out: session.time_out,
+            type: session.type
+          };
+        })
+      );
+      
+      setRecentSessions(sessionsWithCounts);
     } catch (error) {
       console.error('Error fetching recent sessions:', error);
     }
@@ -306,13 +318,18 @@ const Dashboard = () => {
 
   // Handle session click
   const handleSessionClick = (session: RecentSession) => {
-    if (session.status === 'ongoing') {
-      navigate('/take-attendance');
-    } else if (session.status === 'completed') {
-              navigate('/reports');
-    } else {
-      navigate('/schedule');
-    }
+    setSelectedSessionId(session.id);
+    setIsStudentsModalOpen(true);
+  };
+  
+  // Format time to 12-hour format
+  const formatTime = (timeString: string) => {
+    if (!timeString) return '--:--';
+    const [hours, minutes] = timeString.split(':');
+    const hour = parseInt(hours, 10);
+    const period = hour >= 12 ? 'PM' : 'AM';
+    const displayHour = hour % 12 || 12;
+    return `${displayHour}:${minutes} ${period}`;
   };
 
 
@@ -493,26 +510,18 @@ const Dashboard = () => {
           <CardHeader className="pb-4">
             <div className="flex justify-between items-start">
               <div>
-                <CardTitle className="text-xl font-semibold text-gray-900">Attendance Overview</CardTitle>
-                <CardDescription className="text-gray-600 mt-1">
-                  {timePeriod === 'daily' ? 'Daily' : timePeriod === 'weekly' ? 'Weekly' : 'Monthly'} attendance trends
-                </CardDescription>
+                <CardTitle className="text-lg font-semibold text-gray-900">Attendance Overview</CardTitle>
               </div>
-              <div className="flex space-x-1 bg-gray-100 p-1 rounded-lg">
-                {(['daily', 'weekly', 'monthly'] as const).map((period) => (
-                  <button
-                    key={period}
-                    onClick={() => setTimePeriod(period)}
-                    className={`px-4 py-2 text-sm rounded-md transition-colors font-medium ${
-                      timePeriod === period
-                        ? 'bg-white text-gray-900 shadow-sm'
-                        : 'text-gray-600 hover:text-gray-900'
-                    }`}
-                  >
-                    {period.charAt(0).toUpperCase() + period.slice(1)}
-                  </button>
-                ))}
-              </div>
+              <Select value={timePeriod} onValueChange={(value: 'daily' | 'weekly' | 'monthly') => setTimePeriod(value)}>
+                <SelectTrigger className="h-8 px-3 text-xs w-[120px]">
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="daily">Daily</SelectItem>
+                  <SelectItem value="weekly">Weekly</SelectItem>
+                  <SelectItem value="monthly">Monthly</SelectItem>
+                </SelectContent>
+              </Select>
             </div>
           </CardHeader>
           <CardContent className="h-[300px] pl-4">
@@ -603,14 +612,11 @@ const Dashboard = () => {
             <div className="flex justify-between items-center">
               <div>
                 <CardTitle className="text-lg font-semibold text-gray-900">Recent Sessions</CardTitle>
-                <CardDescription className="text-gray-600">
-                  Latest attendance activities
-                </CardDescription>
               </div>
               <Button 
                 variant="outline" 
                 size="sm"
-                onClick={() => navigate('/reports')}
+                onClick={() => navigate('/schedule')}
                 className="h-8 px-3 text-xs"
               >
                 View All
@@ -618,48 +624,34 @@ const Dashboard = () => {
             </div>
           </CardHeader>
           <CardContent className="h-[300px] overflow-y-auto overlay-scrollbar-container">
-            <div className="space-y-3">
+            <div className="space-y-2">
               {recentSessions.length > 0 ? (
-                recentSessions.map((session, index) => (
+                recentSessions.map((session) => (
                   <div 
-                    key={index}
-                    className="flex items-center p-3 rounded-lg hover:bg-gray-50 transition-colors cursor-pointer border border-transparent hover:border-gray-200"
+                    key={session.id}
+                    className="flex items-center justify-between p-3 rounded-lg hover:bg-gray-50 transition-colors cursor-pointer border border-transparent hover:border-gray-200"
                     onClick={() => handleSessionClick(session)}
                   >
-                    <div className={`p-2 rounded-lg mr-3 ${
-                      session.status === 'completed' ? 'bg-green-100' : 
-                      session.status === 'ongoing' ? 'bg-blue-100' : 'bg-orange-100'
-                    }`}>
-                      {session.status === 'completed' ? (
-                        <CheckCircle className="h-4 w-4 text-green-700" />
-                      ) : session.status === 'ongoing' ? (
-                        <CalendarClock className="h-4 w-4 text-blue-700" />
-                      ) : (
-                        <CalendarDays className="h-4 w-4 text-orange-700" />
-                      )}
-                    </div>
                     <div className="flex-1 min-w-0">
                       <p className="text-sm font-medium text-gray-900 truncate">
-                        {session.course}
+                        {session.title}
                       </p>
                       <div className="flex items-center gap-2 mt-1">
                         <p className="text-xs text-gray-500">
-                          {session.students} students • {session.time}
+                          {session.students} students • {formatDate(new Date(session.date), 'MMM d, yyyy')} • {formatTime(session.time_in)} - {formatTime(session.time_out)}
                         </p>
-                        {session.attendanceRate && (
-                          <Badge variant="secondary" className="text-xs px-2 py-0.5">
-                            {session.attendanceRate}% attendance
-                          </Badge>
-                        )}
                       </div>
                     </div>
-                    <div className="text-xs text-gray-400 ml-2 text-right">
-                      <div>{session.timeAgo}</div>
-                      {session.status === 'ongoing' && (
-                        <Badge className="bg-blue-100 text-blue-700 text-xs mt-1">
-                          Live
-                        </Badge>
-                      )}
+                    <div className="ml-2">
+                      <Badge className={
+                        session.type === 'class' 
+                          ? 'bg-primary/10 text-primary border-primary/20 text-xs' 
+                          : session.type === 'event'
+                          ? 'bg-accent/10 text-accent border-accent/20 text-xs'
+                          : 'bg-education-navy/10 text-education-navy border-education-navy/20 text-xs'
+                      }>
+                        {session.type === 'class' ? 'Class' : session.type === 'event' ? 'Event' : 'Activity'}
+                      </Badge>
                     </div>
                   </div>
                 ))
@@ -669,13 +661,29 @@ const Dashboard = () => {
                     <CalendarDays className="h-6 w-6 text-gray-400" />
                   </div>
                   <p className="text-sm text-gray-500">No recent sessions</p>
-                  <p className="text-xs text-gray-400 mt-1">Attendance sessions will appear here</p>
+                  <p className="text-xs text-gray-400 mt-1">Sessions will appear here</p>
                 </div>
               )}
             </div>
           </CardContent>
         </Card>
       </div>
+
+      {/* SessionStudents Modal */}
+      <Dialog open={isStudentsModalOpen} onOpenChange={setIsStudentsModalOpen}>
+        <DialogContent className="max-w-[96vw] w-[96vw] max-h-[90vh] p-4">
+          {selectedSessionId && (
+            <SessionStudents 
+              sessionId={selectedSessionId}
+              onClose={() => setIsStudentsModalOpen(false)}
+              onSessionUpdated={() => {
+                // Reload recent sessions
+                fetchRecentSessions();
+              }}
+            />
+          )}
+        </DialogContent>
+      </Dialog>
     </div>
   );
 };

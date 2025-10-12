@@ -196,12 +196,10 @@ data = result.data as StudentRecord[];
         toast.success(`Successfully imported ${importedCount} students`);
         if (onImportSuccess) onImportSuccess();
         if (onImportComplete) onImportComplete();
+        
+        // Reset to simple form after successful import
+        resetForm();
         setOpen(false);
-        setPreviewData([]);
-        setFileName('');
-        if (fileInputRef.current) {
-          fileInputRef.current.value = '';
-        }
       } else {
         throw new Error('No data was imported');
       }
@@ -284,10 +282,7 @@ data = result.data as StudentRecord[];
   };
 
   return (
-    <Dialog open={open} onOpenChange={(isOpen) => {
-      if (!isOpen) resetForm();
-      setOpen(isOpen);
-    }}>
+    <Dialog open={open} onOpenChange={setOpen}>
       <DialogTrigger asChild>
         <Button 
           variant="default"
@@ -297,176 +292,236 @@ data = result.data as StudentRecord[];
           Import
         </Button>
       </DialogTrigger>
-      <DialogContent className="max-w-4xl max-h-[90vh] overflow-y-auto hide-scrollbar">
-        <DialogHeader>
-          <DialogTitle className="text-2xl font-bold text-education-navy">
-            Import Students
-          </DialogTitle>
-          <DialogDescription>
-            Upload an Excel or CSV file to import multiple students at once.
-            Download the template file to ensure proper formatting.
-          </DialogDescription>
-        </DialogHeader>
+      <DialogContent className={fileName ? "max-w-[96vw] w-[96vw] max-h-[90vh] p-4" : "max-w-xl p-4"}>
+        {!fileName ? (
+          // Simple upload form - shown initially
+          <>
+            <DialogHeader>
+              <DialogTitle className="text-2xl font-bold text-education-navy">
+                Import Students
+              </DialogTitle>
+              <DialogDescription>
+                Upload an Excel or CSV file to import multiple students at once.
+                Download the template file to ensure proper formatting.
+              </DialogDescription>
+            </DialogHeader>
 
-        <div className="space-y-6">
-          <div className="border-2 border-dashed rounded-lg p-6 text-center">
-            <div className="flex flex-col items-center justify-center space-y-4">
-              <div className="p-3 rounded-full bg-accent/10">
-                {fileName ? (
-                  fileName.endsWith('.xlsx') ? (
-                    <FileSpreadsheet className="w-8 h-8 text-accent" />
-                  ) : (
-                    <FileText className="w-8 h-8 text-accent" />
-                  )
-                ) : (
-                  <Download className="w-8 h-8 text-muted-foreground" />
-                )}
-              </div>
-              
-              <div className="space-y-1">
-                <p className="text-sm text-muted-foreground">
-                  {fileName || 'Upload Excel (.xlsx) or CSV (.csv) file'}
-                </p>
-                <p className="text-xs text-muted-foreground">
-                  The file should contain student data with appropriate headers. 
-                  <button 
-                    type="button" 
-                    onClick={downloadTemplate}
-                    className="text-primary hover:underline ml-1"
+            <div className="space-y-6">
+              <div className="border-2 border-dashed rounded-lg p-6 text-center">
+                <div className="flex flex-col items-center justify-center space-y-4">
+                  <div className="p-3 rounded-full bg-accent/10">
+                    <Download className="w-8 h-8 text-muted-foreground" />
+                  </div>
+                  
+                  <div className="space-y-1">
+                    <p className="text-sm text-muted-foreground">
+                      Upload Excel (.xlsx) or CSV (.csv) file
+                    </p>
+                    <p className="text-xs text-muted-foreground">
+                      The file should contain student data with appropriate headers. 
+                      <button 
+                        type="button" 
+                        onClick={downloadTemplate}
+                        className="text-primary hover:underline ml-1"
+                      >
+                        Download template
+                      </button>
+                    </p>
+                  </div>
+
+                  <Button
+                    variant="outline"
+                    onClick={() => fileInputRef.current?.click()}
+                    disabled={isLoading}
                   >
-                    Download template
-                  </button>
-                </p>
-              </div>
-
-              <Button
-                variant="outline"
-                onClick={() => fileInputRef.current?.click()}
-                disabled={isLoading}
-              >
-                {fileName ? 'Change File' : 'Select File'}
-              </Button>
-              
-              <input
-                ref={fileInputRef}
-                type="file"
-                accept=".xlsx,.csv"
-                className="hidden"
-                onChange={handleFileChange}
-                disabled={isLoading}
-              />
-            </div>
-          </div>
-
-          {isLoading && (
-            <div className="flex items-center justify-center py-8">
-              <Loader2 className="w-6 h-6 mr-2 animate-spin" />
-              <span>Processing file...</span>
-            </div>
-          )}
-
-          {validation && (
-            <div className="space-y-4">
-              <div className="flex items-center justify-between p-4 bg-muted/50 rounded-lg">
-                <div>
-                  <h4 className="font-medium">File Analysis</h4>
-                  <p className="text-sm text-muted-foreground">
-                    {validation.valid} of {validation.total} students ready to import
-                  </p>
+                    Select File
+                  </Button>
+                  
+                  <input
+                    ref={fileInputRef}
+                    type="file"
+                    accept=".xlsx,.csv"
+                    className="hidden"
+                    onChange={handleFileChange}
+                    disabled={isLoading}
+                  />
                 </div>
-                {validation.errors.length > 0 ? (
-                  <div className="flex items-center text-destructive">
-                    <AlertCircle className="w-5 h-5 mr-2" />
-                    <span>{validation.errors.length} issues found</span>
-                  </div>
-                ) : (
-                  <div className="flex items-center text-green-600">
-                    <Check className="w-5 h-5 mr-2" />
-                    <span>All records are valid</span>
-                  </div>
-                )}
               </div>
+            </div>
+          </>
+        ) : (
+          // Expanded 2-column form - shown after file upload
+          <div className="w-full flex flex-col" style={{ height: '660px' }}>
+            {/* Header */}
+            <div className="pb-2 mb-3 flex-shrink-0">
+              <h2 className="text-education-navy text-xl font-semibold">
+                Import Students
+              </h2>
+            </div>
 
-              {validation.errors.length > 0 && (
-                <div className="bg-destructive/10 border border-destructive/20 rounded-lg p-4 max-h-48 overflow-y-auto hide-scrollbar">
-                  <h4 className="font-medium text-destructive mb-2">Issues to fix</h4>
-                  <ul className="text-sm space-y-1">
-                    {validation.errors.slice(0, 10).map((error, index) => (
-                      <li key={index} className="text-destructive">{error}</li>
-                    ))}
-                    {validation.errors.length > 10 && (
-                      <li className="text-muted-foreground">
-                        ...and {validation.errors.length - 10} more issues
-                      </li>
-                    )}
-                  </ul>
-                </div>
-              )}
-
-              {previewData.length > 0 && (
-                <div className="border rounded-lg overflow-hidden">
-                  <div className="bg-muted/50 p-2 border-b">
-                    <h4 className="font-medium">Preview ({previewData.length} records)</h4>
+            {/* Main Content */}
+            <div className="flex-1 flex flex-col min-h-0 overflow-hidden">
+              <div className="grid grid-cols-[400px_1px_1fr] gap-0 overflow-hidden" style={{ height: 'calc(100% - 50px)' }}>
+                {/* Left Column - File Info */}
+                <div className="pr-6 space-y-3 overflow-y-auto">
+                  {/* File Name */}
+                  <div className="space-y-1.5">
+                    <label className="text-sm font-medium">File Name</label>
+                    <div className="h-9 px-3 py-2 text-sm bg-gray-100 rounded-md border border-input flex items-center">
+                      {fileName}
+                    </div>
                   </div>
-                  <div className="max-h-60 overflow-y-auto hide-scrollbar">
-                    <table className="w-full text-sm">
-                      <thead>
-                        <tr className="bg-muted/25 border-b text-left">
-                          <th className="p-2">ID</th>
-                          <th className="p-2">Name</th>
-                          <th className="p-2">Program</th>
-                          <th className="p-2">Year</th>
-                          <th className="p-2">Section</th>
+
+                  {/* Total Records */}
+                  <div className="space-y-1.5">
+                    <label className="text-sm font-medium">Total Records</label>
+                    <div className="h-9 px-3 py-2 text-sm bg-gray-100 rounded-md border border-input flex items-center">
+                      {validation ? validation.total : 0}
+                    </div>
+                  </div>
+
+                  {/* Valid Records */}
+                  <div className="space-y-1.5">
+                    <label className="text-sm font-medium">Valid Records</label>
+                    <div className="h-9 px-3 py-2 text-sm bg-gray-100 rounded-md border border-input flex items-center">
+                      {validation ? validation.valid : 0}
+                    </div>
+                  </div>
+
+                  {/* Status */}
+                  <div className="space-y-1.5">
+                    <label className="text-sm font-medium">Status</label>
+                    <div className="h-9 px-3 py-2 text-sm bg-gray-100 rounded-md border border-input flex items-center">
+                      {isLoading ? (
+                        <>
+                          <Loader2 className="h-4 w-4 animate-spin text-gray-400 mr-2" />
+                          Processing...
+                        </>
+                      ) : validation?.errors.length === 0 ? (
+                        <>
+                          <Check className="h-4 w-4 text-green-600 mr-2" />
+                          All valid
+                        </>
+                      ) : (
+                        <>
+                          <AlertCircle className="h-4 w-4 text-red-600 mr-2" />
+                          {validation?.errors.length || 0} issues
+                        </>
+                      )}
+                    </div>
+                  </div>
+
+                  {/* Download Template */}
+                  <div className="space-y-1.5 pt-2">
+                    <Button
+                      variant="outline"
+                      className="w-full"
+                      onClick={downloadTemplate}
+                    >
+                      <Download className="w-4 h-4 mr-2" />
+                      Download Template
+                    </Button>
+                  </div>
+
+                  {/* Errors Section */}
+                  {validation && validation.errors.length > 0 && (
+                    <div className="space-y-1.5">
+                      <label className="text-sm font-medium text-red-600">Issues Found</label>
+                      <div className="bg-red-50 border border-red-200 rounded-md p-3 max-h-40 overflow-y-auto text-xs space-y-1">
+                        {validation.errors.slice(0, 10).map((error, index) => (
+                          <div key={index} className="text-red-600">{error}</div>
+                        ))}
+                        {validation.errors.length > 10 && (
+                          <div className="text-red-500">
+                            ...and {validation.errors.length - 10} more issues
+                          </div>
+                        )}
+                      </div>
+                    </div>
+                  )}
+                </div>
+
+                {/* Vertical Divider */}
+                <div className="bg-gray-200 w-px"></div>
+
+                {/* Right Column - Preview Table */}
+                <div className="pl-6 flex flex-col min-h-0 overflow-hidden">
+                  {/* Header with count and search */}
+                  <div className="flex items-center justify-between mb-3 flex-shrink-0">
+                    <label className="text-sm font-medium">
+                      Students: {previewData.length}
+                    </label>
+                  </div>
+
+                  {/* Table */}
+                  <div className="overflow-y-auto flex-1 visible-scrollbar">
+                    <table className="w-full text-xs">
+                      <thead className="bg-gray-50 sticky top-0">
+                        <tr className="border-b">
+                          <th className="px-3 py-2 text-left font-semibold text-gray-700">Student ID</th>
+                          <th className="px-3 py-2 text-left font-semibold text-gray-700">Name</th>
+                          <th className="px-3 py-2 text-left font-semibold text-gray-700">Program</th>
+                          <th className="px-3 py-2 text-left font-semibold text-gray-700">Year</th>
+                          <th className="px-3 py-2 text-left font-semibold text-gray-700">Section</th>
                         </tr>
                       </thead>
                       <tbody>
-                        {previewData.slice(0, 5).map((student, index) => (
-                          <tr key={index} className="border-b hover:bg-muted/10">
-                            <td className="p-2">{student.student_id}</td>
-                            <td className="p-2">{`${student.surname}, ${student.firstname} ${student.middle_initial}`.trim()}</td>
-                            <td className="p-2">{student.program}</td>
-                            <td className="p-2">{student.year}</td>
-                            <td className="p-2">{student.section}</td>
-                          </tr>
-                        ))}
-                        {previewData.length > 5 && (
+                        {isLoading ? (
                           <tr>
-                            <td colSpan={5} className="p-2 text-center text-muted-foreground text-sm">
-                              ... and {previewData.length - 5} more records
+                            <td colSpan={5} className="px-3 py-12 text-center">
+                              <Loader2 className="h-8 w-8 animate-spin mx-auto text-gray-400" />
                             </td>
                           </tr>
+                        ) : previewData.length === 0 ? (
+                          <tr>
+                            <td colSpan={5} className="px-3 py-12 text-center text-gray-500">
+                              No valid records found
+                            </td>
+                          </tr>
+                        ) : (
+                          previewData.map((student, index) => (
+                            <tr key={index} className="hover:bg-gray-50 border-b">
+                              <td className="px-3 py-1.5 text-gray-900">{student.student_id}</td>
+                              <td className="px-3 py-1.5 text-gray-600">{`${student.surname}, ${student.firstname}`}</td>
+                              <td className="px-3 py-1.5 text-gray-600">{student.program}</td>
+                              <td className="px-3 py-1.5 text-gray-600">{student.year}</td>
+                              <td className="px-3 py-1.5 text-gray-600">{student.section}</td>
+                            </tr>
+                          ))
                         )}
                       </tbody>
                     </table>
                   </div>
                 </div>
-              )}
-
-              <div className="flex justify-end space-x-2 pt-4">
-                <Button
-                  variant="outline"
-                  onClick={() => resetForm()}
-                  disabled={isLoading}
-                >
-                  Reset
-                </Button>
-                <Button
-                  onClick={handleImport}
-                  disabled={isLoading || previewData.length === 0}
-                >
-                  {isLoading ? (
-                    <>
-                      <Loader2 className="w-4 h-4 mr-2 animate-spin" />
-                      Importing...
-                    </>
-                  ) : (
-                    `Import ${previewData.length} Students`
-                  )}
-                </Button>
               </div>
             </div>
-          )}
-        </div>
+
+            {/* Fixed Buttons at Bottom Right */}
+            <div className="pt-1 flex justify-end gap-2 flex-shrink-0">
+              <Button
+                variant="outline"
+                onClick={resetForm}
+                disabled={isLoading}
+              >
+                Reset
+              </Button>
+              <Button
+                onClick={handleImport}
+                disabled={isLoading || previewData.length === 0 || (validation && validation.errors.length > 0)}
+                className="bg-education-blue hover:bg-education-blue/90"
+              >
+                {isLoading ? (
+                  <>
+                    <Loader2 className="w-4 h-4 mr-2 animate-spin" />
+                    Importing...
+                  </>
+                ) : (
+                  `Import ${previewData.length} Students`
+                )}
+              </Button>
+            </div>
+          </div>
+        )}
       </DialogContent>
     </Dialog>
   );

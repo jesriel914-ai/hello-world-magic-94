@@ -23,6 +23,20 @@ import { supabase } from "@/lib/supabase";
 import { useEffect, useState, useCallback } from "react";
 import Layout from "@/components/Layout";
 
+// Cache for sessions data
+const takeAttendanceCache = new Map<string, { sessions: Session[]; timestamp: number }>();
+const CACHE_DURATION = 2 * 60 * 1000; // 2 minutes
+
+// Listen for cache clear events
+if (typeof window !== 'undefined') {
+  window.addEventListener('clearSessionCaches', () => {
+    takeAttendanceCache.clear();
+  });
+  window.addEventListener('clearTakeAttendanceCache', () => {
+    takeAttendanceCache.clear();
+  });
+}
+
 // Format date as 'Month Day, Year' (e.g., 'January 1, 2023')
 const formatDate = (dateString: string): string => {
   return format(parseISO(dateString), 'MMMM d, yyyy');
@@ -108,14 +122,26 @@ const TakeAttendanceContent: React.FC = () => {
 
   // Fetch sessions from Supabase
   const fetchSessions = useCallback(async () => {
+    const cacheKey = `sessions_${sessionTypeFilter}`;
+    
     try {
-      setLoading(true);
       setError(null);
+      
+      // Check cache first
+      const cached = takeAttendanceCache.get(cacheKey);
+      if (cached && Date.now() - cached.timestamp < CACHE_DURATION) {
+        setSessions(cached.sessions);
+        setLoading(false);
+        return cached.sessions;
+      }
+      
+      setLoading(true);
       
       // Build the query with filters
       let query = supabase
         .from('sessions')
-        .select(`*`, { count: 'exact' });
+        .select(`*`, { count: 'exact' })
+        .not('status', 'eq', 'completed'); // Exclude completed sessions
       
       // Removed date range filter to fetch all sessions
       // Date filtering will be handled client-side for the tabs
@@ -181,6 +207,12 @@ const TakeAttendanceContent: React.FC = () => {
         section: session.section || ''
       }));
       
+      // Store in cache
+      takeAttendanceCache.set(cacheKey, {
+        sessions: formattedSessions,
+        timestamp: Date.now()
+      });
+      
       setSessions(formattedSessions);
       return formattedSessions;
     } catch (err) {
@@ -201,6 +233,20 @@ const TakeAttendanceContent: React.FC = () => {
   // Load sessions on component mount and when filters change
   useEffect(() => {
     fetchSessions();
+    
+    // Listen for cache clear events to reload data
+    const handleCacheClear = () => {
+      console.log('TakeAttendance: Received cache clear event, reloading sessions...');
+      fetchSessions();
+    };
+    
+    window.addEventListener('clearTakeAttendanceCache', handleCacheClear);
+    window.addEventListener('clearSessionCaches', handleCacheClear);
+    
+    return () => {
+      window.removeEventListener('clearTakeAttendanceCache', handleCacheClear);
+      window.removeEventListener('clearSessionCaches', handleCacheClear);
+    };
   }, [fetchSessions]);
 
   // Filter sessions based on session type only
@@ -257,23 +303,6 @@ const TakeAttendanceContent: React.FC = () => {
     );
   };
 
-  if (loading) {
-    return (
-      <div className="flex items-center justify-center h-64">
-        <div className="animate-spin rounded-full h-12 w-12 border-t-2 border-b-2 border-primary"></div>
-      </div>
-    );
-  }
-
-  if (error) {
-    return (
-      <div className="bg-red-50 border border-red-200 text-red-700 px-4 py-3 rounded relative" role="alert">
-        <strong className="font-bold">Error: </strong>
-        <span className="block sm:inline">{error}</span>
-      </div>
-    );
-  }
-
   return (
     <div className="w-full space-y-6 lg:px-6 lg:py-4">
       {/* Page Header - Left Aligned */}
@@ -284,11 +313,18 @@ const TakeAttendanceContent: React.FC = () => {
         </p>
       </div>
 
+      {error && (
+        <div className="bg-red-50 border border-red-200 text-red-700 px-4 py-3 rounded relative" role="alert">
+          <strong className="font-bold">Error: </strong>
+          <span className="block sm:inline">{error}</span>
+        </div>
+      )}
+
       <Tabs defaultValue="today" className="space-y-4">
         <TabsList>
           <TabsTrigger value="today" className="relative">
             Today
-            {todaysSessions.length > 0 && (
+            {!loading && todaysSessions.length > 0 && (
               <Badge className="ml-2 h-5 w-5 rounded-full bg-primary text-primary-foreground text-xs flex items-center justify-center">
                 {todaysSessions.length}
               </Badge>
@@ -297,7 +333,7 @@ const TakeAttendanceContent: React.FC = () => {
 
           <TabsTrigger value="past" className="relative">
             Past
-            {pastSessions.length > 0 && (
+            {!loading && pastSessions.length > 0 && (
               <Badge className="ml-2 h-5 w-5 rounded-full bg-primary text-primary-foreground text-xs flex items-center justify-center">
                 {pastSessions.length}
               </Badge>
@@ -306,7 +342,11 @@ const TakeAttendanceContent: React.FC = () => {
         </TabsList>
 
         <TabsContent value="today" className="space-y-4">
-          {todaysSessions.length > 0 ? (
+          {loading ? (
+            <div className="flex items-center justify-center py-12">
+              <Loader2 className="h-8 w-8 animate-spin text-primary" />
+            </div>
+          ) : todaysSessions.length > 0 ? (
             <div className="grid gap-3 md:grid-cols-2 lg:grid-cols-3">
               {todaysSessions.map((session) => (
                 <SessionCard
@@ -330,7 +370,11 @@ const TakeAttendanceContent: React.FC = () => {
 
 
         <TabsContent value="past" className="space-y-4">
-          {pastSessions.length > 0 ? (
+          {loading ? (
+            <div className="flex items-center justify-center py-12">
+              <Loader2 className="h-8 w-8 animate-spin text-primary" />
+            </div>
+          ) : pastSessions.length > 0 ? (
             <div className="grid gap-3 md:grid-cols-2 lg:grid-cols-3">
               {pastSessions.map((session) => (
                 <SessionCard

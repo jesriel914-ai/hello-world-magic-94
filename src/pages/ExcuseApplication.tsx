@@ -743,140 +743,197 @@ const ExcuseApplicationContent = () => {
 
       {/* Form Dialog */}
       <Dialog open={isFormOpen} onOpenChange={handleOpenChange}>
-        <DialogContent className="max-w-md">
-          <DialogHeader>
-            <DialogTitle>{isEditMode ? 'Edit Excuse Application' : 'New Excuse Application'}</DialogTitle>
-          </DialogHeader>
-          <div className="space-y-4">
-            <div>
-              <Label htmlFor="student">Student</Label>
-              <Popover open={openStudentSelect} onOpenChange={setOpenStudentSelect}>
-                <PopoverTrigger asChild>
-                  <Button
-                    variant="outline"
-                    role="combobox"
-                    aria-expanded={openStudentSelect}
-                    className="w-full justify-between"
-                  >
-                    {formData.student_id
-                      ? students.find((student) => student.id.toString() === formData.student_id)?.firstname + ' ' + students.find((student) => student.id.toString() === formData.student_id)?.surname + ' (' + students.find((student) => student.id.toString() === formData.student_id)?.student_id + ')'
-                      : "Select student..."}
-                    <ChevronsUpDown className="ml-2 h-4 w-4 shrink-0 opacity-50" />
-                  </Button>
-                </PopoverTrigger>
-                <PopoverContent className="w-full p-0 z-[150]">
-                  <Command>
-                    <CommandInput placeholder="Search students..." />
-                    <CommandEmpty>No student found.</CommandEmpty>
-                    <CommandGroup>
-                      {students.map((student) => (
-                        <CommandItem
-                          key={student.id}
-                           onSelect={() => {
-                             setFormData(prev => ({ ...prev, student_id: student.id.toString() }));
-                             setOpenStudentSelect(false);
-                             markAsChanged();
-                           }}
+        <DialogContent className="max-w-[96vw] w-[96vw] max-h-[90vh] p-4">
+          <div className="w-full flex flex-col" style={{ height: '660px' }}>
+            {/* Header */}
+            <div className="pb-2 mb-3 flex-shrink-0">
+              <h2 className="text-education-navy text-xl font-semibold">
+                {isEditMode ? 'Edit Excuse Application' : 'New Excuse Application'}
+              </h2>
+            </div>
+
+            {/* Main Content */}
+            <div className="flex-1 flex flex-col min-h-0 overflow-hidden">
+              <div className="grid grid-cols-[400px_1px_1fr] gap-0 overflow-hidden" style={{ height: 'calc(100% - 50px)' }}>
+                {/* Left Column - Form Fields */}
+                <div className="pr-6 space-y-3 overflow-y-auto">
+                  {/* Student */}
+                  <div className="space-y-1.5">
+                    <Label className="text-sm">Student</Label>
+                    <Popover open={openStudentSelect} onOpenChange={setOpenStudentSelect}>
+                      <PopoverTrigger asChild>
+                        <Button
+                          variant="outline"
+                          role="combobox"
+                          aria-expanded={openStudentSelect}
+                          className="w-full h-9 justify-between text-sm bg-gray-100"
                         >
-                          <Check
-                            className={cn(
-                              "mr-2 h-4 w-4",
-                              formData.student_id === student.id.toString() ? "opacity-100" : "opacity-0"
-                            )}
-                          />
-                          {student.firstname} {student.surname} ({student.student_id})
-                        </CommandItem>
-                      ))}
-                    </CommandGroup>
-                  </Command>
-                </PopoverContent>
-              </Popover>
-            </div>
+                          <span className="truncate">
+                            {formData.student_id
+                              ? students.find((student) => student.id.toString() === formData.student_id)?.firstname + ' ' + students.find((student) => student.id.toString() === formData.student_id)?.surname + ' (' + students.find((student) => student.id.toString() === formData.student_id)?.student_id + ')'
+                              : "Select student..."}
+                          </span>
+                          <ChevronsUpDown className="ml-2 h-4 w-4 shrink-0 opacity-50" />
+                        </Button>
+                      </PopoverTrigger>
+                      <PopoverContent className="w-full p-0 z-[150]">
+                        <Command>
+                          <CommandInput placeholder="Search students..." />
+                          <CommandEmpty>No student found.</CommandEmpty>
+                          <CommandGroup className="max-h-64 overflow-auto">
+                            {students.map((student) => (
+                              <CommandItem
+                                key={student.id}
+                                onSelect={() => {
+                                  setFormData(prev => ({ ...prev, student_id: student.id.toString() }));
+                                  setOpenStudentSelect(false);
+                                  markAsChanged();
+                                }}
+                              >
+                                <Check
+                                  className={cn(
+                                    "mr-2 h-4 w-4",
+                                    formData.student_id === student.id.toString() ? "opacity-100" : "opacity-0"
+                                  )}
+                                />
+                                {student.firstname} {student.surname} ({student.student_id})
+                              </CommandItem>
+                            ))}
+                          </CommandGroup>
+                        </Command>
+                      </PopoverContent>
+                    </Popover>
+                  </div>
 
-            <div>
-              <Label htmlFor="session">Session</Label>
-              <Popover open={openSessionSelect} onOpenChange={setOpenSessionSelect}>
-                <PopoverTrigger asChild>
-                  <Button
-                    variant="outline"
-                    role="combobox"
-                    aria-expanded={openSessionSelect}
-                    className="w-full justify-between"
-                  >
-                    {formData.session_id
-                      ? sessions.find((session) => session.id.toString() === formData.session_id)?.title + ' - ' + format(new Date(sessions.find((session) => session.id.toString() === formData.session_id)?.date), 'MMM d, yyyy')
-                      : "Select session..."}
-                    <div className="flex items-center gap-1">
-                      <CalendarIcon className="h-4 w-4 shrink-0 opacity-50" />
-                      <ChevronsUpDown className="h-4 w-4 shrink-0 opacity-50" />
-                    </div>
-                  </Button>
-                </PopoverTrigger>
-                <PopoverContent className="w-full p-0 z-[150]">
-                  <Command>
-                    <CommandInput placeholder="Search sessions or dates..." />
-                    <CommandEmpty>No session found.</CommandEmpty>
-                    <CommandGroup>
-                      {sessions.map((session) => (
-                        <CommandItem
-                          key={session.id}
-                           onSelect={() => {
-                             setFormData(prev => ({ ...prev, session_id: session.id.toString() }));
-                             setOpenSessionSelect(false);
-                             markAsChanged();
-                           }}
+                  {/* Session */}
+                  <div className="space-y-1.5">
+                    <Label className="text-sm">Session</Label>
+                    <Popover open={openSessionSelect} onOpenChange={setOpenSessionSelect}>
+                      <PopoverTrigger asChild>
+                        <Button
+                          variant="outline"
+                          role="combobox"
+                          aria-expanded={openSessionSelect}
+                          className="w-full h-9 justify-between text-sm bg-gray-100"
                         >
-                          <Check
-                            className={cn(
-                              "mr-2 h-4 w-4",
-                              formData.session_id === session.id.toString() ? "opacity-100" : "opacity-0"
-                            )}
-                          />
-                          <div className="flex flex-col">
-                            <span>{session.title}</span>
-                            <span className="text-sm text-muted-foreground">
-                              {format(new Date(session.date), 'EEEE, MMM d, yyyy')}
-                            </span>
-                          </div>
-                        </CommandItem>
-                      ))}
-                    </CommandGroup>
-                  </Command>
-                </PopoverContent>
-              </Popover>
+                          <span className="truncate">
+                            {formData.session_id
+                              ? sessions.find((session) => session.id.toString() === formData.session_id)?.title + ' - ' + format(new Date(sessions.find((session) => session.id.toString() === formData.session_id)?.date), 'MMM d, yyyy')
+                              : "Select session..."}
+                          </span>
+                          <ChevronsUpDown className="ml-2 h-4 w-4 shrink-0 opacity-50" />
+                        </Button>
+                      </PopoverTrigger>
+                      <PopoverContent className="w-full p-0 z-[150]">
+                        <Command>
+                          <CommandInput placeholder="Search sessions..." />
+                          <CommandEmpty>No session found.</CommandEmpty>
+                          <CommandGroup className="max-h-64 overflow-auto">
+                            {sessions.map((session) => (
+                              <CommandItem
+                                key={session.id}
+                                onSelect={() => {
+                                  setFormData(prev => ({ ...prev, session_id: session.id.toString() }));
+                                  setOpenSessionSelect(false);
+                                  markAsChanged();
+                                }}
+                              >
+                                <Check
+                                  className={cn(
+                                    "mr-2 h-4 w-4",
+                                    formData.session_id === session.id.toString() ? "opacity-100" : "opacity-0"
+                                  )}
+                                />
+                                <div className="flex flex-col">
+                                  <span>{session.title}</span>
+                                  <span className="text-sm text-muted-foreground">
+                                    {format(new Date(session.date), 'EEEE, MMM d, yyyy')}
+                                  </span>
+                                </div>
+                              </CommandItem>
+                            ))}
+                          </CommandGroup>
+                        </Command>
+                      </PopoverContent>
+                    </Popover>
+                  </div>
+
+                  {/* Excuse Letter */}
+                  <div className="space-y-1.5">
+                    <Label htmlFor="excuse-image" className="text-sm">Handwritten Excuse Letter</Label>
+                    <Input
+                      id="excuse-image"
+                      type="file"
+                      accept="image/*"
+                      onChange={(e) => {
+                        const file = e.target.files?.[0];
+                        if (file) {
+                          setFormData(prev => ({ ...prev, excuse_image: file }));
+                          markAsChanged();
+                        }
+                      }}
+                      className="h-9 text-sm bg-gray-100 cursor-pointer"
+                    />
+                    <p className="text-xs text-muted-foreground">
+                      Attach a clear photo of your handwritten excuse letter
+                    </p>
+                  </div>
+                </div>
+
+                {/* Vertical Divider */}
+                <div className="bg-gray-200 w-px"></div>
+
+                {/* Right Column - Image Preview */}
+                <div className="pl-6 flex flex-col min-h-0 overflow-hidden">
+                  <h3 className="font-semibold text-sm mb-3 flex-shrink-0">Preview</h3>
+                  
+                  <div className="border rounded-lg flex-1 min-h-0 overflow-hidden bg-gray-50">
+                    {formData.excuse_image ? (
+                      <div className="h-full overflow-auto visible-scrollbar">
+                        <img 
+                          src={URL.createObjectURL(formData.excuse_image)} 
+                          alt="Excuse letter preview" 
+                          className="w-full object-contain"
+                        />
+                      </div>
+                    ) : formData.documentation_url ? (
+                      <div className="h-full overflow-auto visible-scrollbar">
+                        <img 
+                          src={formData.documentation_url} 
+                          alt="Excuse letter" 
+                          className="w-full object-contain"
+                        />
+                      </div>
+                    ) : (
+                      <div className="h-full flex items-center justify-center">
+                        <div className="text-center text-gray-400">
+                          <FileImage className="h-16 w-16 mx-auto mb-2 opacity-50" />
+                          <p className="text-sm">No image selected</p>
+                          <p className="text-xs">Upload an image to see preview</p>
+                        </div>
+                      </div>
+                    )}
+                  </div>
+                </div>
+              </div>
+
+              {/* Submit Button */}
+              <div className="pt-1 flex justify-end flex-shrink-0">
+                <div className="flex gap-2">
+                  <Button variant="outline" onClick={handleClose}>
+                    Cancel
+                  </Button>
+                  <Button 
+                    onClick={handleSubmitExcuse}
+                    disabled={!formData.student_id || !formData.session_id || (!formData.excuse_image && !formData.documentation_url)}
+                    className="bg-education-blue hover:bg-education-blue/90"
+                  >
+                    Submit Application
+                  </Button>
+                </div>
+              </div>
             </div>
-
-
-            <div>
-              <Label htmlFor="excuse-image">Attach Excuse Letter</Label>
-              <Input
-                id="excuse-image"
-                type="file"
-                accept="image/*"
-                 onChange={(e) => {
-                   const file = e.target.files?.[0];
-                   if (file) {
-                     setFormData(prev => ({ ...prev, excuse_image: file }));
-                     markAsChanged();
-                   }
-                 }}
-                className="cursor-pointer"
-              />
-            </div>
-
-
           </div>
-          <DialogFooter>
-            <Button variant="outline" onClick={handleClose}>
-              Cancel
-            </Button>
-            <Button 
-              onClick={handleSubmitExcuse}
-              disabled={!formData.student_id || !formData.session_id || !formData.excuse_image}
-            >
-              Submit Application
-            </Button>
-          </DialogFooter>
         </DialogContent>
       </Dialog>
 
@@ -895,132 +952,166 @@ const ExcuseApplicationContent = () => {
           setIsDragging(false);
         }
       }}>
-        <DialogContent className="max-w-5xl w-full h-[90vh] flex flex-col">
-          <DialogHeader className="flex-shrink-0">
-            <DialogTitle>Excuse Application Details</DialogTitle>
-          </DialogHeader>
+        <DialogContent className="max-w-[96vw] w-[96vw] max-h-[90vh] p-4">
           {selectedExcuse && (
-            <div className="flex flex-col flex-1 overflow-hidden">
-              {/* Main Content - Scrollable */}
-              <div className="flex-1 overflow-y-auto overlay-scrollbar-container pr-2 space-y-6">
-                {/* Student Information - Inline Format */}
-                <div className="space-y-2">
-                  <p className="text-sm">
-                    <span className="text-muted-foreground">Name:</span> <span className="font-medium">
-                      {selectedExcuse.students?.firstname || 'Unknown'} {selectedExcuse.students?.surname || 'Student'}
-                    </span>
-                  </p>
-                  <p className="text-sm">
-                    <span className="text-muted-foreground">Program:</span> <span className="font-medium">
-                      {selectedExcuse.students?.program || 'N/A'}
-                    </span>
-                  </p>
-                  <p className="text-sm">
-                    <span className="text-muted-foreground">ID:</span> <span className="font-medium">
-                      {selectedExcuse.students?.student_id || 'N/A'}
-                    </span>
-                  </p>
-                  <p className="text-sm">
-                    <span className="text-muted-foreground">Section:</span> <span className="font-medium">
-                      {selectedExcuse.students?.section || 'N/A'}
-                    </span>
-                  </p>
-                  <p className="text-sm">
-                    <span className="text-muted-foreground">Year:</span> <span className="font-medium">
-                      {selectedExcuse.students?.year || 'N/A'}
-                    </span>
-                  </p>
-                  <p className="text-sm">
-                    <span className="text-muted-foreground">Status:</span> <span className="ml-2">
-                      {getStatusBadge(selectedExcuse.status)}
-                    </span>
-                  </p>
-                </div>
-
-                {/* Absence Date */}
-                <div>
-                  <p className="text-sm">
-                    <span className="text-muted-foreground">Absence Date:</span> <span className="font-medium">
-                      {format(new Date(selectedExcuse.absence_date), 'EEEE, MMMM d, yyyy')}
-                    </span>
-                  </p>
-                </div>
-
-                {/* Review Notes */}
-                {selectedExcuse.review_notes && (
-                  <div>
-                    <Label className="text-sm font-medium text-gray-700">Review Notes</Label>
-                    <p className="text-sm text-gray-900 mt-1 whitespace-pre-wrap bg-gray-50 p-3 rounded border">
-                      {selectedExcuse.review_notes}
-                    </p>
-                  </div>
-                )}
-
-                {/* Image Section - Match viewport height with hover zoom controls */}
-                <div>
-                  <div className="flex items-center justify-between mb-2">
-                    <Label className="text-sm font-medium text-gray-700">Excuse Letter Preview</Label>
-                  </div>
-                  
-                  {selectedExcuse.documentation_url ? (
-                    <div className="relative group">
-                      <div 
-                        className="border rounded-lg overflow-hidden bg-gray-50 relative cursor-grab active:cursor-grabbing h-96"
-                        onMouseDown={handleImageMouseDown}
-                        onMouseMove={handleImageMouseMove}
-                        onMouseUp={handleImageMouseUp}
-                        onMouseLeave={handleImageMouseUp}
-                      >
-                        <img 
-                          src={selectedExcuse.documentation_url} 
-                          alt="Excuse letter" 
-                          className="transition-transform duration-200 max-w-none object-contain w-full h-full"
-                          style={{ 
-                            transform: `scale(${imageZoom}) translate(${imagePan.x}px, ${imagePan.y}px)`,
-                            transformOrigin: 'center center'
-                          }}
-                          draggable={false}
-                        />
-                      </div>
-                      
-                      {/* Zoom controls - only visible on hover */}
-                      <div className="absolute top-2 right-2 opacity-0 group-hover:opacity-100 transition-opacity duration-200 flex items-center gap-1">
-                        <Button
-                          variant="outline"
-                          size="sm"
-                          onClick={() => handleZoomChange(Math.max(0.5, imageZoom - 0.25))}
-                          className="h-8 w-8 p-0 bg-black/80 hover:bg-black/90 border-black/80 text-white"
-                        >
-                          <ZoomOut className="h-4 w-4" />
-                        </Button>
-                        <span className="text-xs text-white bg-black/80 px-2 py-1 rounded text-center min-w-[3rem]">
-                          {Math.round(imageZoom * 100)}%
-                        </span>
-                        <Button
-                          variant="outline"
-                          size="sm"
-                          onClick={() => handleZoomChange(Math.min(3, imageZoom + 0.25))}
-                          className="h-8 w-8 p-0 bg-black/80 hover:bg-black/90 border-black/80 text-white"
-                        >
-                          <ZoomIn className="h-4 w-4" />
-                        </Button>
-                      </div>
-                    </div>
-                  ) : (
-                    <div className="h-96 bg-gray-50 rounded-lg border-2 border-dashed border-gray-300 flex items-center justify-center">
-                      <p className="text-sm text-gray-400">No excuse letter attached</p>
-                    </div>
-                  )}
-                </div>
+            <div className="w-full flex flex-col" style={{ height: '680px' }}>
+              {/* Header */}
+              <div className="pb-2 mb-3 flex-shrink-0">
+                <h2 className="text-education-navy text-xl font-semibold">
+                  Excuse Application Details
+                </h2>
               </div>
 
-              {/* Actions Section - Fixed at bottom */}
-              {selectedExcuse.status === 'pending' && (
-                <div className="flex-shrink-0 pt-4 border-t border-gray-200 mt-4">
-                  <div className="flex gap-3">
+              {/* Main Content */}
+              <div className="flex-1 flex flex-col min-h-0 overflow-hidden">
+                <div className="grid grid-cols-[400px_1px_1fr] gap-0 overflow-hidden" style={{ height: 'calc(100% - 50px)' }}>
+                  {/* Left Column - Application Info (Read-only) */}
+                  <div className="pr-6 space-y-3 overflow-y-auto">
+                    {/* Student Name */}
+                    <div className="space-y-1.5">
+                      <Label className="text-sm">Student Name</Label>
+                      <div className="h-9 px-3 py-2 text-sm bg-gray-100 rounded-md border border-input flex items-center">
+                        {selectedExcuse.students?.firstname || 'Unknown'} {selectedExcuse.students?.surname || 'Student'}
+                      </div>
+                    </div>
+
+                    {/* Student ID */}
+                    <div className="space-y-1.5">
+                      <Label className="text-sm">Student ID</Label>
+                      <div className="h-9 px-3 py-2 text-sm bg-gray-100 rounded-md border border-input flex items-center">
+                        {selectedExcuse.students?.student_id || 'N/A'}
+                      </div>
+                    </div>
+
+                    {/* Program */}
+                    <div className="space-y-1.5">
+                      <Label className="text-sm">Program</Label>
+                      <div className="h-9 px-3 py-2 text-sm bg-gray-100 rounded-md border border-input flex items-center">
+                        {selectedExcuse.students?.program || 'N/A'}
+                      </div>
+                    </div>
+
+                    {/* Year & Section */}
+                    <div className="grid grid-cols-2 gap-3">
+                      <div className="space-y-1.5">
+                        <Label className="text-sm">Year</Label>
+                        <div className="h-9 px-3 py-2 text-sm bg-gray-100 rounded-md border border-input flex items-center">
+                          {selectedExcuse.students?.year || 'N/A'}
+                        </div>
+                      </div>
+                      <div className="space-y-1.5">
+                        <Label className="text-sm">Section</Label>
+                        <div className="h-9 px-3 py-2 text-sm bg-gray-100 rounded-md border border-input flex items-center">
+                          {selectedExcuse.students?.section || 'N/A'}
+                        </div>
+                      </div>
+                    </div>
+
+                    {/* Session */}
+                    <div className="space-y-1.5">
+                      <Label className="text-sm">Session</Label>
+                      <div className="h-9 px-3 py-2 text-sm bg-gray-100 rounded-md border border-input flex items-center">
+                        {selectedExcuse.sessions?.title || 'N/A'}
+                      </div>
+                    </div>
+
+                    {/* Absence Date */}
+                    <div className="space-y-1.5">
+                      <Label className="text-sm">Absence Date</Label>
+                      <div className="h-9 px-3 py-2 text-sm bg-gray-100 rounded-md border border-input flex items-center">
+                        {format(new Date(selectedExcuse.absence_date), 'MMM d, yyyy')}
+                      </div>
+                    </div>
+
+                    {/* Status */}
+                    <div className="space-y-1.5">
+                      <Label className="text-sm">Status</Label>
+                      <div className="h-9 px-3 py-2 text-sm bg-gray-100 rounded-md border border-input flex items-center">
+                        {getStatusBadge(selectedExcuse.status)}
+                      </div>
+                    </div>
+
+                    {/* Review Notes */}
+                    {selectedExcuse.review_notes && (
+                      <div className="space-y-1.5">
+                        <Label className="text-sm">Review Notes</Label>
+                        <div className="px-3 py-2 text-sm bg-gray-100 rounded-md border border-input min-h-[100px]">
+                          {selectedExcuse.review_notes}
+                        </div>
+                      </div>
+                    )}
+                  </div>
+
+                  {/* Vertical Divider */}
+                  <div className="bg-gray-200 w-px"></div>
+
+                  {/* Right Column - Image Preview */}
+                  <div className="pl-6 flex flex-col min-h-0 overflow-hidden">
+                    <h3 className="font-semibold text-sm mb-3 flex-shrink-0">Excuse Letter</h3>
+                    
+                    <div className="border rounded-lg flex-1 min-h-0 overflow-hidden bg-gray-50 relative">
+                      {selectedExcuse.documentation_url ? (
+                        <div className="h-full relative group">
+                          <div 
+                            className="h-full overflow-hidden cursor-grab active:cursor-grabbing"
+                            onMouseDown={handleImageMouseDown}
+                            onMouseMove={handleImageMouseMove}
+                            onMouseUp={handleImageMouseUp}
+                            onMouseLeave={handleImageMouseUp}
+                          >
+                            <img 
+                              src={selectedExcuse.documentation_url} 
+                              alt="Excuse letter" 
+                              className="transition-transform duration-200 max-w-none object-contain w-full h-full"
+                              style={{ 
+                                transform: `scale(${imageZoom}) translate(${imagePan.x}px, ${imagePan.y}px)`,
+                                transformOrigin: 'center center'
+                              }}
+                              draggable={false}
+                            />
+                          </div>
+                          
+                          {/* Zoom controls */}
+                          <div className="absolute top-2 right-2 opacity-0 group-hover:opacity-100 transition-opacity duration-200 flex items-center gap-1">
+                            <Button
+                              variant="outline"
+                              size="sm"
+                              onClick={() => handleZoomChange(Math.max(0.5, imageZoom - 0.25))}
+                              className="h-8 w-8 p-0 bg-black/80 hover:bg-black/90 border-black/80 text-white"
+                            >
+                              <ZoomOut className="h-4 w-4" />
+                            </Button>
+                            <span className="text-xs text-white bg-black/80 px-2 py-1 rounded text-center min-w-[3rem]">
+                              {Math.round(imageZoom * 100)}%
+                            </span>
+                            <Button
+                              variant="outline"
+                              size="sm"
+                              onClick={() => handleZoomChange(Math.min(3, imageZoom + 0.25))}
+                              className="h-8 w-8 p-0 bg-black/80 hover:bg-black/90 border-black/80 text-white"
+                            >
+                              <ZoomIn className="h-4 w-4" />
+                            </Button>
+                          </div>
+                        </div>
+                      ) : (
+                        <div className="h-full flex items-center justify-center">
+                          <div className="text-center text-gray-400">
+                            <FileImage className="h-16 w-16 mx-auto mb-2 opacity-50" />
+                            <p className="text-sm">No excuse letter attached</p>
+                          </div>
+                        </div>
+                      )}
+                    </div>
+                  </div>
+                </div>
+
+                {/* Action Buttons */}
+                {selectedExcuse.status === 'pending' && (
+                  <div className="pt-1 flex justify-end flex-shrink-0 gap-2">
                     <Button
                       variant="outline"
-                      className="flex-1 text-green-600 border-green-200 hover:bg-green-50 transition-colors"
+                      className="text-green-600 border-green-200 hover:bg-green-50"
                       onClick={() => handleUpdateStatus(selectedExcuse.id, 'approved')}
                     >
                       <Check className="h-4 w-4 mr-2" />
@@ -1028,15 +1119,15 @@ const ExcuseApplicationContent = () => {
                     </Button>
                     <Button
                       variant="outline"
-                      className="flex-1 text-red-600 border-red-200 hover:bg-red-50 transition-colors"
+                      className="text-red-600 border-red-200 hover:bg-red-50"
                       onClick={() => handleUpdateStatus(selectedExcuse.id, 'rejected')}
                     >
                       <X className="h-4 w-4 mr-2" />
                       Reject
                     </Button>
                   </div>
-                </div>
-              )}
+                )}
+              </div>
             </div>
           )}
         </DialogContent>

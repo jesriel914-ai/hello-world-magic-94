@@ -235,10 +235,10 @@ export const fetchSessionStudents = async (sessionId: number): Promise<SessionWi
     throw new Error('Session ID is required');
   }
   
-  // Get session details
+  // Get session details with status
   const { data: session, error: sessionError } = await supabase
     .from('sessions')
-    .select('*')
+    .select('*, status')
     .eq('id', sessionId)
     .single();
   
@@ -246,6 +246,8 @@ export const fetchSessionStudents = async (sessionId: number): Promise<SessionWi
   if (!session) throw new Error('Session not found');
 
   const sessionData = session as any;
+  
+  console.log('Fetched session status:', sessionData.status);
 
   console.log('Full session object:', JSON.stringify(sessionData, null, 2));
 
@@ -360,7 +362,8 @@ export const fetchSessionStudents = async (sessionId: number): Promise<SessionWi
     year: sessionData.year,
     section: sessionData.section,
     description: sessionData.description || '',
-    type: sessionData.type || 'class'
+    type: sessionData.type || 'class',
+    status: sessionData.status || 'not completed' // Include status field
   };
 
   return {

@@ -13,7 +13,9 @@ import {
   SquarePen,
   Trash2,
   CalendarClock,
-  List
+  List,
+  ChevronsUp,
+  ChevronsDown
 } from "lucide-react";
 
 // UI Components
@@ -65,6 +67,17 @@ import {
   deleteSession 
 } from "@/lib/supabaseService";
 import { supabase } from "@/lib/supabase";
+
+// Cache for sessions data
+const sessionsCache = new Map<string, { sessions: any[]; attendanceMap: Map<number, { present: number; absent: number }>; timestamp: number }>();
+const CACHE_DURATION = 2 * 60 * 1000; // 2 minutes
+
+// Listen for cache clear events
+if (typeof window !== 'undefined') {
+  window.addEventListener('clearSessionCaches', () => {
+    sessionsCache.clear();
+  });
+}
 
 // Types
 import type { SessionData } from "@/components/AttendanceForm";
@@ -242,6 +255,11 @@ const Schedule = () => {
   const [programFilter, setProgramFilter] = useState('all');
   const [dateFilter, setDateFilter] = useState('all');
   
+  // Sorting state
+  type SessionSortKey = 'type' | 'title' | 'date' | 'students' | 'present' | 'absent' | 'status';
+  const [sortKey, setSortKey] = useState<SessionSortKey>('date');
+  const [sortDir, setSortDir] = useState<'asc' | 'desc'>('desc');
+  
   // Pagination state
   const [pagination, setPagination] = useState({
     currentPage: 1,
@@ -263,6 +281,16 @@ const Schedule = () => {
       currentPage: 1
     }));
     setDisplayPageSize(newPageSize);
+  };
+  
+  // Handle sorting
+  const handleSort = (key: SessionSortKey) => {
+    if (sortKey === key) {
+      setSortDir(sortDir === 'asc' ? 'desc' : 'asc');
+    } else {
+      setSortKey(key);
+      setSortDir('asc');
+    }
   };
   
   // Reset form when editing session changes
@@ -495,8 +523,90 @@ const Schedule = () => {
   // Memoize loadSessions to prevent unnecessary re-renders
   const loadSessionsMemoized = useCallback(async () => {
     try {
-      setIsLoading(true);
       setError(null);
+      
+      // Check cache first
+      const cacheKey = 'all_sessions';
+      const cached = sessionsCache.get(cacheKey);
+      if (cached && Date.now() - cached.timestamp < CACHE_DURATION) {
+        // Use cached data
+        const studentCountMap = new Map();
+        
+        // Recalculate student counts for cached sessions
+        const uniqueCombinations = new Set(
+          cached.sessions
+            .filter(s => s.program && s.year && s.section)
+            .map(s => `${s.program}::${s.year}::${s.section}`)
+        );
+        
+        const studentCountPromises = Array.from(uniqueCombinations).map(async (combo) => {
+          const [program, year, section] = combo.split('::');
+          
+          let query = supabase
+            .from('students')
+            .select('*', { count: 'exact', head: true });
+            
+          if (program && !program.toLowerCase().includes('all')) {
+            query = query.eq('program', program);
+          }
+          if (year && !year.toLowerCase().includes('all')) {
+            let yearValue = year;
+            if (yearValue === 'All Years' || yearValue === 'All Year Levels') {
+              // Skip
+            } else {
+              if (yearValue.endsWith(' Year')) {
+                yearValue = yearValue.replace(' Year', '');
+              }
+              query = query.eq('year', yearValue);
+            }
+          }
+          if (section && !section.toLowerCase().includes('all')) {
+            query = query.eq('section', section);
+          }
+          
+          const { count } = await query;
+          return { program, year, section, count: count || 0 };
+        });
+        
+        const studentCounts = await Promise.all(studentCountPromises);
+        studentCounts.forEach(({ program, year, section, count }) => {
+          studentCountMap.set(`${program}::${year}::${section}`, count);
+        });
+        
+        const formattedSessions = cached.sessions.map(session => {
+          const sessionKey = `${session.program || 'all'}::${session.year || 'all'}::${session.section || 'all'}`;
+          const studentCount = studentCountMap.get(sessionKey) || 0;
+          const attendance = cached.attendanceMap.get(session.id) || { present: 0, absent: 0 };
+          
+          return {
+            id: session.id,
+            title: session.title || 'Untitled Session',
+            type: (session.type as 'class' | 'event' | 'other') || 'class',
+            time_in: session.time_in || '',
+            time_out: session.time_out || '',
+            time: session.time_in && session.time_out 
+              ? `${formatTime(session.time_in)} - ${formatTime(session.time_out)}` 
+              : '',
+            students: studentCount,
+            present: attendance.present,
+            absent: attendance.absent,
+            program: session.program || 'General',
+            year: session.year || 'All Year Levels',
+            section: session.section || 'All Sections',
+            status: session.status || 'not completed',
+            date: session.date,
+            created_at: session.created_at || new Date().toISOString(),
+            updated_at: session.updated_at || new Date().toISOString()
+          } as Session;
+        });
+        
+        setSessions(formattedSessions);
+        setTotalSessionsCount(formattedSessions.length);
+        setIsLoading(false);
+        return;
+      }
+      
+      setIsLoading(true);
       
       // Fetch sessions from Supabase
       const { data: sessions, error } = await supabase
@@ -523,6 +633,13 @@ const Schedule = () => {
           existing.absent++;
         }
         attendanceMap.set(record.session_id, existing);
+      });
+      
+      // Store in cache
+      sessionsCache.set(cacheKey, {
+        sessions,
+        attendanceMap,
+        timestamp: Date.now()
       });
       
       // Get unique program, year, section combinations to minimize queries
@@ -635,8 +752,19 @@ const Schedule = () => {
     
     loadData();
     
+    // Listen for cache clear events to reload data
+    const handleCacheClear = () => {
+      console.log('Sessions: Received clearSessionCaches event, reloading data...');
+      if (isMounted) {
+        loadData();
+      }
+    };
+    
+    window.addEventListener('clearSessionCaches', handleCacheClear);
+    
     return () => {
       isMounted = false;
+      window.removeEventListener('clearSessionCaches', handleCacheClear);
     };
   }, [weekDates, dateFilter, loadSessionsMemoized]); // Removed isModalOpen from dependencies
 
@@ -970,6 +1098,13 @@ const Schedule = () => {
         }
       }
       
+      // Clear caches to update other pages
+      console.log('Sessions: Session saved, clearing caches...');
+      sessionsCache.clear();
+      // Dispatch events to notify other pages
+      window.dispatchEvent(new CustomEvent('clearSessionCaches'));
+      window.dispatchEvent(new CustomEvent('clearTakeAttendanceCache'));
+      
       // Reset the form and close the modal
       setEditingSession(null);
       setIsModalOpen(false);
@@ -1077,6 +1212,9 @@ const Schedule = () => {
     if (!sessionToDelete) return;
     
     try {
+      // Clear cache when deleting sessions
+      sessionsCache.clear();
+      
       await deleteSession(sessionToDelete);
       setSessions(sessions.filter(session => session.id !== sessionToDelete));
       toast({
@@ -1177,10 +1315,8 @@ const Schedule = () => {
           }, 100);
         }
       }}>
-        <DialogContent className="max-w-4xl max-h-[90vh]">
-          
-          <div className="py-4">
-            <AttendanceForm 
+        <DialogContent className="max-w-[96vw] w-[96vw] max-h-[90vh] p-4">
+          <AttendanceForm 
               onSuccess={() => {
                 setIsModalOpen(false);
                 setEditingSession(null);
@@ -1188,7 +1324,6 @@ const Schedule = () => {
               onSubmit={handleSaveSession} 
               initialData={editingSession}
             />
-          </div>
         </DialogContent>
       </Dialog>
       <Dialog open={isDeleteDialogOpen} onOpenChange={setIsDeleteDialogOpen}>
@@ -1219,25 +1354,20 @@ const Schedule = () => {
       </Dialog>
       
       {/* Session Students Modal */}
-      <Dialog open={isStudentsModalOpen} onOpenChange={(open) => {
-        setIsStudentsModalOpen(open);
-        if (!open) {
-          setSelectedSessionId(null);
-        }
-      }}>
-        <DialogContent className="max-w-6xl max-h-[90vh]">
-          <DialogHeader>
-            <DialogTitle className="text-education-navy text-lg">Session Details</DialogTitle>
-          </DialogHeader>
-          
-          <div className="overflow-y-auto scrollbar-hide" style={{ height: '600px' }}>
-            {selectedSessionId && (
-              <SessionStudents 
-                sessionId={selectedSessionId} 
-                onClose={() => setIsStudentsModalOpen(false)} 
-              />
-            )}
-          </div>
+      <Dialog open={isStudentsModalOpen} onOpenChange={setIsStudentsModalOpen}>
+        <DialogContent className="max-w-[96vw] w-[96vw] max-h-[90vh] p-4">
+          {selectedSessionId && (
+            <SessionStudents 
+              sessionId={selectedSessionId} 
+              onClose={() => setIsStudentsModalOpen(false)}
+              onSessionUpdated={() => {
+                // Clear all caches
+                sessionsCache.clear();
+                // Reload sessions
+                loadSessionsMemoized();
+              }}
+            />
+          )}
         </DialogContent>
       </Dialog>
       
@@ -1302,14 +1432,56 @@ const Schedule = () => {
               <table className="min-w-full divide-y divide-gray-200 border-b border-gray-200">
                 <thead className="bg-gray-50">
                   <tr className="text-xs text-black h-8">
-                    <th scope="col" className="px-3 py-2 text-left font-semibold uppercase">Type</th>
-                    <th scope="col" className="px-3 py-2 text-left font-semibold uppercase">Title</th>
-                    <th scope="col" className="px-3 py-2 text-left font-semibold uppercase">Date</th>
-                    <th scope="col" className="px-3 py-2 text-left font-semibold uppercase">Students</th>
-                    <th scope="col" className="px-3 py-2 text-left font-semibold uppercase">Present</th>
-                    <th scope="col" className="px-3 py-2 text-left font-semibold uppercase">Absent</th>
-                    <th scope="col" className="px-3 py-2 text-left font-semibold uppercase">Status</th>
-                    <th scope="col" className="px-3 py-2 text-center font-semibold uppercase">Actions</th>
+                    <th scope="col" className="px-3 py-2 text-left font-semibold uppercase">
+                      <div className="flex items-center gap-1">Type
+                        <button type="button" onClick={() => handleSort('type')} className="p-0.5 text-gray-500 hover:text-black">
+                          {sortKey === 'type' ? (sortDir === 'asc' ? <ChevronsUp className="w-3.5 h-3.5 text-black"/> : <ChevronsDown className="w-3.5 h-3.5 text-black"/>) : <ChevronsUp className="w-3.5 h-3.5 opacity-40 text-black"/>}
+                        </button>
+                      </div>
+                    </th>
+                    <th scope="col" className="px-3 py-2 text-left font-semibold uppercase">
+                      <div className="flex items-center gap-1">Title
+                        <button type="button" onClick={() => handleSort('title')} className="p-0.5 text-gray-500 hover:text-black">
+                          {sortKey === 'title' ? (sortDir === 'asc' ? <ChevronsUp className="w-3.5 h-3.5 text-black"/> : <ChevronsDown className="w-3.5 h-3.5 text-black"/>) : <ChevronsUp className="w-3.5 h-3.5 opacity-40 text-black"/>}
+                        </button>
+                      </div>
+                    </th>
+                    <th scope="col" className="px-3 py-2 text-left font-semibold uppercase">
+                      <div className="flex items-center gap-1">Date
+                        <button type="button" onClick={() => handleSort('date')} className="p-0.5 text-gray-500 hover:text-black">
+                          {sortKey === 'date' ? (sortDir === 'asc' ? <ChevronsUp className="w-3.5 h-3.5 text-black"/> : <ChevronsDown className="w-3.5 h-3.5 text-black"/>) : <ChevronsUp className="w-3.5 h-3.5 opacity-40 text-black"/>}
+                        </button>
+                      </div>
+                    </th>
+                    <th scope="col" className="px-3 py-2 text-left font-semibold uppercase">
+                      <div className="flex items-center gap-1">Students
+                        <button type="button" onClick={() => handleSort('students')} className="p-0.5 text-gray-500 hover:text-black">
+                          {sortKey === 'students' ? (sortDir === 'asc' ? <ChevronsUp className="w-3.5 h-3.5 text-black"/> : <ChevronsDown className="w-3.5 h-3.5 text-black"/>) : <ChevronsUp className="w-3.5 h-3.5 opacity-40 text-black"/>}
+                        </button>
+                      </div>
+                    </th>
+                    <th scope="col" className="px-3 py-2 text-left font-semibold uppercase">
+                      <div className="flex items-center gap-1">Present
+                        <button type="button" onClick={() => handleSort('present')} className="p-0.5 text-gray-500 hover:text-black">
+                          {sortKey === 'present' ? (sortDir === 'asc' ? <ChevronsUp className="w-3.5 h-3.5 text-black"/> : <ChevronsDown className="w-3.5 h-3.5 text-black"/>) : <ChevronsUp className="w-3.5 h-3.5 opacity-40 text-black"/>}
+                        </button>
+                      </div>
+                    </th>
+                    <th scope="col" className="px-3 py-2 text-left font-semibold uppercase">
+                      <div className="flex items-center gap-1">Absent
+                        <button type="button" onClick={() => handleSort('absent')} className="p-0.5 text-gray-500 hover:text-black">
+                          {sortKey === 'absent' ? (sortDir === 'asc' ? <ChevronsUp className="w-3.5 h-3.5 text-black"/> : <ChevronsDown className="w-3.5 h-3.5 text-black"/>) : <ChevronsUp className="w-3.5 h-3.5 opacity-40 text-black"/>}
+                        </button>
+                      </div>
+                    </th>
+                    <th scope="col" className="px-3 py-2 text-left font-semibold uppercase">
+                      <div className="flex items-center gap-1">Status
+                        <button type="button" onClick={() => handleSort('status')} className="p-0.5 text-gray-500 hover:text-black">
+                          {sortKey === 'status' ? (sortDir === 'asc' ? <ChevronsUp className="w-3.5 h-3.5 text-black"/> : <ChevronsDown className="w-3.5 h-3.5 text-black"/>) : <ChevronsUp className="w-3.5 h-3.5 opacity-40 text-black"/>}
+                        </button>
+                      </div>
+                    </th>
+                    <th scope="col" className="px-3 py-2 text-left font-semibold uppercase"></th>
                   </tr>
                 </thead>
                 <tbody className="bg-white divide-y divide-gray-200 text-xs text-gray-500">
@@ -1331,7 +1503,7 @@ const Schedule = () => {
                       </td>
                     </tr>
                   ) : (
-                    [...paginatedSessions].sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime()).map((session) => (
+                    paginatedSessions.map((session) => (
                       <tr key={session.id} className="hover:bg-gray-50 h-8">
                         <td className="px-3 py-1 whitespace-nowrap">
                           {session.type}
@@ -1342,20 +1514,20 @@ const Schedule = () => {
                         <td className="px-3 py-1 whitespace-nowrap">
                           {format(new Date(session.date), 'MMM d, yyyy')}
                         </td>
-                        <td className="px-3 py-1 whitespace-nowrap text-center">
+                        <td className="px-3 py-1 whitespace-nowrap">
                           {session.students}
                         </td>
-                        <td className="px-3 py-1 whitespace-nowrap text-center">
+                        <td className="px-3 py-1 whitespace-nowrap">
                           {session.present ?? 0}
                         </td>
-                        <td className="px-3 py-1 whitespace-nowrap text-center">
+                        <td className="px-3 py-1 whitespace-nowrap">
                           {session.absent ?? 0}
                         </td>
                         <td className="px-3 py-1 whitespace-nowrap">
                           {session.status}
                         </td>
                         <td className="px-3 py-1 whitespace-nowrap">
-                          <div className="flex justify-center gap-1">
+                          <div className="flex justify-end gap-1">
                             <Button 
                               variant="outline" 
                               size="sm"
@@ -1371,6 +1543,7 @@ const Schedule = () => {
                               className="h-6 w-6 p-0 transition-all duration-200 hover:scale-105"
                               onClick={() => handleEditSession(session)}
                               title="Edit Session"
+                              disabled={session.status === 'completed'}
                             >
                               <SquarePen className="h-3 w-3 text-yellow-600" />
                             </Button>
@@ -1380,6 +1553,7 @@ const Schedule = () => {
                               className="h-6 w-6 p-0 transition-all duration-200 hover:scale-105"
                               onClick={() => confirmDeleteSession(session.id)}
                               title="Delete Session"
+                              disabled={session.status === 'completed'}
                             >
                               <Trash2 className="h-3 w-3 text-red-600" />
                             </Button>
@@ -1398,4 +1572,4 @@ const Schedule = () => {
   );
 };
 
-export default Schedule;
+export default Schedule;;

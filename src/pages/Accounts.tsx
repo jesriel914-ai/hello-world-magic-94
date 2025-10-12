@@ -22,6 +22,10 @@ import { supabase } from "@/lib/supabase";
 import { toast } from "sonner";
 import { format } from "date-fns";
 
+// Cache for accounts data
+const accountsCache = new Map<string, { profiles: Profile[]; timestamp: number }>();
+const CACHE_DURATION = 2 * 60 * 1000; // 2 minutes
+
 type AccountStatus = 'active' | 'inactive' | 'pending' | 'suspended';
 type UserRole = 'admin' | 'Instructor' | 'SSG officer' | 'ROTC admin' | 'ROTC officer';
 
@@ -116,6 +120,16 @@ const Accounts = () => {
   // Load all accounts (only for admins)
   const loadAllAccounts = async () => {
     try {
+      // Check cache first
+      const cacheKey = 'all_accounts';
+      const cached = accountsCache.get(cacheKey);
+      if (cached && Date.now() - cached.timestamp < CACHE_DURATION) {
+        setProfiles(cached.profiles);
+        setTotalAccountsCount(cached.profiles.length);
+        setIsLoading(false);
+        return;
+      }
+      
       const { data: admins } = await supabase
         .from('admin')
         .select('*')
@@ -138,6 +152,13 @@ const Accounts = () => {
       }));
       
       const allProfiles = [...adminProfiles, ...userProfiles];
+      
+      // Store in cache
+      accountsCache.set(cacheKey, {
+        profiles: allProfiles,
+        timestamp: Date.now()
+      });
+      
       setProfiles(allProfiles);
       setTotalAccountsCount(allProfiles.length);
     } catch (error) {
@@ -197,6 +218,9 @@ const Accounts = () => {
   // Reject user
   const handleReject = async (userId: string) => {
     try {
+      // Clear cache when modifying accounts
+      accountsCache.clear();
+      
       const { error } = await supabase.rpc('reject_user', {
         user_id: userId,
         rejector_id: user?.id
@@ -254,16 +278,6 @@ const Accounts = () => {
       setSortDir('asc');
     }
   };
-
-  if (isLoading) {
-    return (
-      <Layout>
-        <div className="container mx-auto p-4">
-          <div className="text-center">Loading accounts...</div>
-        </div>
-      </Layout>
-    );
-  }
 
   return (
     <Layout>

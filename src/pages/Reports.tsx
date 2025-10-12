@@ -7,7 +7,7 @@ const Reports = () => {
       <PageWrapper skeletonType="table">
         <div className="px-6 py-4">
           <div>
-            <h1 className="text-3xl font-bold text-education-navy">Reports</h1>
+            <h1 className="text-2xl font-bold text-education-navy">REPORTS</h1>
           </div>
         </div>
       </PageWrapper>

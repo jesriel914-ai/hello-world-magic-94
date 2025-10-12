@@ -333,60 +333,86 @@ const AllowedTermsContent = () => {
           setFormData({ academic_year: '', semester: '', start_date: '', end_date: '' });
         }
       }}>
-        <DialogContent className="max-w-md">
-          <DialogHeader>
-            <DialogTitle>{editingTerm ? 'Edit Allowed Term' : 'New Allowed Term'}</DialogTitle>
-            <DialogDescription>Provide academic year, semester, and date range.</DialogDescription>
-          </DialogHeader>
-          <div className="grid gap-4">
-            <div className="flex flex-col gap-2">
-              <Label htmlFor="ay">Academic Year</Label>
-              <Input
-                id="ay"
-                placeholder="e.g., 2024-2025"
-                value={formData.academic_year}
-                onChange={(e) => setFormData((p) => ({ ...p, academic_year: e.target.value }))}
-              />
+        <DialogContent className="max-w-[700px] w-[700px] p-4">
+          <div className="w-full flex flex-col" style={{ height: '360px' }}>
+            {/* Header */}
+            <div className="pb-2 mb-3 flex-shrink-0">
+              <h2 className="text-education-navy text-xl font-semibold">
+                {editingTerm ? 'Edit Allowed Term' : 'New Allowed Term'}
+              </h2>
             </div>
-            <div className="flex flex-col gap-2">
-              <Label htmlFor="sem">Semester</Label>
-              <Input
-                id="sem"
-                placeholder="e.g., 1st Semester"
-                value={formData.semester}
-                onChange={(e) => setFormData((p) => ({ ...p, semester: e.target.value }))}
-              />
+
+            {/* Separator */}
+            <div className="border-t border-gray-200 mb-4"></div>
+
+            {/* Form Content */}
+            <div className="flex-1 overflow-y-auto">
+              <div className="space-y-3">
+                {/* Academic Year */}
+                <div className="flex items-center">
+                  <Label htmlFor="ay" className="text-sm w-[200px]">Academic Year:</Label>
+                  <Input
+                    id="ay"
+                    placeholder="e.g., 2024-2025"
+                    value={formData.academic_year}
+                    onChange={(e) => setFormData((p) => ({ ...p, academic_year: e.target.value }))}
+                    className="h-9 text-sm bg-gray-100 w-[350px] ml-auto"
+                    autoFocus={false}
+                  />
+                </div>
+
+                {/* Semester */}
+                <div className="flex items-center">
+                  <Label htmlFor="sem" className="text-sm w-[200px]">Semester:</Label>
+                  <Input
+                    id="sem"
+                    placeholder="e.g., 1st Semester"
+                    value={formData.semester}
+                    onChange={(e) => setFormData((p) => ({ ...p, semester: e.target.value }))}
+                    className="h-9 text-sm bg-gray-100 w-[350px] ml-auto"
+                    autoFocus={false}
+                  />
+                </div>
+
+                {/* Start Date */}
+                <div className="flex items-center">
+                  <Label htmlFor="start" className="text-sm w-[200px]">Start Date:</Label>
+                  <Input
+                    id="start"
+                    type="date"
+                    value={formData.start_date}
+                    onChange={(e) => setFormData((p) => ({ ...p, start_date: e.target.value }))}
+                    className="h-9 text-sm bg-gray-100 w-[350px] ml-auto"
+                    autoFocus={false}
+                  />
+                </div>
+
+                {/* End Date */}
+                <div className="flex items-center">
+                  <Label htmlFor="end" className="text-sm w-[200px]">End Date:</Label>
+                  <Input
+                    id="end"
+                    type="date"
+                    value={formData.end_date}
+                    onChange={(e) => setFormData((p) => ({ ...p, end_date: e.target.value }))}
+                    className="h-9 text-sm bg-gray-100 w-[350px] ml-auto"
+                    autoFocus={false}
+                  />
+                </div>
+              </div>
             </div>
-            <div className="grid grid-cols-2 gap-4">
-              <div className="flex flex-col gap-2">
-                <Label htmlFor="start">Start Date</Label>
-                <Input
-                  id="start"
-                  type="date"
-                  value={formData.start_date}
-                  onChange={(e) => setFormData((p) => ({ ...p, start_date: e.target.value }))}
-                />
-              </div>
-              <div className="flex flex-col gap-2">
-                <Label htmlFor="end">End Date</Label>
-                <Input
-                  id="end"
-                  type="date"
-                  value={formData.end_date}
-                  onChange={(e) => setFormData((p) => ({ ...p, end_date: e.target.value }))}
-                />
-              </div>
+
+            {/* Save Button */}
+            <div className="pt-3 flex justify-end flex-shrink-0">
+              <Button 
+                onClick={handleCreate}
+                disabled={!formData.academic_year || !formData.semester || !formData.start_date || !formData.end_date}
+                className="bg-education-blue hover:bg-education-blue/90"
+              >
+                {editingTerm ? 'Update' : 'Save'}
+              </Button>
             </div>
           </div>
-          <DialogFooter>
-            <Button variant="outline" onClick={() => setIsFormOpen(false)}>Cancel</Button>
-            <Button 
-              onClick={handleCreate}
-              disabled={!formData.academic_year || !formData.semester || !formData.start_date || !formData.end_date}
-            >
-              {editingTerm ? 'Update' : 'Save'}
-            </Button>
-          </DialogFooter>
         </DialogContent>
       </Dialog>
 

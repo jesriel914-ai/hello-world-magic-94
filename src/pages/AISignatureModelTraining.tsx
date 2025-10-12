@@ -263,16 +263,6 @@ const AISignatureModelTraining = () => {
     return new Date(dateString).toLocaleDateString();
   };
 
-  if (isLoading) {
-    return (
-      <Layout>
-        <div className="flex items-center justify-center h-64">
-          <Loader2 className="w-8 h-8 animate-spin" />
-        </div>
-      </Layout>
-    );
-  }
-
   return (
     <Layout>
       <div className="md:px-6 md:py-4">
