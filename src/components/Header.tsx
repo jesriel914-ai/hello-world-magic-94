@@ -167,7 +167,7 @@ const Header = ({ isMobile = false }: HeaderProps) => {
       try {
         // Fetch academic year data
         setAcademicYear({
-          year: '2024-2025',
+          year: '2025-2026',
           semester: 'First Semester'
         });
       } catch (error) {

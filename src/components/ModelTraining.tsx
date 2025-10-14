@@ -684,328 +684,340 @@ async function testModelPrediction(model: CustomModel) {
 
 
 
+// ============================================
+// IMPROVED TRAINING CONFIGURATION
+// For 20 classes × 50-55 samples = ~1080 samples
+// ============================================
 
+const trainModel = async () => {
+  const validClasses = classes.filter(cls => cls.samples.length > 0);
+  if (validClasses.length < 2) {
+    alert('Please add samples for at least 2 classes!');
+    return;
+  }
 
-  // Training Configuration
-  const AUGMENTATION_COUNT = 2;
+  setIsTraining(true);
+  setTrainingProgress(0);
+  setTrainingStartTime(Date.now());
+  
+  setHasExportedToCloud(false);
+  setHasDownloadedToPC(false);
+  
+  try {
 
-  const trainModel = async () => {
-    const validClasses = classes.filter(cls => cls.samples.length > 0);
-    if (validClasses.length < 2) {
-      alert('Please add samples for at least 2 classes!');
-      return;
+    const AUGMENTATION_COUNT = 2;
+    
+    console.log(`Starting training with ${AUGMENTATION_COUNT}x augmentation...`);
+    logMemory('Before training');
+    
+    if (model) {
+      console.log('Disposing previous model before training');
+      if (model.featureExtractor) {
+        model.featureExtractor.dispose();
+      }
+      if (model.classifier) {
+        model.classifier.dispose();
+      }
+      setModel(null);
+      await tf.nextFrame();
+      await tf.nextFrame();
     }
-
-    setIsTraining(true);
-    setTrainingProgress(0);
-    setTrainingStartTime(Date.now());
     
-    setHasExportedToCloud(false);
-    setHasDownloadedToPC(false);
+    if (tf.memory().numTensors > 10) {
+      console.warn('High tensor count before training:', tf.memory().numTensors);
+      await tf.disposeVariables();
+      await tf.nextFrame();
+    }
     
-    try {
-      console.log(`Starting training with ${AUGMENTATION_COUNT}x augmentation...`);
-      logMemory('Before training');
-      
-      if (model) {
-        console.log('Disposing previous model before training');
-        if (model.featureExtractor) {
-          model.featureExtractor.dispose();
-        }
-        if (model.classifier) {
-          model.classifier.dispose();
-        }
-        setModel(null);
-        await tf.nextFrame();
-        await tf.nextFrame();
-      }
-      
-      if (tf.memory().numTensors > 10) {
-        console.warn('High tensor count before training:', tf.memory().numTensors);
-        await tf.disposeVariables();
-        await tf.nextFrame();
-      }
-      
-      const mobilenet = await tmImage.loadTruncatedMobileNet({
-        version: 2,
-        alpha: 0.5,
-        inputResolution: 224,
-        classifierInputSize: 1024
-      });
-      
-      logMemory('After loading MobileNet');
-      
-      const FEATURE_SIZE = 1280;
-      
-      const classifierModel = tf.sequential({
-        layers: [
-          tf.layers.dense({ 
-            units: 256,
-            activation: 'relu', 
-            inputShape: [FEATURE_SIZE],
-            kernelRegularizer: tf.regularizers.l2({ l2: 0.001 })
-          }),
-          tf.layers.dropout({ rate: 0.5 }),
-          
-          tf.layers.dense({ 
-            units: 128,
-            activation: 'relu',
-            kernelRegularizer: tf.regularizers.l2({ l2: 0.001 })
-          }),
-          tf.layers.dropout({ rate: 0.4 }),
-          
-          tf.layers.dense({ 
-            units: validClasses.length, 
-            activation: 'softmax' 
-          })
-        ]
-      });
-
-      classifierModel.compile({
-        optimizer: tf.train.adam(0.001),
-        loss: 'categoricalCrossentropy',
-        metrics: ['accuracy']
-      });
-      
-      logMemory('After creating classifier');
-      
-      console.log('Extracting features with memory-efficient batching...');
-      
-      const totalSamples = validClasses.reduce((sum, cls) => sum + cls.samples.length, 0);
-      const totalWithAug = totalSamples * (AUGMENTATION_COUNT + 1);
-      
-      const allFeatures: number[][] = [];
-      const allLabels: number[] = [];
-      
-      let processedSamples = 0;
-      const CLEANUP_INTERVAL = 10;
-      
-      for (const [classIndex, cls] of validClasses.entries()) {
-        console.log(`Processing class ${classIndex + 1}/${validClasses.length}: ${cls.samples.length} samples`);
+    const mobilenet = await tmImage.loadTruncatedMobileNet({
+      version: 2,
+      alpha: 0.5,
+      inputResolution: 224,
+      classifierInputSize: 1024
+    });
+    
+    logMemory('After loading MobileNet');
+    
+    const FEATURE_SIZE = 1280;
+    
+    // ============================================
+    // SIMPLIFIED CLASSIFIER - Reduce overfitting
+    // Less parameters = better generalization
+    // ============================================
+    const classifierModel = tf.sequential({
+      layers: [
+        // Reduced from 256 to 128 units
+        tf.layers.dense({ 
+          units: 256,
+          activation: 'relu', 
+          inputShape: [FEATURE_SIZE],
+          kernelRegularizer: tf.regularizers.l2({ l2: 0.01 }) // Increased from 0.001
+        }),
+        tf.layers.dropout({ rate: 0.6 }), // Increased from 0.5
         
-        for (const sample of cls.samples) {
-          const img = new Image();
-          img.src = sample.thumbnail;
-          
-          await new Promise<void>((resolve) => {
-            img.onload = async () => {
-              const canvas = document.createElement('canvas');
-              canvas.width = 224;
-              canvas.height = 224;
-              const ctx = canvas.getContext('2d');
+        // Removed the second hidden layer (was 128 units)
+        // Direct connection to output reduces overfitting
+        
+        tf.layers.dense({ 
+          units: validClasses.length, 
+          activation: 'softmax' 
+        })
+      ]
+    });
+
+    // ============================================
+    // LOWER LEARNING RATE - More stable training
+    // ============================================
+    classifierModel.compile({
+      optimizer: tf.train.adam(0.0005), // Reduced from 0.001
+      loss: 'categoricalCrossentropy',
+      metrics: ['accuracy']
+    });
+    
+    logMemory('After creating classifier');
+    
+    console.log('Extracting features with memory-efficient batching...');
+    
+    const totalSamples = validClasses.reduce((sum, cls) => sum + cls.samples.length, 0);
+    const totalWithAug = totalSamples * (AUGMENTATION_COUNT + 1);
+    
+    const allFeatures: number[][] = [];
+    const allLabels: number[] = [];
+    
+    let processedSamples = 0;
+    const CLEANUP_INTERVAL = 10;
+    
+    for (const [classIndex, cls] of validClasses.entries()) {
+      console.log(`Processing class ${classIndex + 1}/${validClasses.length}: ${cls.samples.length} samples`);
+      
+      for (const sample of cls.samples) {
+        const img = new Image();
+        img.src = sample.thumbnail;
+        
+        await new Promise<void>((resolve) => {
+          img.onload = async () => {
+            const canvas = document.createElement('canvas');
+            canvas.width = 224;
+            canvas.height = 224;
+            const ctx = canvas.getContext('2d');
+            
+            if (ctx) {
+              ctx.drawImage(img, 0, 0, 224, 224);
               
-              if (ctx) {
-                ctx.drawImage(img, 0, 0, 224, 224);
+              // Original image features
+              const featuresArray = await tf.tidy(() => {
+                const imageTensor = tf.browser.fromPixels(canvas)
+                  .resizeNearestNeighbor([224, 224])
+                  .toFloat();
                 
-                const featuresArray = await tf.tidy(() => {
-                  const imageTensor = tf.browser.fromPixels(canvas)
+                const normalized = imageTensor.sub(127.5).div(127.5);
+                const batched = normalized.expandDims(0);
+                const extracted = mobilenet.predict(batched) as tf.Tensor;
+                const squeezed = extracted.squeeze([0]);
+                
+                return squeezed.arraySync() as number[];
+              });
+              
+              allFeatures.push(featuresArray);
+              allLabels.push(classIndex);
+              
+              // Augmented versions
+              for (let aug = 0; aug < AUGMENTATION_COUNT; aug++) {
+                const augCanvas = augmentImage(canvas);
+                
+                const augFeaturesArray = await tf.tidy(() => {
+                  const augTensor = tf.browser.fromPixels(augCanvas)
                     .resizeNearestNeighbor([224, 224])
                     .toFloat();
+                  const augNormalized = augTensor.sub(127.5).div(127.5);
+                  const augBatched = augNormalized.expandDims(0);
+                  const augExtracted = mobilenet.predict(augBatched) as tf.Tensor;
+                  const augSqueezed = augExtracted.squeeze([0]);
                   
-                  const normalized = imageTensor.sub(127.5).div(127.5);
-                  const batched = normalized.expandDims(0);
-                  const extracted = mobilenet.predict(batched) as tf.Tensor;
-                  const squeezed = extracted.squeeze([0]);
-                  
-                  return squeezed.arraySync() as number[];
+                  return augSqueezed.arraySync() as number[];
                 });
                 
-                allFeatures.push(featuresArray);
+                allFeatures.push(augFeaturesArray);
                 allLabels.push(classIndex);
                 
-                for (let aug = 0; aug < AUGMENTATION_COUNT; aug++) {
-                  const augCanvas = augmentImage(canvas);
-                  
-                  const augFeaturesArray = await tf.tidy(() => {
-                    const augTensor = tf.browser.fromPixels(augCanvas)
-                      .resizeNearestNeighbor([224, 224])
-                      .toFloat();
-                    const augNormalized = augTensor.sub(127.5).div(127.5);
-                    const augBatched = augNormalized.expandDims(0);
-                    const augExtracted = mobilenet.predict(augBatched) as tf.Tensor;
-                    const augSqueezed = augExtracted.squeeze([0]);
-                    
-                    return augSqueezed.arraySync() as number[];
-                  });
-                  
-                  allFeatures.push(augFeaturesArray);
-                  allLabels.push(classIndex);
-                  
-                  augCanvas.remove();
-                }
-                
-                canvas.remove();
+                augCanvas.remove();
               }
               
-              processedSamples++;
-              
-              const progress = Math.min(75, (processedSamples / totalSamples) * 75);
-              setTrainingProgress(progress);
-              
-              if (processedSamples % CLEANUP_INTERVAL === 0) {
-                await tf.nextFrame();
-                await tf.nextFrame();
-                console.log(`✓ Processed ${processedSamples}/${totalSamples} samples | Tensors: ${tf.memory().numTensors}`);
-              }
-              
-              resolve();
-            };
-            
-            img.onerror = () => {
-              console.error('Failed to load image');
-              processedSamples++;
-              resolve();
-            };
-          });
-        }
-      }
-      
-      if (allFeatures.length === 0) {
-        throw new Error('No training data extracted');
-      }
-      
-      console.log(`Total training samples: ${allFeatures.length} (${totalSamples} original × ${AUGMENTATION_COUNT + 1})`);
-      logMemory('After feature extraction (all in arrays)');
-      
-      console.log('Converting features to tensors for training...');
-      const xs = tf.tensor2d(allFeatures);
-      const ys = tf.oneHot(tf.tensor1d(allLabels, 'int32'), validClasses.length);
-      
-      allFeatures.length = 0;
-      allLabels.length = 0;
-      
-      console.log('Training data shape:', xs.shape);
-      console.log('Labels shape:', ys.shape);
-      
-      logMemory('After tensor conversion');
-      
-      const epochs = 50;
-      const effectiveDatasetSize = xs.shape[0];
-      const batchSize = Math.min(8, Math.floor(effectiveDatasetSize / 10));
-      
-      console.log(`Training for ${epochs} epochs with batch size ${batchSize}...`);
-      
-      const history = await classifierModel.fit(xs, ys, {
-        epochs: epochs,
-        batchSize: batchSize,
-        validationSplit: 0.1,
-        shuffle: true,
-        verbose: 0,
-        callbacks: {
-          onEpochEnd: async (epoch, logs) => {
-            if (logs) {
-              const trainAcc = (logs.acc * 100).toFixed(2);
-              const valAcc = logs.val_acc ? (logs.val_acc * 100).toFixed(2) : 'N/A';
-              console.log(
-                `Epoch ${epoch + 1}/${epochs}: ` +
-                `loss=${logs.loss?.toFixed(4)}, ` +
-                `acc=${trainAcc}%, ` +
-                `val_loss=${logs.val_loss?.toFixed(4)}, ` +
-                `val_acc=${valAcc}%`
-              );
-              
-              const progress = 75 + ((epoch + 1) / epochs) * 25;
-              setTrainingProgress(progress);
+              canvas.remove();
             }
             
-            if ((epoch + 1) % 10 === 0) {
+            processedSamples++;
+            
+            const progress = Math.min(75, (processedSamples / totalSamples) * 75);
+            setTrainingProgress(progress);
+            
+            if (processedSamples % CLEANUP_INTERVAL === 0) {
               await tf.nextFrame();
-              logMemory(`After epoch ${epoch + 1}`);
-            }
-          }
-        }
-      });
-      
-      const finalTrainAcc = history.history.acc[history.history.acc.length - 1] as number;
-      const finalValAcc = history.history.val_acc 
-        ? history.history.val_acc[history.history.val_acc.length - 1] as number
-        : finalTrainAcc;
-      
-      setTrainingAccuracy(finalValAcc);
-      
-      console.log('═══════════════════════════════════════');
-      console.log('Training Summary:');
-      console.log(`  Classes: ${validClasses.length}`);
-      console.log(`  Original samples: ${totalSamples}`);
-      console.log(`  Total samples (with ${AUGMENTATION_COUNT}x aug): ${effectiveDatasetSize}`);
-      console.log(`  Final train accuracy: ${(finalTrainAcc * 100).toFixed(2)}%`);
-      console.log(`  Final validation accuracy: ${(finalValAcc * 100).toFixed(2)}%`);
-      console.log('═══════════════════════════════════════');
-      
-      xs.dispose();
-      ys.dispose();
-      
-      await tf.nextFrame();
-      await tf.nextFrame();
-      
-      logMemory('After training cleanup');
-      
-      const customModel: CustomModel = {
-        featureExtractor: mobilenet,
-        classifier: classifierModel,
-        getTotalClasses: () => validClasses.length,
-        getClassLabels: () => validClasses.map(cls => 
-          cls.student ? formatStudentDisplay(cls.student) : 'Unassigned'
-        ),
-        predict: async (image: HTMLCanvasElement | HTMLVideoElement, flipped?: boolean) => {
-          const results = await tf.tidy(() => {
-            let imageTensor = tf.browser.fromPixels(image)
-              .resizeNearestNeighbor([224, 224])
-              .toFloat();
-            
-            if (flipped) {
-              imageTensor = imageTensor.reverse(1);
+              await tf.nextFrame();
+              console.log(`✓ Processed ${processedSamples}/${totalSamples} samples | Tensors: ${tf.memory().numTensors}`);
             }
             
-            const normalized = imageTensor.sub(127.5).div(127.5);
-            const batched = normalized.expandDims(0);
-            const features = mobilenet.predict(batched) as tf.Tensor;
-            const predictions = classifierModel.predict(features) as tf.Tensor;
-            const predData = predictions.dataSync();
-            
-            const labels = validClasses.map(cls => 
-              cls.student ? formatStudentDisplay(cls.student) : 'Unassigned'
+            resolve();
+          };
+          
+          img.onerror = () => {
+            console.error('Failed to load image');
+            processedSamples++;
+            resolve();
+          };
+        });
+      }
+    }
+    
+    if (allFeatures.length === 0) {
+      throw new Error('No training data extracted');
+    }
+    
+    console.log(`Total training samples: ${allFeatures.length} (${totalSamples} original × ${AUGMENTATION_COUNT + 1})`);
+    logMemory('After feature extraction (all in arrays)');
+    
+    console.log('Converting features to tensors for training...');
+    const xs = tf.tensor2d(allFeatures);
+    const ys = tf.oneHot(tf.tensor1d(allLabels, 'int32'), validClasses.length);
+    
+    allFeatures.length = 0;
+    allLabels.length = 0;
+    
+    console.log('Training data shape:', xs.shape);
+    console.log('Labels shape:', ys.shape);
+    
+    logMemory('After tensor conversion');
+    
+    // ============================================
+    // MORE EPOCHS + LARGER VALIDATION SPLIT
+    // ============================================
+    const epochs = 50; 
+    const effectiveDatasetSize = xs.shape[0];
+    const batchSize = Math.min(32, Math.floor(effectiveDatasetSize / 10)); // Increased from 8
+    
+    console.log(`Training for ${epochs} epochs with batch size ${batchSize}...`);
+    
+    const history = await classifierModel.fit(xs, ys, {
+      epochs: epochs,
+      batchSize: batchSize,
+      validationSplit: 0.006, 
+      shuffle: true,
+      verbose: 0,
+      callbacks: {
+        onEpochEnd: async (epoch, logs) => {
+          if (logs) {
+            const trainAcc = (logs.acc * 100).toFixed(2);
+            const valAcc = logs.val_acc ? (logs.val_acc * 100).toFixed(2) : 'N/A';
+            console.log(
+              `Epoch ${epoch + 1}/${epochs}: ` +
+              `loss=${logs.loss?.toFixed(4)}, ` +
+              `acc=${trainAcc}%, ` +
+              `val_loss=${logs.val_loss?.toFixed(4)}, ` +
+              `val_acc=${valAcc}%`
             );
             
-            const results: PredictionResult[] = [];
-            for (let i = 0; i < predData.length; i++) {
-              results.push({
-                className: labels[i],
-                confidence: predData[i]
-              });
-            }
-            
-            results.sort((a, b) => b.confidence - a.confidence);
-            return results;
-          });
+            const progress = 75 + ((epoch + 1) / epochs) * 25;
+            setTrainingProgress(progress);
+          }
           
-          await tf.nextFrame();
-          return results;
+          if ((epoch + 1) % 10 === 0) {
+            await tf.nextFrame();
+            logMemory(`After epoch ${epoch + 1}`);
+          }
         }
-      };
-      
-      setTrainingProgress(100);
-      setModel(customModel);
-      setMaxPredictions(validClasses.length);
-      setIsModelLoaded(true);
-      setHasUploaded(false);
-      
-      logMemory('After training complete');
-      console.log('Model trained successfully!');
-      
-      if (onModelTrained) {
-        onModelTrained(customModel);
       }
-      
-    } catch (error) {
-      console.error('Training error:', error);
-      alert('Error training model: ' + error);
-    } finally {
-      setIsTraining(false);
-      setTimeout(() => setTrainingProgress(0), 2000);
+    });
+    
+    const finalTrainAcc = history.history.acc[history.history.acc.length - 1] as number;
+    const finalValAcc = history.history.val_acc 
+      ? history.history.val_acc[history.history.val_acc.length - 1] as number
+      : finalTrainAcc;
+    
+    setTrainingAccuracy(finalValAcc);
+    
+    console.log('═══════════════════════════════════════');
+    console.log('Training Summary:');
+    console.log(`  Classes: ${validClasses.length}`);
+    console.log(`  Original samples: ${totalSamples}`);
+    console.log(`  Total samples (with ${AUGMENTATION_COUNT}x aug): ${effectiveDatasetSize}`);
+    console.log(`  Final train accuracy: ${(finalTrainAcc * 100).toFixed(2)}%`);
+    console.log(`  Final validation accuracy: ${(finalValAcc * 100).toFixed(2)}%`);
+    console.log(`  Accuracy gap: ${((finalTrainAcc - finalValAcc) * 100).toFixed(2)}%`);
+    console.log('═══════════════════════════════════════');
+    
+    xs.dispose();
+    ys.dispose();
+    
+    await tf.nextFrame();
+    await tf.nextFrame();
+    
+    logMemory('After training cleanup');
+    
+    const customModel: CustomModel = {
+      featureExtractor: mobilenet,
+      classifier: classifierModel,
+      getTotalClasses: () => validClasses.length,
+      getClassLabels: () => validClasses.map(cls => 
+        cls.student ? formatStudentDisplay(cls.student) : 'Unassigned'
+      ),
+      predict: async (image: HTMLCanvasElement | HTMLVideoElement, flipped?: boolean) => {
+        const results = await tf.tidy(() => {
+          let imageTensor = tf.browser.fromPixels(image)
+            .resizeNearestNeighbor([224, 224])
+            .toFloat();
+          
+          if (flipped) {
+            imageTensor = imageTensor.reverse(1);
+          }
+          
+          const normalized = imageTensor.sub(127.5).div(127.5);
+          const batched = normalized.expandDims(0);
+          const features = mobilenet.predict(batched) as tf.Tensor;
+          const predictions = classifierModel.predict(features) as tf.Tensor;
+          const predData = predictions.dataSync();
+          
+          const labels = validClasses.map(cls => 
+            cls.student ? formatStudentDisplay(cls.student) : 'Unassigned'
+          );
+          
+          const results: PredictionResult[] = [];
+          for (let i = 0; i < predData.length; i++) {
+            results.push({
+              className: labels[i],
+              confidence: predData[i]
+            });
+          }
+          
+          results.sort((a, b) => b.confidence - a.confidence);
+          return results;
+        });
+        
+        await tf.nextFrame();
+        return results;
+      }
+    };
+    
+    setTrainingProgress(100);
+    setModel(customModel);
+    setMaxPredictions(validClasses.length);
+    setIsModelLoaded(true);
+    setHasUploaded(false);
+    
+    logMemory('After training complete');
+    console.log('Model trained successfully!');
+    
+    if (onModelTrained) {
+      onModelTrained(customModel);
     }
-  };
-
+    
+  } catch (error) {
+    console.error('Training error:', error);
+    alert('Error training model: ' + error);
+  } finally {
+    setIsTraining(false);
+    setTimeout(() => setTrainingProgress(0), 2000);
+  }
+};
 
 
 

@@ -356,7 +356,7 @@ const AllowedTermsContent = () => {
                   <Label htmlFor="ay" className="text-sm w-[200px]">Academic Year:</Label>
                   <Input
                     id="ay"
-                    placeholder="e.g., 2024-2025"
+                    placeholder="e.g., 2025-2026"
                     value={formData.academic_year}
                     onChange={(e) => setFormData((p) => ({ ...p, academic_year: e.target.value }))}
                     className="h-9 text-sm bg-gray-100 w-[350px] ml-auto"

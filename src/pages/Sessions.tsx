@@ -855,10 +855,63 @@ const Schedule = () => {
       programFilter !== 'all' || 
       dateFilter !== 'all';
     
-    if (!hasActiveFilters) return sessions;
+    const filtered = hasActiveFilters ? sessions.filter(filterSession) : sessions;
     
-    return sessions.filter(filterSession);
-  }, [sessions, filterSession, searchQuery, typeFilter, programFilter, dateFilter]);
+    // Apply sorting
+    const sorted = [...filtered].sort((a, b) => {
+      let aValue: string | number, bValue: string | number;
+      
+      switch (sortKey) {
+        case 'type':
+          aValue = a.type;
+          bValue = b.type;
+          break;
+        case 'title':
+          aValue = a.title;
+          bValue = b.title;
+          break;
+        case 'date':
+          aValue = new Date(a.date).getTime();
+          bValue = new Date(b.date).getTime();
+          break;
+        case 'students':
+          aValue = a.students || 0;
+          bValue = b.students || 0;
+          break;
+        case 'present':
+          aValue = a.present || 0;
+          bValue = b.present || 0;
+          break;
+        case 'absent':
+          aValue = a.absent || 0;
+          bValue = b.absent || 0;
+          break;
+        case 'status':
+          aValue = a.status;
+          bValue = b.status;
+          break;
+        default:
+          aValue = a.date;
+          bValue = b.date;
+      }
+
+      if (typeof aValue === 'string' && typeof bValue === 'string') {
+        return sortDir === 'asc' 
+          ? aValue.localeCompare(bValue)
+          : bValue.localeCompare(aValue);
+      } else if (typeof aValue === 'number' && typeof bValue === 'number') {
+        return sortDir === 'asc' 
+          ? aValue - bValue
+          : bValue - aValue;
+      } else {
+        return sortDir === 'asc' 
+          ? String(aValue).localeCompare(String(bValue))
+          : String(bValue).localeCompare(String(aValue));
+      }
+    });
+    
+    return sorted;
+  }, [sessions, filterSession, searchQuery, typeFilter, programFilter, dateFilter, sortKey, sortDir]);
   
   // Paginated sessions
   const paginatedSessions = useMemo(() => {

@@ -25,8 +25,6 @@ export default function ExcuseForm({ initialData, onSuccess, onCancel, markAsCha
   const [imagePreviewUrl, setImagePreviewUrl] = useState<string>('');
   const [sessionSearch, setSessionSearch] = useState('');
   const [studentSearch, setStudentSearch] = useState('');
-  const [sessionDisplayLimit, setSessionDisplayLimit] = useState(10);
-  const [studentDisplayLimit, setStudentDisplayLimit] = useState(10);
   const [loadingSessions, setLoadingSessions] = useState(false);
   const [loadingStudents, setLoadingStudents] = useState(false);
   const [submitting, setSubmitting] = useState(false);
@@ -205,6 +203,7 @@ export default function ExcuseForm({ initialData, onSuccess, onCancel, markAsCha
         .insert({
           session_id: selectedSession.id,
           student_id: selectedStudent.id,
+          absence_date: selectedSession.date,
           documentation_url: publicUrl,
           status: 'pending'
         });
@@ -256,50 +255,9 @@ export default function ExcuseForm({ initialData, onSuccess, onCancel, markAsCha
         <div className="grid grid-cols-[400px_1px_1fr] gap-0 overflow-hidden" style={{ height: 'calc(100% - 50px)' }}>
           {/* Left Column - Details Fields */}
           <div className="pr-6 space-y-3 overflow-y-auto">
-            {/* Session Details */}
-            <div className="space-y-1.5">
-              <Label className="text-sm">Session</Label>
-              <div className="h-9 px-3 py-2 text-sm bg-gray-100 rounded-md border border-input flex items-center">
-                {selectedSession ? (
-                  <span className="truncate">{selectedSession.title}</span>
-                ) : (
-                  <span className="text-muted-foreground">No session selected</span>
-                )}
-              </div>
-            </div>
-
-            <div className="space-y-1.5">
-              <Label className="text-sm">Type</Label>
-              <div className="h-9 px-3 py-2 text-sm bg-gray-100 rounded-md border border-input flex items-center">
-                {selectedSession ? getTypeText(selectedSession.type) : '-'}
-              </div>
-            </div>
-
-            <div className="space-y-1.5">
-              <Label className="text-sm">Date</Label>
-              <div className="h-9 px-3 py-2 text-sm bg-gray-100 rounded-md border border-input flex items-center">
-                {selectedSession ? format(new Date(selectedSession.date), 'MMM d, yyyy') : '-'}
-              </div>
-            </div>
-
-            <div className="grid grid-cols-2 gap-3">
-              <div className="space-y-1.5">
-                <Label className="text-sm">Time In</Label>
-                <div className="h-9 px-3 py-2 text-sm bg-gray-100 rounded-md border border-input flex items-center">
-                  {selectedSession?.time_in || '-'}
-                </div>
-              </div>
-              <div className="space-y-1.5">
-                <Label className="text-sm">Time Out</Label>
-                <div className="h-9 px-3 py-2 text-sm bg-gray-100 rounded-md border border-input flex items-center">
-                  {selectedSession?.time_out || '-'}
-                </div>
-              </div>
-            </div>
-
             {/* Student Details */}
             <div className="space-y-1.5">
-              <Label className="text-sm">Student</Label>
+              <Label className="text-sm">Student Name</Label>
               <div className="h-9 px-3 py-2 text-sm bg-gray-100 rounded-md border border-input flex items-center">
                 {selectedStudent ? (
                   <span className="truncate">{selectedStudent.firstname} {selectedStudent.surname}</span>
@@ -337,6 +295,25 @@ export default function ExcuseForm({ initialData, onSuccess, onCancel, markAsCha
                 </div>
               </div>
             </div>
+
+            {/* Session Details */}
+            <div className="space-y-1.5">
+              <Label className="text-sm">Session</Label>
+              <div className="h-9 px-3 py-2 text-sm bg-gray-100 rounded-md border border-input flex items-center">
+                {selectedSession ? (
+                  <span className="truncate">{selectedSession.title}</span>
+                ) : (
+                  <span className="text-muted-foreground">No session selected</span>
+                )}
+              </div>
+            </div>
+
+            <div className="space-y-1.5">
+              <Label className="text-sm">Absence Date</Label>
+              <div className="h-9 px-3 py-2 text-sm bg-gray-100 rounded-md border border-input flex items-center">
+                {selectedSession ? format(new Date(selectedSession.date), 'MMM d, yyyy') : '-'}
+              </div>
+            </div>
           </div>
 
           {/* Vertical Divider */}
@@ -344,48 +321,31 @@ export default function ExcuseForm({ initialData, onSuccess, onCancel, markAsCha
 
           {/* Right Column - Dropdown Controlled View */}
           <div className="pl-6 flex flex-col min-h-0 overflow-hidden">
-            {/* Dropdown Selector */}
-            <div className="mb-3 flex-shrink-0">
-              <Select value={rightView} onValueChange={(val: any) => setRightView(val)}>
-                <SelectTrigger className="w-full h-9 text-sm">
-                  <SelectValue />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="sessions">Sessions</SelectItem>
-                  <SelectItem value="students">Students</SelectItem>
-                  <SelectItem value="excuse-letter">Excuse Letter</SelectItem>
-                </SelectContent>
-              </Select>
-            </div>
-
             {/* View Content */}
             {rightView === 'sessions' ? (
               // Sessions Table
               <>
                 <div className="flex items-center justify-between mb-3 flex-shrink-0">
                   <div className="flex items-center gap-2">
-                    <span className="text-xs text-gray-500">Showed:</span>
-                    <Select 
-                      value={sessionDisplayLimit.toString()} 
-                      onValueChange={(val) => setSessionDisplayLimit(val === 'all' ? filteredSessions.length : parseInt(val))}
-                    >
-                      <SelectTrigger className="w-20 h-7 text-xs">
+                    <span className="text-sm text-gray-600">Select:</span>
+                    <Select value={rightView} onValueChange={(val: any) => setRightView(val)}>
+                      <SelectTrigger className="w-64 h-8 text-sm">
                         <SelectValue />
                       </SelectTrigger>
                       <SelectContent>
-                        <SelectItem value="10">10</SelectItem>
-                        <SelectItem value="50">50</SelectItem>
-                        <SelectItem value="all">ALL</SelectItem>
+                        <SelectItem value="sessions">Sessions</SelectItem>
+                        <SelectItem value="students">Students</SelectItem>
+                        <SelectItem value="excuse-letter">Excuse Letter</SelectItem>
                       </SelectContent>
                     </Select>
                   </div>
                   <div className="flex items-center gap-2">
-                    <span className="text-xs text-gray-500">Search:</span>
+                    <span className="text-sm text-gray-600">Search:</span>
                     <Input
                       placeholder="Search sessions..."
                       value={sessionSearch}
                       onChange={(e) => setSessionSearch(e.target.value)}
-                      className="h-7 text-xs w-64"
+                      className="h-8 text-sm w-64"
                     />
                   </div>
                 </div>
@@ -417,7 +377,7 @@ export default function ExcuseForm({ initialData, onSuccess, onCancel, markAsCha
                           </td>
                         </tr>
                       ) : (
-                        filteredSessions.slice(0, sessionDisplayLimit).map((session) => (
+                        filteredSessions.map((session) => (
                           <tr key={session.id} className="hover:bg-gray-50 h-7">
                             <td className="px-2 py-1 whitespace-nowrap">{getTypeText(session.type)}</td>
                             <td className="px-2 py-1 whitespace-nowrap">{session.title}</td>
@@ -463,28 +423,25 @@ export default function ExcuseForm({ initialData, onSuccess, onCancel, markAsCha
               <>
                 <div className="flex items-center justify-between mb-3 flex-shrink-0">
                   <div className="flex items-center gap-2">
-                    <span className="text-xs text-gray-500">Showed:</span>
-                    <Select 
-                      value={studentDisplayLimit.toString()} 
-                      onValueChange={(val) => setStudentDisplayLimit(val === 'all' ? filteredStudents.length : parseInt(val))}
-                    >
-                      <SelectTrigger className="w-20 h-7 text-xs">
+                    <span className="text-sm text-gray-600">Select:</span>
+                    <Select value={rightView} onValueChange={(val: any) => setRightView(val)}>
+                      <SelectTrigger className="w-64 h-8 text-sm">
                         <SelectValue />
                       </SelectTrigger>
                       <SelectContent>
-                        <SelectItem value="10">10</SelectItem>
-                        <SelectItem value="50">50</SelectItem>
-                        <SelectItem value="all">ALL</SelectItem>
+                        <SelectItem value="sessions">Sessions</SelectItem>
+                        <SelectItem value="students">Students</SelectItem>
+                        <SelectItem value="excuse-letter">Excuse Letter</SelectItem>
                       </SelectContent>
                     </Select>
                   </div>
                   <div className="flex items-center gap-2">
-                    <span className="text-xs text-gray-500">Search:</span>
+                    <span className="text-sm text-gray-600">Search:</span>
                     <Input
                       placeholder="Search students..."
                       value={studentSearch}
                       onChange={(e) => setStudentSearch(e.target.value)}
-                      className="h-7 text-xs w-64"
+                      className="h-8 text-sm w-64"
                     />
                   </div>
                 </div>
@@ -521,7 +478,7 @@ export default function ExcuseForm({ initialData, onSuccess, onCancel, markAsCha
                           </td>
                         </tr>
                       ) : (
-                        filteredStudents.slice(0, studentDisplayLimit).map((student) => (
+                        filteredStudents.map((student) => (
                           <tr key={student.id} className="hover:bg-gray-50 h-7">
                             <td className="px-2 py-1 whitespace-nowrap">{student.student_id}</td>
                             <td className="px-2 py-1 whitespace-nowrap">{student.full_name}</td>
@@ -557,7 +514,23 @@ export default function ExcuseForm({ initialData, onSuccess, onCancel, markAsCha
               </>
             ) : (
               // Excuse Letter Preview
-              <div className="border rounded-lg flex-1 min-h-0 overflow-hidden bg-gray-50 relative group">
+              <>
+                <div className="flex items-center justify-between mb-3 flex-shrink-0">
+                  <div className="flex items-center gap-2">
+                    <span className="text-sm text-gray-600">Select:</span>
+                    <Select value={rightView} onValueChange={(val: any) => setRightView(val)}>
+                      <SelectTrigger className="w-64 h-8 text-sm">
+                        <SelectValue />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="sessions">Sessions</SelectItem>
+                        <SelectItem value="students">Students</SelectItem>
+                        <SelectItem value="excuse-letter">Excuse Letter</SelectItem>
+                      </SelectContent>
+                    </Select>
+                  </div>
+                </div>
+                <div className="border rounded-lg flex-1 min-h-0 overflow-hidden bg-gray-50 relative group">
                 {imagePreviewUrl ? (
                   <>
                     <div 
@@ -619,7 +592,8 @@ export default function ExcuseForm({ initialData, onSuccess, onCancel, markAsCha
                     </div>
                   </div>
                 )}
-              </div>
+                </div>
+              </>
             )}
           </div>
         </div>

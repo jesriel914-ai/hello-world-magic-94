@@ -219,7 +219,7 @@ const Dashboard = () => {
   const fetchAcademicYear = useCallback(async () => {
     try {
       setAcademicYear({
-        year: '2024-2025',
+        year: '2025-2026',
         semester: 'First Semester',
         status: 'active'
       });
@@ -493,7 +493,7 @@ const Dashboard = () => {
           </CardHeader>
           <CardContent className="pt-0 px-6 pb-6">
             <div className="text-2xl font-bold text-gray-900 mb-1">
-              {academicYear?.year || '2024-2025'}
+              {academicYear?.year || '2025-2026'}
             </div>
             <div className="flex items-center text-sm text-gray-600">
               <CalendarDays className="h-3 w-3 mr-1" />
@@ -612,7 +612,7 @@ const Dashboard = () => {
           <CardHeader className="pb-3">
             <div className="flex justify-between items-center">
               <div>
-                <CardTitle className="text-lg font-semibold text-gray-900">Recent Sessions</CardTitle>
+                <CardTitle className="text-lg font-semibold text-gray-900">Recent Completed Sessions</CardTitle>
               </div>
               <Button 
                 variant="outline" 

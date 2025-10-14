@@ -251,9 +251,6 @@ const handleDownloadModel = async (modelId: string, studentName: string) => {
             <span>Trained Models ({trainedModels?.filter(model => model.id && model.id.trim() !== '').length || 0})</span>
           </DialogTitle>
         </DialogHeader>
-        <p id="trained-models-description" className="text-sm text-gray-600">
-          View and manage your trained AI models. Download models for offline use or select a model to load for predictions.
-        </p>
         <div className="space-y-4">
           {isLoadingModels ? (
             <div className="flex items-center justify-center py-12">
@@ -295,11 +292,6 @@ const handleDownloadModel = async (modelId: string, studentName: string) => {
                         </div>
                       </div>
                       <div className="text-right ml-4">
-                        {model.accuracy && (
-                          <div className="text-green-600 font-semibold">
-                            {Math.round(model.accuracy * 100)}%
-                          </div>
-                        )}
                         
                         {/* Action buttons */}
                         <div className="flex items-center gap-1 mt-2">

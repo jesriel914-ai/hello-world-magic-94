@@ -228,9 +228,9 @@ const BatchUpload: React.FC<BatchUploadProps> = ({
     }
 
     const student_id = parts[0].trim();
-    const fullName = parts[1].trim().split(' ');
+    const fullName = parts[1].trim();
     
-    if (fullName.length < 2) {
+    if (!fullName) {
       return {
         folderName,
         student_id,
@@ -238,21 +238,18 @@ const BatchUpload: React.FC<BatchUploadProps> = ({
         surname: '',
         files,
         isValid: false,
-        errorMessage: 'Invalid name format. Expected: "firstname surname"',
+        errorMessage: 'Invalid name format. Name cannot be empty',
       };
     }
-
-    const firstname = fullName[0];
-    const surname = fullName.slice(1).join(' ');
 
     const imageFiles = files.filter(file => file.type.startsWith('image/'));
     
     if (imageFiles.length === 0) {
       return {
         folderName,
-        student_id,
-        firstname,
-        surname,
+        student_id: student_id,
+        firstname: '',
+        surname: '',
         files: imageFiles,
         isValid: false,
         errorMessage: 'No image files found in folder',
@@ -262,38 +259,51 @@ const BatchUpload: React.FC<BatchUploadProps> = ({
     if (imageFiles.length !== files.length) {
       return {
         folderName,
-        student_id,
-        firstname,
-        surname,
+        student_id: student_id,
+        firstname: '',
+        surname: '',
         files: imageFiles,
         isValid: false,
         errorMessage: `Found ${files.length - imageFiles.length} non-image file(s). Only images allowed.`,
       };
     }
 
-    const matchedStudent = students.find(
-      s => s.student_id === student_id &&
-           s.firstname.toLowerCase() === firstname.toLowerCase() &&
-           s.surname.toLowerCase() === surname.toLowerCase()
-    );
+    // First, try to find student by student_id
+    const matchedStudent = students.find(s => s.student_id === student_id);
 
     if (!matchedStudent) {
       return {
         folderName,
         student_id,
-        firstname,
-        surname,
+        firstname: '',
+        surname: '',
         files: imageFiles,
         isValid: false,
-        errorMessage: 'Student not found in database or name mismatch',
+        errorMessage: `Student ID "${student_id}" not found in database`,
+      };
+    }
+
+    // Verify the name matches (compare full name to allow for multi-word first/last names)
+    const expectedFullName = `${matchedStudent.firstname} ${matchedStudent.surname}`.toLowerCase();
+    const providedFullName = fullName.toLowerCase();
+
+    if (expectedFullName !== providedFullName) {
+      return {
+        folderName,
+        student_id,
+        firstname: matchedStudent.firstname,
+        surname: matchedStudent.surname,
+        files: imageFiles,
+        isValid: false,
+        errorMessage: `Name mismatch. Expected: "${matchedStudent.firstname} ${matchedStudent.surname}", Got: "${fullName}"`,
       };
     }
 
     return {
       folderName,
       student_id,
-      firstname,
-      surname,
+      firstname: matchedStudent.firstname,
+      surname: matchedStudent.surname,
       files: imageFiles,
       isValid: true,
       matchedStudent,

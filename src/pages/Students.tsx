@@ -620,7 +620,7 @@ const Students = () => {
                           {student.student_id}
                         </td>
                         <td className="px-3 py-1 whitespace-nowrap">
-                          <span className="truncate max-w-[120px] inline-block">{student.program}</span>
+                          <span className="truncate max-w-[400px] inline-block">{student.program}</span>
                         </td>
                         <td className="px-3 py-1 whitespace-nowrap">
                           {student.year}
