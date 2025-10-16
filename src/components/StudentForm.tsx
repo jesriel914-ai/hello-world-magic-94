@@ -16,7 +16,6 @@ interface StudentFormData {
   student_id: string;
   program: string;
   year: string;
-  section: string;
   sex: string;
 }
 
@@ -32,7 +31,6 @@ const StudentForm: React.FC<StudentFormProps> = ({ onStudentAdded }) => {
     student_id: '',
     program: '',
     year: '',
-    section: '',
     sex: ''
   });
 
@@ -85,7 +83,6 @@ const StudentForm: React.FC<StudentFormProps> = ({ onStudentAdded }) => {
           student_id: '',
           program: '',
           year: '',
-          section: '',
           sex: ''
         });
         setOpen(false);
@@ -193,17 +190,6 @@ const StudentForm: React.FC<StudentFormProps> = ({ onStudentAdded }) => {
                   <SelectItem value="4th">4th Year</SelectItem>
                 </SelectContent>
               </Select>
-            </div>
-            
-            <div className="space-y-2">
-              <Label htmlFor="section">Section *</Label>
-              <Input
-                id="section"
-                value={formData.section}
-                onChange={(e) => handleInputChange('section', e.target.value)}
-                placeholder="Enter section"
-                required
-              />
             </div>
             
             <div className="space-y-2">

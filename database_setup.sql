@@ -165,7 +165,6 @@ create table public.sessions (
   title text not null,
   program text not null,
   year text not null,
-  section text not null,
   date date not null,
   time_in text null,
   time_out text null,
@@ -195,7 +194,7 @@ create table public.sessions (
   )
 ) TABLESPACE pg_default;
 
-create index IF not exists idx_sessions_program_year_section on public.sessions using btree (program, year, section) TABLESPACE pg_default;
+create index IF not exists idx_sessions_program_year on public.sessions using btree (program, year) TABLESPACE pg_default;
 
 create trigger update_sessions_updated_at BEFORE
 update on sessions for EACH row
@@ -231,15 +230,18 @@ create table public.students (
   surname text not null,
   program text not null,
   year text not null,
-  section text not null,
   sex text null,
+  admin_id uuid null,
   created_at timestamp with time zone null default now(),
   updated_at timestamp with time zone null default now(),
   constraint students_pkey primary key (id),
-  constraint students_student_id_key unique (student_id)
+  constraint students_student_id_key unique (student_id),
+  constraint students_admin_id_fkey foreign key (admin_id) references admin (id) on delete set null
 ) TABLESPACE pg_default;
 
-create index IF not exists idx_students_program_year_section on public.students using btree (program, year, section) TABLESPACE pg_default;
+create index IF not exists idx_students_program_year on public.students using btree (program, year) TABLESPACE pg_default;
+
+create index IF not exists idx_students_admin_id on public.students using btree (admin_id) TABLESPACE pg_default;
 
 create trigger update_students_updated_at BEFORE
 update on students for EACH row
@@ -320,10 +322,6 @@ create table public.attendance_checker (
   last_name text not null,
   admin_id uuid null,
   status text null default 'active'::text,
-  approved_by uuid null,
-  approved_at timestamp with time zone null,
-  rejected_by uuid null,
-  rejected_at timestamp with time zone null,
   created_at timestamp with time zone null default now(),
   updated_at timestamp with time zone null default now(),
   constraint attendance_checker_pkey primary key (id),

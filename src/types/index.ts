@@ -64,8 +64,8 @@ export interface Student {
   middlename?: string;
   program: string;
   year: string;
-  section: string;
   sex?: string;
+  admin_id?: string;
   signature_url?: string;
   created_at: string;
   updated_at: string;
@@ -83,7 +83,6 @@ export interface Session {
   students?: number;
   program: string;
   year: string;
-  section: string;
   status: 'not completed' | 'completed';
   date: string;
   created_at: string;
@@ -117,7 +116,7 @@ export interface AttendanceRecord {
 
 // Response types
 export interface SessionWithStudents {
-  session: Pick<Session, 'id' | 'title' | 'date' | 'time_in' | 'time_out' | 'program' | 'year' | 'section' | 'type' | 'status'>;
+  session: Pick<Session, 'id' | 'title' | 'date' | 'time_in' | 'time_out' | 'program' | 'year' | 'type' | 'status'>;
   students: Array<Student & {
     status: AttendanceRecord['status'] | null;
     time_in: string | null;
