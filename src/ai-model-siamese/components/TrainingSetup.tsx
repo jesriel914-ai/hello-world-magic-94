@@ -19,7 +19,8 @@ import {
   ChevronLeft,
   ChevronRight,
   Users,
-  User
+  User,
+  RefreshCw
 } from 'lucide-react';
 import {
   DropdownMenu,
