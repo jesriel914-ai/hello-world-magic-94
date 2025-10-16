@@ -41,6 +41,13 @@ export default function Login() {
       }
       
       // After successful login, verify the role matches against admin/attendance_checker
+      // Both admin and attendance checker must select their role
+      if (!loginRole) {
+        toast.error('Please select your role.');
+        await supabase.auth.signOut();
+        return;
+      }
+      
       let actualRole: string | null = null;
       const { data: adminRec } = await supabase
         .from('admin')
@@ -60,20 +67,11 @@ export default function Login() {
         }
       }
 
-      // Admin: must NOT select any role; allow only when no role is selected
-      if (actualRole === 'admin') {
-        if (loginRole) {
-          toast.error('Invalid credentials or role mismatch.');
-          await supabase.auth.signOut();
-          return;
-        }
-      } else {
-        // Non-admin: must select the correct role
-        if (!loginRole || actualRole !== loginRole) {
-          toast.error('Invalid credentials or role mismatch.');
-          await supabase.auth.signOut();
-          return;
-        }
+      // Verify the selected role matches the actual role in database
+      if (actualRole !== loginRole) {
+        toast.error('Invalid credentials or role mismatch.');
+        await supabase.auth.signOut();
+        return;
       }
       
       toast.success("Successfully logged in!");
@@ -188,12 +186,13 @@ export default function Login() {
                   <Label htmlFor="login-role">Role</Label>
                   <Select
                     value={loginRole || undefined}
-                    onValueChange={(val) => setLoginRole((prev) => (prev === val ? "" : val))}
+                    onValueChange={setLoginRole}
                   >
                     <SelectTrigger>
                       <SelectValue placeholder="Select your role" />
                     </SelectTrigger>
                     <SelectContent>
+                      <SelectItem value="admin">Admin</SelectItem>
                       <SelectItem value="attendance checker">Attendance Checker</SelectItem>
                     </SelectContent>
                   </Select>
