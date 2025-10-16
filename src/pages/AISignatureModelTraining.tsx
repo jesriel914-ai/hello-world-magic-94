@@ -1,35 +1,9 @@
 import React, { useEffect, useState, useCallback } from 'react';
 import Layout from '@/components/Layout';
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
-import { Button } from '@/components/ui/button';
-import { Input } from '@/components/ui/input';
-import { Label } from '@/components/ui/label';
-import { Badge } from '@/components/ui/badge';
-import { Alert, AlertDescription } from '@/components/ui/alert';
-import { Progress } from '@/components/ui/progress';
-import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { useToast } from '@/components/ui/use-toast';
-import { 
-  Upload, 
-  Brain, 
-  CheckCircle, 
-  XCircle, 
-  AlertCircle,
-  Loader2,
-  User,
-  Trash2,
-  X,
-  Camera,
-  Zap,
-  Target,
-  Users,
-  TrendingUp,
-  RefreshCw
-} from 'lucide-react';
 import ModelTraining from '@/components/ModelTraining';
 import getAIModelService from '@/lib/AIModelService';
 import { fetchStudents } from '@/lib/supabaseService';
-import { formatStudentDisplay } from '@/lib/utils';
 import type { Student } from '@/types';
 
 type SimpleTrainedModel = {

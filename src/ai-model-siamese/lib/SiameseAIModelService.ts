@@ -1,7 +1,7 @@
 //filepath: src/ai-model-siamese/lib/SiameseAIModelService.ts
 
 // Siamese Model Service - Backend Integration
-// UPDATED: Compatible with signature isolation preprocessing
+// UPDATED: Now with 1:N Classification and Incremental Learning
 
 export interface SiameseModelMetadata {
   id?: string;
@@ -18,60 +18,69 @@ export interface SiameseModelMetadata {
   final_val_loss: number;
   threshold: number;
   img_size: number[];
-  // NEW: Signature isolation metadata
-  preprocessing?: string;  // 'signature_extraction' or 'legacy'
-  background_invariant?: boolean;  // true if using isolation
-}
-
-export interface SiameseTrainingMetrics {
-  training_loss: number;
-  validation_loss: number;
-  accuracy: number;
-  precision?: number;
-  recall?: number;
-  f1_score?: number;
-  training_time: number;
-  epochs: number;
+  preprocessing?: string;
+  background_invariant?: boolean;
+  // NEW: Incremental learning metadata
+  total_reference_embeddings?: number;
+  last_incremental_update?: string;
+  incremental_updates?: number;
 }
 
 export interface SiameseVerificationResult {
   is_verified: boolean;
   confidence: number;
-  min_distance: number;  // NEW: Distance metrics
+  min_distance: number;
   average_distance: number;
   max_distance?: number;
   std_distance?: number;
-  similarity_score?: number;  // Optional legacy support
+  similarity_score?: number;
   threshold_used: number;
   student_id: string;
   student_name?: string;
-  num_references?: number;  // NEW: How many reference samples
-  model_accuracy?: number;  // NEW: Model training accuracy
+  num_references?: number;
+  model_accuracy?: number;
   model_precision?: number;
   model_recall?: number;
-  preprocessing?: string;  // NEW: Which preprocessing was used
+  preprocessing?: string;
 }
 
+// NEW: Classification result (1:N)
+export interface SiameseClassificationResult {
+  identified: boolean;
+  student_id: string | null;
+  confidence: number;
+  distance?: number;
+  top_matches: Array<{
+    student_id: string;
+    distance: number;
+    confidence: number;
+    metadata?: any;
+  }>;
+  error?: string;
+}
+
+// NEW: Incremental learning check result
+export interface IncrementalLearningCheck {
+  needs_retraining: boolean;
+  reason?: string;
+  recommendation?: string;
+}
 
 const getSiameseServiceUrl = () => {
   if (typeof window !== 'undefined') {
     const currentHost = window.location.hostname;
     
-    // If accessing via Cloudflare tunnel
     if (currentHost.includes('.trycloudflare.com') || currentHost.includes('.cfargotunnel.com')) {
-      // Option A: Separate siamese tunnel
       const envUrl = import.meta.env.VITE_SIAMESE_API_URL as string;
       if (envUrl && (envUrl.includes('.trycloudflare.com') || envUrl.includes('ngrok'))) {
         return envUrl;
       }
       
-      // Option B: Same server as main app
       const protocol = window.location.protocol;
       const host = window.location.host;
       return `${protocol}//${host}`;
     }
     
-    // For localhost or ngrok, use environment variable
     const baseUrl = import.meta.env.VITE_SIAMESE_API_URL as string;
     if (baseUrl) {
       return baseUrl;
@@ -81,7 +90,6 @@ const getSiameseServiceUrl = () => {
   }
   return 'http://localhost:5000';
 };
-
 
 const API_BASE_URL = getSiameseServiceUrl();
 
@@ -101,15 +109,10 @@ export class SiameseModelService {
     return SiameseModelService.instance;
   }
 
-  /**
-   * Train Siamese model for a student
-   * NOW with signature isolation preprocessing
-   * 
-   * @param studentId - Student identifier
-   * @param genuineSamples - Array of genuine signature samples (base64 data URLs)
-   * @param forgedSamples - Array of forged signature samples (minimum 5 required)
-   * @returns Training metadata including preprocessing info
-   */
+  // ============================================================================
+  // EXISTING METHODS (Training & 1:1 Verification)
+  // ============================================================================
+
   async trainModel(
     studentId: string,
     genuineSamples: any[],
@@ -120,7 +123,6 @@ export class SiameseModelService {
     console.log(`   Forged samples: ${forgedSamples.length}`);
     
     try {
-      // Validate inputs
       if (genuineSamples.length < 2) {
         throw new Error('At least 2 genuine samples are required for training');
       }
@@ -133,19 +135,16 @@ export class SiameseModelService {
         );
       }
       
-      // Extract base64 thumbnails
       const genuineBase64 = genuineSamples.map(sample => sample.thumbnail);
       const forgedBase64 = forgedSamples.map(sample => sample.thumbnail);
       
       console.log('📡 Sending training request to:', `${this.apiUrl}/api/train`);
-      console.log('   Using signature isolation preprocessing');
       
-      // Call Flask API
       const response = await fetch(`${this.apiUrl}/api/train`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
-          'ngrok-skip-browser-warning': 'true',  // Bypass ngrok browser warning
+          'ngrok-skip-browser-warning': 'true',
         },
         body: JSON.stringify({
           student_id: studentId,
@@ -162,11 +161,6 @@ export class SiameseModelService {
       const data = await response.json();
       console.log('✅ Training completed:', data.metadata);
       
-      // Log preprocessing info
-      if (data.metadata.preprocessing === 'signature_extraction') {
-        console.log('✅ Model trained with signature isolation (background-invariant)');
-      }
-      
       return data.metadata as SiameseModelMetadata;
       
     } catch (error) {
@@ -175,14 +169,6 @@ export class SiameseModelService {
     }
   }
 
-  /**
-   * Verify signature against student's trained model
-   * Works with ANY camera quality, lighting, or background!
-   * 
-   * @param studentId - Student identifier
-   * @param signatureData - Signature image data (base64 or object with image property)
-   * @returns Verification result with detailed metrics
-   */
   async verifySignature(
     studentId: string,
     signatureData: any
@@ -190,7 +176,6 @@ export class SiameseModelService {
     console.log(`🔍 Verifying signature for student: ${studentId}`);
     
     try {
-      // Extract base64 image
       let signatureBase64: string;
       
       if (typeof signatureData === 'string') {
@@ -208,14 +193,12 @@ export class SiameseModelService {
       }
       
       console.log('📡 Sending verification request to:', `${this.apiUrl}/api/verify`);
-      console.log('   Backend will apply signature isolation automatically');
       
-      // Call Flask API
       const response = await fetch(`${this.apiUrl}/api/verify`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
-          'ngrok-skip-browser-warning': 'true',  // Bypass ngrok browser warning
+          'ngrok-skip-browser-warning': 'true',
         },
         body: JSON.stringify({
           student_id: studentId,
@@ -231,20 +214,6 @@ export class SiameseModelService {
       const data = await response.json();
       console.log('✅ Verification result:', data.result);
       
-      // Log preprocessing info
-      if (data.result.preprocessing === 'signature_extraction') {
-        console.log('✅ Verified using signature isolation (background ignored)');
-      } else {
-        console.warn('⚠️  Using legacy preprocessing - consider retraining model');
-      }
-      
-      // Log detailed metrics
-      console.log('📊 Verification metrics:');
-      console.log(`   Min distance: ${data.result.min_distance?.toFixed(4)}`);
-      console.log(`   Avg distance: ${data.result.average_distance?.toFixed(4)}`);
-      console.log(`   Confidence: ${(data.result.confidence * 100).toFixed(1)}%`);
-      console.log(`   References used: ${data.result.num_references}`);
-      
       return data.result as SiameseVerificationResult;
       
     } catch (error) {
@@ -253,13 +222,321 @@ export class SiameseModelService {
     }
   }
 
+  // ============================================================================
+  // NEW METHODS - Classification (1:N)
+  // ============================================================================
+
   /**
-   * Check if a model exists for a student
-   * Also returns preprocessing method used
+   * NEW: Classify signature to automatically identify owner (1:N)
+   * Works without selecting student first
+   * 
+   * @param signatureData - Signature image (base64 or object)
+   * @param topK - Number of top matches to return (default: 3)
+   * @returns Classification result with identified student or "unknown"
+   */
+  async classifySignature(
+    signatureData: any,
+    topK: number = 3
+  ): Promise<SiameseClassificationResult> {
+    console.log(`🎯 Classifying signature (1:N identification)...`);
+    
+    try {
+      let signatureBase64: string;
+      
+      if (typeof signatureData === 'string') {
+        signatureBase64 = signatureData;
+      } else if (signatureData.image) {
+        signatureBase64 = signatureData.image;
+      } else if (signatureData.thumbnail) {
+        signatureBase64 = signatureData.thumbnail;
+      } else {
+        throw new Error('Invalid signature data format');
+      }
+      
+      if (!signatureBase64) {
+        throw new Error('No signature image provided');
+      }
+      
+      console.log('📡 Sending classification request to:', `${this.apiUrl}/api/classify`);
+      
+      const response = await fetch(`${this.apiUrl}/api/classify`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'ngrok-skip-browser-warning': 'true',
+        },
+        body: JSON.stringify({
+          signature_image: signatureBase64,
+          top_k: topK,
+        }),
+      });
+      
+      if (!response.ok) {
+        const error = await response.json();
+        throw new Error(error.error || 'Classification failed');
+      }
+      
+      const data = await response.json();
+      const result = data.result as SiameseClassificationResult;
+      
+      if (result.identified) {
+        console.log(`✅ Signature identified: ${result.student_id}`);
+        console.log(`   Confidence: ${(result.confidence * 100).toFixed(1)}%`);
+      } else {
+        console.log(`❓ Unknown signature (no match found)`);
+      }
+      
+      if (result.top_matches && result.top_matches.length > 0) {
+        console.log(`📊 Top matches:`);
+        result.top_matches.slice(0, 3).forEach((match, i) => {
+          console.log(`   ${i + 1}. ${match.student_id}: ${(match.confidence * 100).toFixed(1)}%`);
+        });
+      }
+      
+      return result;
+      
+    } catch (error) {
+      console.error('❌ Classification error:', error);
+      throw new Error(`Classification failed: ${error instanceof Error ? error.message : 'Unknown error'}`);
+    }
+  }
+
+  /**
+   * NEW: Real-time classification for webcam frames
+   * Optimized for speed, use for live camera feed
+   * 
+   * @param frameData - Webcam frame (base64)
+   * @returns Classification result
+   */
+  async classifyRealtimeFrame(
+    frameData: string
+  ): Promise<SiameseClassificationResult> {
+    try {
+      const response = await fetch(`${this.apiUrl}/api/classify/realtime`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'ngrok-skip-browser-warning': 'true',
+        },
+        body: JSON.stringify({
+          frame: frameData,
+        }),
+      });
+      
+      if (!response.ok) {
+        const error = await response.json();
+        throw new Error(error.error || 'Real-time classification failed');
+      }
+      
+      const data = await response.json();
+      return data.result as SiameseClassificationResult;
+      
+    } catch (error) {
+      console.error('❌ Real-time classification error:', error);
+      return {
+        identified: false,
+        student_id: null,
+        confidence: 0,
+        top_matches: [],
+        error: error instanceof Error ? error.message : 'Unknown error'
+      };
+    }
+  }
+
+  /**
+   * NEW: Rebuild classification database
+   * Use after training new models or when database is corrupted
+   */
+  async rebuildClassifier(): Promise<void> {
+    console.log('🔄 Rebuilding classification database...');
+    
+    try {
+      const response = await fetch(`${this.apiUrl}/api/classifier/rebuild`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'ngrok-skip-browser-warning': 'true',
+        },
+      });
+      
+      if (!response.ok) {
+        const error = await response.json();
+        throw new Error(error.error || 'Failed to rebuild classifier');
+      }
+      
+      console.log('✅ Classification database rebuilt successfully');
+      
+    } catch (error) {
+      console.error('❌ Failed to rebuild classifier:', error);
+      throw error;
+    }
+  }
+
+  // ============================================================================
+  // NEW METHODS - Incremental Learning
+  // ============================================================================
+
+  /**
+   * NEW: Add new genuine samples to existing student model
+   * WITHOUT retraining from scratch
    * 
    * @param studentId - Student identifier
-   * @returns Model status and metadata
+   * @param newSamples - Array of new genuine signature samples
+   * @param updateThreshold - Whether to recalculate verification threshold
+   * @returns Updated metadata
    */
+  async addGenuineSamples(
+    studentId: string,
+    newSamples: any[],
+    updateThreshold: boolean = true
+  ): Promise<SiameseModelMetadata> {
+    console.log(`🔄 Adding ${newSamples.length} genuine samples for ${studentId} (incremental learning)`);
+    
+    try {
+      if (newSamples.length === 0) {
+        throw new Error('No new samples provided');
+      }
+      
+      const samplesBase64 = newSamples.map(sample => sample.thumbnail);
+      
+      console.log('📡 Sending incremental learning request...');
+      
+      const response = await fetch(`${this.apiUrl}/api/incremental/add-genuine`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'ngrok-skip-browser-warning': 'true',
+        },
+        body: JSON.stringify({
+          student_id: studentId,
+          new_samples: samplesBase64,
+          update_threshold: updateThreshold,
+        }),
+      });
+      
+      if (!response.ok) {
+        const error = await response.json();
+        
+        // Check if full retraining is needed
+        if (error.needs_retraining) {
+          throw new Error(
+            `Full retraining recommended:\n${error.reason}\n\n${error.recommendation}`
+          );
+        }
+        
+        throw new Error(error.error || 'Failed to add samples');
+      }
+      
+      const data = await response.json();
+      console.log('✅ Samples added successfully (incremental)');
+      console.log('   Total embeddings:', data.metadata.total_reference_embeddings);
+      
+      return data.metadata as SiameseModelMetadata;
+      
+    } catch (error) {
+      console.error('❌ Incremental learning error:', error);
+      throw error;
+    }
+  }
+
+  /**
+   * NEW: Add new forged samples to existing student model
+   * 
+   * @param studentId - Student identifier
+   * @param newSamples - Array of new forged signature samples
+   * @returns Updated metadata
+   */
+  async addForgedSamples(
+    studentId: string,
+    newSamples: any[]
+  ): Promise<SiameseModelMetadata> {
+    console.log(`🔄 Adding ${newSamples.length} forged samples for ${studentId}`);
+    
+    try {
+      if (newSamples.length === 0) {
+        throw new Error('No new samples provided');
+      }
+      
+      const samplesBase64 = newSamples.map(sample => sample.thumbnail);
+      
+      const response = await fetch(`${this.apiUrl}/api/incremental/add-forged`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'ngrok-skip-browser-warning': 'true',
+        },
+        body: JSON.stringify({
+          student_id: studentId,
+          new_samples: samplesBase64,
+        }),
+      });
+      
+      if (!response.ok) {
+        const error = await response.json();
+        throw new Error(error.error || 'Failed to add forged samples');
+      }
+      
+      const data = await response.json();
+      console.log('✅ Forged samples added successfully');
+      
+      return data.metadata as SiameseModelMetadata;
+      
+    } catch (error) {
+      console.error('❌ Failed to add forged samples:', error);
+      throw error;
+    }
+  }
+
+  /**
+   * NEW: Check if incremental learning is suitable or full retraining is needed
+   * 
+   * @param studentId - Student identifier
+   * @param newSampleCount - Number of new samples to add
+   * @returns Check result with recommendation
+   */
+  async checkIncrementalLearning(
+    studentId: string,
+    newSampleCount: number
+  ): Promise<IncrementalLearningCheck> {
+    try {
+      const response = await fetch(`${this.apiUrl}/api/incremental/check`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'ngrok-skip-browser-warning': 'true',
+        },
+        body: JSON.stringify({
+          student_id: studentId,
+          new_sample_count: newSampleCount,
+        }),
+      });
+      
+      if (!response.ok) {
+        const error = await response.json();
+        throw new Error(error.error || 'Check failed');
+      }
+      
+      const data = await response.json();
+      
+      if (data.needs_retraining) {
+        console.log('⚠️  Full retraining recommended');
+        console.log(`   Reason: ${data.reason}`);
+      } else {
+        console.log('✅ Incremental learning is suitable');
+      }
+      
+      return data as IncrementalLearningCheck;
+      
+    } catch (error) {
+      console.error('❌ Check failed:', error);
+      throw error;
+    }
+  }
+
+  // ============================================================================
+  // EXISTING METHODS (Management)
+  // ============================================================================
+
   async checkModelStatus(studentId: string): Promise<{
     exists: boolean;
     metadata?: SiameseModelMetadata;
@@ -277,7 +554,6 @@ export class SiameseModelService {
       
       const data = await response.json();
       
-      // Log preprocessing info if model exists
       if (data.exists && data.metadata) {
         if (data.metadata.preprocessing === 'signature_extraction') {
           console.log(`✅ Model for ${studentId} uses signature isolation`);
@@ -294,16 +570,23 @@ export class SiameseModelService {
     }
   }
 
-  /**
-   * Health check for the API
-   * @returns API health status including GPU availability
-   */
   async healthCheck(): Promise<{ 
     status: string; 
     service: string; 
     version: string;
     gpu_available?: boolean;
     tensorflow_version?: string;
+    features?: {
+      training: boolean;
+      verification_1to1: boolean;
+      classification_1toN: boolean;
+      incremental_learning: boolean;
+    };
+    classifier?: {
+      ready: boolean;
+      num_students: number;
+      num_embeddings: number;
+    };
   }> {
     try {
       const response = await fetch(`${this.apiUrl}/api/health`, {
@@ -320,13 +603,22 @@ export class SiameseModelService {
       
       console.log('🏥 API Health Check:');
       console.log(`   Status: ${health.status}`);
-      console.log(`   Service: ${health.service}`);
       console.log(`   Version: ${health.version}`);
-      if (health.gpu_available !== undefined) {
-        console.log(`   GPU: ${health.gpu_available ? '✅ Available' : '❌ Not available'}`);
+      console.log(`   GPU: ${health.gpu_available ? '✅ Available' : '❌ Not available'}`);
+      
+      if (health.features) {
+        console.log(`   Features:`);
+        console.log(`     Training: ${health.features.training ? '✅' : '❌'}`);
+        console.log(`     1:1 Verification: ${health.features.verification_1to1 ? '✅' : '❌'}`);
+        console.log(`     1:N Classification: ${health.features.classification_1toN ? '✅' : '❌'}`);
+        console.log(`     Incremental Learning: ${health.features.incremental_learning ? '✅' : '❌'}`);
       }
-      if (health.tensorflow_version) {
-        console.log(`   TensorFlow: ${health.tensorflow_version}`);
+      
+      if (health.classifier) {
+        console.log(`   Classifier:`);
+        console.log(`     Ready: ${health.classifier.ready ? '✅' : '❌'}`);
+        console.log(`     Students: ${health.classifier.num_students}`);
+        console.log(`     Embeddings: ${health.classifier.num_embeddings}`);
       }
       
       return health;
@@ -337,11 +629,6 @@ export class SiameseModelService {
     }
   }
 
-  /**
-   * List all students with trained models
-   * Shows which models use signature isolation
-   * @returns Array of students with trained models and metadata
-   */
   async listTrainedStudents(): Promise<Array<{
     student_id: string;
     metadata: SiameseModelMetadata;
@@ -362,19 +649,6 @@ export class SiameseModelService {
       const data = await response.json();
       console.log(`✅ Found ${data.students.length} trained students`);
       
-      // Log preprocessing info for each model
-      const isolatedCount = data.students.filter(
-        (s: any) => s.metadata.preprocessing === 'signature_extraction'
-      ).length;
-      const legacyCount = data.students.length - isolatedCount;
-      
-      if (isolatedCount > 0) {
-        console.log(`   ${isolatedCount} models with signature isolation ✅`);
-      }
-      if (legacyCount > 0) {
-        console.log(`   ${legacyCount} models with legacy preprocessing ⚠️`);
-      }
-      
       return data.students;
       
     } catch (error) {
@@ -383,13 +657,6 @@ export class SiameseModelService {
     }
   }
 
-  /**
-   * Batch train multiple students
-   * NEW: Efficient batch training with memory cleanup between students
-   * 
-   * @param students - Array of student training data
-   * @returns Batch training results
-   */
   async batchTrainModels(students: Array<{
     student_id: string;
     genuine_samples: any[];
@@ -405,7 +672,6 @@ export class SiameseModelService {
     console.log(`🎓 Batch training ${students.length} students...`);
     
     try {
-      // Validate all students first
       for (const student of students) {
         if (student.genuine_samples.length < 2) {
           throw new Error(`Student ${student.student_id}: At least 2 genuine samples required`);
@@ -415,7 +681,6 @@ export class SiameseModelService {
         }
       }
       
-      // Prepare batch data
       const batchData = students.map(student => ({
         student_id: student.student_id,
         genuine_samples: student.genuine_samples.map(s => s.thumbnail),
@@ -453,152 +718,6 @@ export class SiameseModelService {
       console.error('❌ Batch training error:', error);
       throw new Error(`Batch training failed: ${error instanceof Error ? error.message : 'Unknown error'}`);
     }
-  }
-
-  /**
-   * Get detailed verification metrics
-   * Useful for debugging or showing detailed results to users
-   * 
-   * @param verificationResult - Result from verifySignature()
-   * @returns Human-readable interpretation
-   */
-  interpretVerificationResult(verificationResult: SiameseVerificationResult): {
-    decision: string;
-    confidenceLevel: string;
-    explanation: string;
-    technicalDetails: string;
-  } {
-    const { is_verified, confidence, min_distance, threshold_used } = verificationResult;
-    
-    let decision: string;
-    let confidenceLevel: string;
-    let explanation: string;
-    
-    if (is_verified) {
-      decision = 'VERIFIED ✅';
-      
-      if (confidence > 0.9) {
-        confidenceLevel = 'Very High';
-        explanation = 'Signature strongly matches the trained references. Very likely genuine.';
-      } else if (confidence > 0.75) {
-        confidenceLevel = 'High';
-        explanation = 'Signature matches the trained references well. Likely genuine.';
-      } else if (confidence > 0.6) {
-        confidenceLevel = 'Moderate';
-        explanation = 'Signature matches but with some variations. Consider manual review.';
-      } else {
-        confidenceLevel = 'Low';
-        explanation = 'Signature barely passes threshold. Recommend manual verification.';
-      }
-    } else {
-      decision = 'NOT VERIFIED ❌';
-      
-      if (min_distance > threshold_used * 1.5) {
-        confidenceLevel = 'High Rejection';
-        explanation = 'Signature significantly differs from trained references. Very likely forged.';
-      } else if (min_distance > threshold_used * 1.2) {
-        confidenceLevel = 'Moderate Rejection';
-        explanation = 'Signature differs from trained references. Likely forged or different person.';
-      } else {
-        confidenceLevel = 'Borderline Rejection';
-        explanation = 'Signature is close to threshold. May be genuine with poor capture quality or slight variation.';
-      }
-    }
-    
-    const technicalDetails = `
-Min Distance: ${min_distance?.toFixed(4) || 'N/A'}
-Avg Distance: ${verificationResult.average_distance?.toFixed(4) || 'N/A'}
-Threshold: ${threshold_used?.toFixed(4) || 'N/A'}
-Confidence: ${(confidence * 100).toFixed(1)}%
-References: ${verificationResult.num_references || 'N/A'} samples
-Model Accuracy: ${verificationResult.model_accuracy ? (verificationResult.model_accuracy * 100).toFixed(1) + '%' : 'N/A'}
-Preprocessing: ${verificationResult.preprocessing === 'signature_extraction' ? 'Signature Isolation ✅' : 'Legacy ⚠️'}
-    `.trim();
-    
-    return {
-      decision,
-      confidenceLevel,
-      explanation,
-      technicalDetails
-    };
-  }
-
-  /**
-   * Check if a model needs retraining (legacy preprocessing)
-   * @param studentId - Student identifier
-   * @returns Whether model should be retrained
-   */
-  async shouldRetrainModel(studentId: string): Promise<{
-    shouldRetrain: boolean;
-    reason?: string;
-  }> {
-    try {
-      const status = await this.checkModelStatus(studentId);
-      
-      if (!status.exists) {
-        return {
-          shouldRetrain: true,
-          reason: 'No model exists for this student'
-        };
-      }
-      
-      const metadata = status.metadata!;
-      
-      // Check if using legacy preprocessing
-      if (metadata.preprocessing !== 'signature_extraction') {
-        return {
-          shouldRetrain: true,
-          reason: 'Model uses legacy preprocessing. Retrain for background-invariant verification.'
-        };
-      }
-      
-      // Check if model has low accuracy
-      if (metadata.final_val_accuracy && metadata.final_val_accuracy < 0.85) {
-        return {
-          shouldRetrain: true,
-          reason: `Model accuracy is ${(metadata.final_val_accuracy * 100).toFixed(1)}%. Consider retraining with more samples.`
-        };
-      }
-      
-      // Check if insufficient samples
-      if (metadata.forged_samples < 20) {
-        return {
-          shouldRetrain: true,
-          reason: `Only ${metadata.forged_samples} forged samples. Recommended: 20+ for better accuracy.`
-        };
-      }
-      
-      return {
-        shouldRetrain: false
-      };
-      
-    } catch (error) {
-      console.error('Error checking if model needs retraining:', error);
-      return {
-        shouldRetrain: false
-      };
-    }
-  }
-
-  // Placeholder methods for future TensorFlow.js conversion
-  async loadModel(studentId: string): Promise<any> {
-    console.log('Model loading from browser not yet implemented');
-    throw new Error('Model loading from browser not yet implemented');
-  }
-
-  async saveModel(studentId: string, model: any): Promise<void> {
-    console.log('Model saving from browser not yet implemented');
-    throw new Error('Model saving from browser not yet implemented');
-  }
-
-  async exportModel(studentId: string): Promise<any> {
-    console.log('Model export to TensorFlow.js not yet implemented');
-    throw new Error('Model export to TensorFlow.js not yet implemented');
-  }
-
-  async importModel(modelData: any): Promise<void> {
-    console.log('Model import not yet implemented');
-    throw new Error('Model import not yet implemented');
   }
 }
 
