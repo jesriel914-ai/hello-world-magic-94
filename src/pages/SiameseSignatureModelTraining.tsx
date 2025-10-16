@@ -2,7 +2,6 @@
 import React, { useState } from 'react';
 import TrainingSetup from '@/ai-model-siamese/components/TrainingSetup';
 import Verification from '@/ai-model-siamese/components/Verification';
-import IncrementalLearning from '@/ai-model-siamese/components/IncrementalLearning';
 import useMobileDetection from '@/hooks/use-mobile-detection';
 
 // Interface for shared state
@@ -32,20 +31,12 @@ const SiameseSignatureModelTraining: React.FC = () => {
         {isMobile ? (
           <div className="flex flex-col space-y-4">
             <TrainingSetup classes={classes} setClasses={setClasses} />
-            <IncrementalLearning />
             <Verification />  {/* No props */}
           </div>
         ) : (
-          <div className="grid grid-cols-1 lg:grid-cols-4 gap-6">
-            <div className="lg:col-span-2">
-              <TrainingSetup classes={classes} setClasses={setClasses} />
-            </div>
-            <div className="lg:col-span-1">
-              <IncrementalLearning />
-            </div>
-            <div className="lg:col-span-1">
-              <Verification />  {/* No props */}
-            </div>
+          <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+            <TrainingSetup classes={classes} setClasses={setClasses} />
+            <Verification />  {/* No props */}
           </div>
         )}
       </div>
