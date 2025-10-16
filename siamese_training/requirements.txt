@@ -1,14 +1,26 @@
-# Minimal requirements for LOCAL VERIFICATION ONLY
-# No GPU training, no ngrok, no heavy dependencies
+# google drive filepath: siamese_training/requirements.txt
+# GPU-Optimized ML frameworks for Colab with Signature Isolation + Incremental Learning + Classification
 
-# Core ML (CPU version is fine)
-tensorflow==2.17.0
+# Core ML frameworks
+tensorflow==2.19.0
 numpy==1.26.4
 opencv-python==4.10.0.84
+scikit-learn==1.5.1
 
 # API framework
 flask==3.0.3
 flask-cors==4.0.1
 
-# Utils
+# Image processing
 pillow==10.4.0
+
+# For Colab tunneling
+pyngrok==7.2.0
+
+# Utilities for visualization (optional, for debugging)
+matplotlib==3.8.0
+
+# NEW: For efficient nearest neighbor search (1:N classification)
+faiss-cpu==1.8.0  # If GPU: pip install faiss-gpu (but faiss-cpu is fine for <10k students)
+
+# NEW: For incremental learning with embedding clustering

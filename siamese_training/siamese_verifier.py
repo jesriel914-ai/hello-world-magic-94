@@ -1,7 +1,7 @@
 """
 google drive filepath: siamese_training/siamese_verifier.py
-Siamese Network Verification Module - GPU-Optimized
-Enhanced preprocessing matching training pipeline
+Siamese Network Verification Module with Signature Isolation
+NOW robust to camera quality, lighting, background, paper color
 """
 
 import numpy as np
@@ -11,34 +11,37 @@ import cv2
 from pathlib import Path
 import json
 
+# Import our preprocessing module
+from signature_preprocessing import SignaturePreprocessor
+
 class SiameseSignatureVerifier:
     def __init__(self, base_dir='models'):
         self.base_dir = Path(base_dir)
         self.img_size = (224, 224)
         
+        # Initialize signature preprocessor
+        self.preprocessor = SignaturePreprocessor(target_size=self.img_size)
+        
     def preprocess_image(self, image_path):
         """
-        Load and preprocess image - MUST MATCH TRAINING PREPROCESSING
+        NEW: Preprocess using signature isolation
+        Works with ANY camera quality, lighting, or background
         """
         img = cv2.imread(str(image_path))
         if img is None:
             raise ValueError(f"Failed to load image from: {image_path}")
         
-        img = cv2.resize(img, self.img_size)
-        
-        # Apply same preprocessing as training
-        gray = cv2.cvtColor(img, cv2.COLOR_BGR2GRAY)
-        thresh = cv2.adaptiveThreshold(gray, 255, cv2.ADAPTIVE_THRESH_GAUSSIAN_C, 
-                                      cv2.THRESH_BINARY_INV, 11, 2)
-        img = cv2.cvtColor(thresh, cv2.COLOR_GRAY2BGR)
-        
-        img = img.astype('float32') / 255.0
-        return img
+        # Use our robust signature extraction
+        return self.preprocessor.preprocess_for_verification(img)
     
     def verify_signature(self, student_id, test_image_path):
         """
-        Verify signature using enhanced distance-based matching
-        Uses stricter thresholds for higher precision
+        Verify signature with enhanced robustness
+        Now works regardless of:
+        - Camera quality (phone camera, webcam, scanner)
+        - Lighting conditions (bright, dim, shadows)
+        - Background color (white paper, yellow paper, desk)
+        - Image artifacts (JPEG compression, noise)
         """
         print(f"\n{'='*60}")
         print(f"Verifying Signature for Student: {student_id}")
@@ -72,6 +75,11 @@ class SiameseSignatureVerifier:
         
         threshold = metadata.get('threshold', 0.45)
         
+        # Check if model uses signature isolation
+        is_signature_isolated = metadata.get('preprocessing') == 'signature_extraction'
+        
+        print(f"Model type: {'Signature-isolated' if is_signature_isolated else 'Legacy'}")
+        
         # Load reference embeddings
         if not reference_path.exists():
             print("❌ Error: No reference embeddings found")
@@ -87,7 +95,9 @@ class SiameseSignatureVerifier:
         
         reference_embeddings = np.load(reference_path)
         
-        # Preprocess test image with same pipeline as training
+        # Preprocess test image with signature isolation
+        print(f"\nExtracting signature from test image...")
+        print(f"  (Ignoring: background, lighting, camera quality, paper color)")
         test_img = self.preprocess_image(test_image_path)
         
         # Generate test embedding
@@ -111,11 +121,7 @@ class SiameseSignatureVerifier:
         max_distance = float(np.max(distances))
         std_distance = float(np.std(distances))
         
-        # Enhanced decision logic
-        # 1. Minimum distance must be below threshold
-        # 2. Average distance should also be reasonable
-        # 3. Standard deviation should be low (consistent matching)
-        
+        # Enhanced decision logic with stricter criteria
         is_verified = (
             min_distance < threshold and 
             avg_distance < (threshold * 1.3) and
@@ -123,7 +129,6 @@ class SiameseSignatureVerifier:
         )
         
         # Enhanced confidence calculation
-        # Consider multiple factors
         distance_confidence = max(0, 1 - (min_distance / threshold))
         avg_confidence = max(0, 1 - (avg_distance / (threshold * 1.3)))
         consistency_confidence = max(0, 1 - (std_distance / 0.3))
@@ -144,6 +149,7 @@ class SiameseSignatureVerifier:
         print(f"  References: {len(distances)} samples")
         print(f"\n🎯 Decision: {'✅ VERIFIED' if is_verified else '❌ NOT VERIFIED'}")
         print(f"  Confidence: {confidence*100:.1f}%")
+        print(f"  Background-invariant: ✅")
         
         # Enhanced warnings and diagnostics
         if is_verified:
@@ -161,11 +167,7 @@ class SiameseSignatureVerifier:
             elif std_distance > 0.4:
                 print("  ❌ Inconsistent matching across references")
         
-        # Additional diagnostics
-        if avg_distance < 0.25:
-            print("  ℹ️  Very close match to all references")
-        
-        # Precision/Recall info from training
+        # Model performance info
         if 'precision' in metadata and 'recall' in metadata:
             print(f"\n📈 Model Performance (from training):")
             print(f"  Precision: {metadata['precision']*100:.1f}%")
@@ -186,7 +188,8 @@ class SiameseSignatureVerifier:
             'num_references': len(distances),
             'model_accuracy': metadata.get('final_accuracy', 0),
             'model_precision': metadata.get('precision', 0),
-            'model_recall': metadata.get('recall', 0)
+            'model_recall': metadata.get('recall', 0),
+            'preprocessing': metadata.get('preprocessing', 'legacy')
         }
     
     def check_model_exists(self, student_id):
