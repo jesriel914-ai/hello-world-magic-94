@@ -313,12 +313,12 @@ execute FUNCTION update_updated_at_column ();
 
 
 
-create table public.users (
+create table public.attendance_checker (
   id uuid not null default gen_random_uuid (),
   email text not null,
   first_name text not null,
   last_name text not null,
-  role text not null,
+  admin_id uuid null,
   status text null default 'active'::text,
   approved_by uuid null,
   approved_at timestamp with time zone null,
@@ -326,26 +326,15 @@ create table public.users (
   rejected_at timestamp with time zone null,
   created_at timestamp with time zone null default now(),
   updated_at timestamp with time zone null default now(),
-  constraint users_pkey primary key (id),
-  constraint users_email_key unique (email),
-  constraint users_role_check check (
-    (
-      role = any (
-        array[
-          'ROTC admin'::text,
-          'ROTC officer'::text,
-          'Instructor'::text,
-          'SSG officer'::text
-        ]
-      )
-    )
-  )
+  constraint attendance_checker_pkey primary key (id),
+  constraint attendance_checker_email_key unique (email),
+  constraint attendance_checker_admin_id_fkey foreign key (admin_id) references admin (id) on delete set null
 ) TABLESPACE pg_default;
 
-create index IF not exists idx_users_email on public.users using btree (email) TABLESPACE pg_default;
+create index IF not exists idx_attendance_checker_email on public.attendance_checker using btree (email) TABLESPACE pg_default;
 
-create index IF not exists idx_users_role on public.users using btree (role) TABLESPACE pg_default;
+create index IF not exists idx_attendance_checker_admin_id on public.attendance_checker using btree (admin_id) TABLESPACE pg_default;
 
-create index IF not exists idx_users_status on public.users using btree (status) TABLESPACE pg_default;
+create index IF not exists idx_attendance_checker_status on public.attendance_checker using btree (status) TABLESPACE pg_default;
 
 

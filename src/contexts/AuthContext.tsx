@@ -94,20 +94,32 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
         setError(signUpError.message);
         return { error: signUpError };
       }
-      // Insert into users table (non-admin accounts only)
+      // Insert into admin or attendance_checker table based on role
       if (data?.user) {
-        const normalizedRole = role; // role already chosen from allowed set
-        const { error: insertErr } = await supabase
-          .from('users')
-          .insert([{
-            id: data.user.id,
-            email,
-            first_name: firstName,
-            last_name: lastName,
-            role: normalizedRole,
-          }]);
-        if (insertErr) {
-          console.error('Error inserting users row:', insertErr);
+        if (role === 'admin') {
+          const { error: insertErr } = await supabase
+            .from('admin')
+            .insert([{
+              id: data.user.id,
+              email,
+              first_name: firstName,
+              last_name: lastName,
+            }]);
+          if (insertErr) {
+            console.error('Error inserting admin row:', insertErr);
+          }
+        } else if (role === 'attendance checker') {
+          const { error: insertErr } = await supabase
+            .from('attendance_checker')
+            .insert([{
+              id: data.user.id,
+              email,
+              first_name: firstName,
+              last_name: lastName,
+            }]);
+          if (insertErr) {
+            console.error('Error inserting attendance_checker row:', insertErr);
+          }
         }
       }
 

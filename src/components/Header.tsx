@@ -148,12 +148,12 @@ const Header = ({ isMobile = false }: HeaderProps) => {
         .maybeSingle();
       if (adminData) profile = adminData;
       if (!profile) {
-        const { data: userData } = await supabase
-          .from('users')
-          .select('id, email, role, first_name, last_name, status, created_at, updated_at')
+        const { data: checkerData } = await supabase
+          .from('attendance_checker')
+          .select('id, email, first_name, last_name, status, created_at, updated_at')
           .eq('id', user.id)
           .maybeSingle();
-        if (userData) profile = userData;
+        if (checkerData) profile = checkerData;
       }
       setUserProfile(profile);
     } catch (error) {
@@ -238,7 +238,7 @@ const Header = ({ isMobile = false }: HeaderProps) => {
         if (error) throw error;
       } else {
         const { error } = await supabase
-          .from('users')
+          .from('attendance_checker')
           .update({ first_name: profileForm.first_name, last_name: profileForm.last_name })
           .eq('id', user.id);
         if (error) throw error;

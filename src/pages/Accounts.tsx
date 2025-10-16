@@ -27,7 +27,7 @@ const accountsCache = new Map<string, { profiles: Profile[]; timestamp: number }
 const CACHE_DURATION = 2 * 60 * 1000; // 2 minutes
 
 type AccountStatus = 'active' | 'inactive' | 'pending' | 'suspended';
-type UserRole = 'admin' | 'Instructor' | 'SSG officer' | 'ROTC admin' | 'ROTC officer';
+type UserRole = 'admin' | 'attendance checker';
 
 interface Profile {
   id: string;
@@ -93,12 +93,12 @@ const Accounts = () => {
         // Explicitly set role to 'admin' for admin users
         data = { ...adminData, role: 'admin' };
       } else {
-        const { data: userData } = await supabase
-          .from('users')
+        const { data: checkerData } = await supabase
+          .from('attendance_checker')
           .select('*')
           .eq('id', user.id)
           .maybeSingle();
-        data = userData;
+        data = checkerData ? { ...checkerData, role: 'attendance checker' } : null;
       }
 
       setCurrentUserProfile(data);
@@ -134,8 +134,8 @@ const Accounts = () => {
         .from('admin')
         .select('*')
         .order('created_at', { ascending: false });
-      const { data: usersRows } = await supabase
-        .from('users')
+      const { data: checkersRows } = await supabase
+        .from('attendance_checker')
         .select('*')
         .order('created_at', { ascending: false });
 
@@ -145,13 +145,13 @@ const Accounts = () => {
         role: 'admin' as UserRole,
         status: (admin.status || 'active') as AccountStatus
       }));
-      const userProfiles = (usersRows || []).map(user => ({ 
-        ...user, 
-        role: user.role as UserRole,
-        status: (user.status || 'active') as AccountStatus
+      const checkerProfiles = (checkersRows || []).map(checker => ({ 
+        ...checker, 
+        role: 'attendance checker' as UserRole,
+        status: (checker.status || 'active') as AccountStatus
       }));
       
-      const allProfiles = [...adminProfiles, ...userProfiles];
+      const allProfiles = [...adminProfiles, ...checkerProfiles];
       
       // Store in cache
       accountsCache.set(cacheKey, {

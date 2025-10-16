@@ -40,7 +40,7 @@ export default function Login() {
         throw error;
       }
       
-      // After successful login, verify the role matches against admin/users
+      // After successful login, verify the role matches against admin/attendance_checker
       let actualRole: string | null = null;
       const { data: adminRec } = await supabase
         .from('admin')
@@ -50,12 +50,14 @@ export default function Login() {
       if (adminRec) {
         actualRole = 'admin';
       } else {
-        const { data: userRec } = await supabase
-          .from('users')
-          .select('role')
+        const { data: checkerRec } = await supabase
+          .from('attendance_checker')
+          .select('id')
           .eq('email', normalizedEmail)
           .maybeSingle();
-        actualRole = userRec?.role || null;
+        if (checkerRec) {
+          actualRole = 'attendance checker';
+        }
       }
 
       // Admin: must NOT select any role; allow only when no role is selected
@@ -192,10 +194,7 @@ export default function Login() {
                       <SelectValue placeholder="Select your role" />
                     </SelectTrigger>
                     <SelectContent>
-                      <SelectItem value="Instructor">Instructor</SelectItem>
-                      <SelectItem value="SSG officer">SSG Officer</SelectItem>
-                      <SelectItem value="ROTC admin">ROTC Admin</SelectItem>
-                      <SelectItem value="ROTC officer">ROTC Officer</SelectItem>
+                      <SelectItem value="attendance checker">Attendance Checker</SelectItem>
                     </SelectContent>
                   </Select>
                 </div>
@@ -316,10 +315,8 @@ export default function Login() {
                       <SelectValue placeholder="Select your role" />
                     </SelectTrigger>
                     <SelectContent>
-                      <SelectItem value="Instructor">Instructor</SelectItem>
-                      <SelectItem value="SSG officer">SSG Officer</SelectItem>
-                      <SelectItem value="ROTC admin">ROTC Admin</SelectItem>
-                      <SelectItem value="ROTC officer">ROTC Officer</SelectItem>
+                      <SelectItem value="admin">Admin</SelectItem>
+                      <SelectItem value="attendance checker">Attendance Checker</SelectItem>
                     </SelectContent>
                   </Select>
                 </div>

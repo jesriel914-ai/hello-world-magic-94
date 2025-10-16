@@ -411,24 +411,24 @@ export const getCurrentUser = async (): Promise<User | null> => {
   const { data: { user } } = await supabase.auth.getUser();
   if (!user) return null;
   
-  // Get additional user data from admin/users tables
+  // Get additional user data from admin/attendance_checker tables
   const { data: adminData } = await supabase
     .from('admin')
     .select('*')
     .eq('id', user.id)
     .maybeSingle();
-  const { data: userData } = adminData ? { data: null as any } : await supabase
-    .from('users')
+  const { data: checkerData } = adminData ? { data: null as any } : await supabase
+    .from('attendance_checker')
     .select('*')
     .eq('id', user.id)
     .maybeSingle();
-  const profile: any = adminData || userData || {};
+  const profile: any = adminData || checkerData || {};
   
   return {
     id: user.id,
     email: user.email || '',
     name: `${profile?.first_name || ''} ${profile?.last_name || ''}`.trim() || user.user_metadata?.full_name || '',
-    role: (profile as any)?.role || (adminData ? 'admin' : 'SSG officer'),
+    role: (profile as any)?.role || (adminData ? 'admin' : 'attendance checker'),
     avatar_url: (profile as any)?.avatar_url || '',
   };
 };
@@ -448,7 +448,7 @@ export const updateUserProfile = async (updates: Partial<User>): Promise<User> =
   
   // Update account in the correct table
   const isAdmin = !!(await supabase.from('admin').select('id').eq('id', user.id).maybeSingle()).data;
-  const target = isAdmin ? 'admin' : 'users';
+  const target = isAdmin ? 'admin' : 'attendance_checker';
   const payload: any = {
     updated_at: new Date().toISOString(),
   };

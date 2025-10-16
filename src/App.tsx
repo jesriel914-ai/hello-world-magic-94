@@ -68,7 +68,7 @@ const AppRoutes = () => {
       path="/reports"
       element={
         <ProtectedRoute>
-          <RoleProtectedRoute allowedRoles={['admin', 'ROTC admin', 'Instructor', 'SSG officer']}>
+          <RoleProtectedRoute allowedRoles={['admin']}>
             <Reports />
           </RoleProtectedRoute>
         </ProtectedRoute>
@@ -78,7 +78,7 @@ const AppRoutes = () => {
       path="/students"
       element={
         <ProtectedRoute>
-          <RoleProtectedRoute allowedRoles={['admin', 'ROTC admin', 'Instructor', 'SSG officer']}>
+          <RoleProtectedRoute allowedRoles={['admin']}>
             <Students />
           </RoleProtectedRoute>
         </ProtectedRoute>
@@ -88,7 +88,7 @@ const AppRoutes = () => {
       path="/schedule"
       element={
         <ProtectedRoute>
-          <RoleProtectedRoute allowedRoles={['admin', 'ROTC admin', 'Instructor', 'SSG officer', 'ROTC officer']}>
+          <RoleProtectedRoute allowedRoles={['admin', 'attendance checker']}>
             <Sessions />
           </RoleProtectedRoute>
         </ProtectedRoute>
@@ -127,7 +127,7 @@ const AppRoutes = () => {
       path="/officer-accounts"
       element={
         <ProtectedRoute>
-          <RoleProtectedRoute allowedRoles={['ROTC admin']}>
+          <RoleProtectedRoute allowedRoles={['admin']}>
             <OfficerAccounts />
           </RoleProtectedRoute>
         </ProtectedRoute>
@@ -155,7 +155,7 @@ const AppRoutes = () => {
       path="/subjects"
       element={
         <ProtectedRoute>
-          <RoleProtectedRoute allowedRoles={['admin', 'Instructor']}>
+          <RoleProtectedRoute allowedRoles={['admin']}>
             <Subjects />
           </RoleProtectedRoute>
         </ProtectedRoute>

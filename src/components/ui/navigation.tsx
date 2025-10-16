@@ -72,7 +72,7 @@ let cachedUserId: string | null = getCachedUserId();
 // Navigation items configuration
 const getNavItems = (userRole: string = '') => {
   if (userRole === 'admin') {
-    // Admin - naturally full access
+    // Admin - full access
     return [
       { icon: LayoutDashboard, label: "Dashboard", href: "/" },
       { 
@@ -98,10 +98,11 @@ const getNavItems = (userRole: string = '') => {
       },
       { icon: Brain, label: "Model Training", href: "/model-training-signature-classify" },
       { icon: CalendarDays, label: "Allowed Terms", href: "/academic-year" },
-      { icon: UserCog, label: "Accounts", href: "/accounts" }
+      { icon: UserCog, label: "Accounts", href: "/accounts" },
+      { icon: UserCog, label: "Attendance Checkers", href: "/officer-accounts" }
     ];
-  } else if (userRole === 'ROTC admin') {
-    // ROTC Admin - same as admin but without Signature AI, Allowed Terms, and Subjects
+  } else if (userRole === 'attendance checker') {
+    // Attendance Checker - limited access
     return [
       { icon: LayoutDashboard, label: "Dashboard", href: "/" },
       { 
@@ -116,75 +117,11 @@ const getNavItems = (userRole: string = '') => {
         href: "/schedule",
         isActive: (path: string) => path === '/schedule' || path.startsWith('/sessions/') 
       },
-      { icon: Users, label: "Students", href: "/students" },
-      { icon: BarChartBig, label: "Reports", href: "/reports" },
       { 
         icon: FileText, 
         label: "Excuse Application", 
         href: "/excuse-application",
         isActive: (path: string) => path === '/excuse-application'
-      },
-      { icon: UserCog, label: "Accounts", href: "/officer-accounts" }
-    ];
-  } else if (userRole === 'Instructor') {
-    // Instructor
-    return [
-      { icon: LayoutDashboard, label: "Dashboard", href: "/" },
-      { 
-        icon: UserCheck, 
-        label: "Take Attendance", 
-        href: "/take-attendance",
-        isActive: (path: string) => path === '/take-attendance' || path.startsWith('/take-attendance/')
-      },
-      { 
-        icon: CalendarClock, 
-        label: "Sessions", 
-        href: "/schedule",
-        isActive: (path: string) => path === '/schedule' || path.startsWith('/sessions/') 
-      },
-      { icon: Users, label: "Students", href: "/students" },
-      { icon: BarChartBig, label: "Reports", href: "/reports" },
-      { icon: Book, label: "Subjects", href: "/subjects" },
-      { 
-        icon: FileText, 
-        label: "Excuse Application", 
-        href: "/excuse-application",
-        isActive: (path: string) => path === '/excuse-application'
-      }
-    ];
-  } else if (userRole === 'SSG officer') {
-    // SSG Officer - no subject and no Signature AI
-    return [
-      { icon: LayoutDashboard, label: "Dashboard", href: "/" },
-      { 
-        icon: UserCheck, 
-        label: "Take Attendance", 
-        href: "/take-attendance",
-        isActive: (path: string) => path === '/take-attendance' || path.startsWith('/take-attendance/')
-      },
-      { 
-        icon: CalendarClock, 
-        label: "Sessions", 
-        href: "/schedule",
-        isActive: (path: string) => path === '/schedule' || path.startsWith('/sessions/') 
-      },
-      { icon: Users, label: "Students", href: "/students" },
-      { icon: BarChartBig, label: "Reports", href: "/reports" },
-      { 
-        icon: FileText, 
-        label: "Excuse Application", 
-        href: "/excuse-application",
-        isActive: (path: string) => path === '/excuse-application'
-      }
-    ];
-  } else if (userRole === 'ROTC officer') {
-    // ROTC Officer - only Take Attendance
-    return [
-      { 
-        icon: UserCheck, 
-        label: "Take Attendance", 
-        href: "/take-attendance",
-        isActive: (path: string) => path === '/take-attendance' || path.startsWith('/take-attendance/')
       }
     ];
   } else {
@@ -268,10 +205,7 @@ const DesktopNavigation = () => {
 
   const getPanelLabel = () => {
     if (userRole === 'admin') return 'Admin Panel';
-    if (userRole === 'ROTC admin') return 'ROTC Admin Panel';
-    if (userRole === 'Instructor') return 'Instructor Panel';
-    if (userRole === 'SSG officer') return 'SSG Officer Panel';
-    if (userRole === 'ROTC officer') return 'ROTC Officer Panel';
+    if (userRole === 'attendance checker') return 'Attendance Checker Panel';
     return 'User Panel';
   };
 
@@ -474,10 +408,7 @@ const MobileDrawer = ({ isOpen, onClose }: { isOpen: boolean; onClose: () => voi
 
   const getPanelLabel = () => {
     if (userRole === 'admin') return 'Admin Panel';
-    if (userRole === 'ROTC admin') return 'ROTC Admin Panel';
-    if (userRole === 'Instructor') return 'Instructor Panel';
-    if (userRole === 'SSG officer') return 'SSG Officer Panel';
-    if (userRole === 'ROTC officer') return 'ROTC Officer Panel';
+    if (userRole === 'attendance checker') return 'Attendance Checker Panel';
     return 'User Panel';
   };
 

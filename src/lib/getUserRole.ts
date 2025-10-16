@@ -1,19 +1,7 @@
 import { supabase } from "@/lib/supabase";
 
 // Normalized application roles
-export type AppRole = 'admin' | 'Instructor' | 'SSG officer' | 'ROTC admin' | 'ROTC officer' | 'user';
-
-// Map legacy/variant roles to normalized ones
-const normalizeRole = (raw: string | null | undefined): AppRole => {
-  const val = (raw || '').trim();
-  if (!val) return 'user';
-  if (val.toLowerCase() === 'admin') return 'admin';
-  if (val.toLowerCase() === 'staff' || val === 'Instructor') return 'Instructor';
-  if (val.toLowerCase() === 'ssg officer' || val.toLowerCase() === 'ssg_officer') return 'SSG officer';
-  if (val === 'ROTC admin') return 'ROTC admin';
-  if (val === 'ROTC officer') return 'ROTC officer';
-  return 'user';
-};
+export type AppRole = 'admin' | 'attendance checker' | 'user';
 
 export const fetchUserRole = async (userId: string | null): Promise<AppRole> => {
   if (!userId) return 'user';
@@ -29,18 +17,16 @@ export const fetchUserRole = async (userId: string | null): Promise<AppRole> => 
   }
   if (adminRec) return 'admin';
 
-  // Check users table
-  const { data: userRec, error: userErr } = await supabase
-    .from('users')
-    .select('role')
+  // Check attendance_checker table
+  const { data: checkerRec, error: checkerErr } = await supabase
+    .from('attendance_checker')
+    .select('id')
     .eq('id', userId)
     .maybeSingle();
-  if (userErr) {
-    console.error('fetchUserRole user error:', userErr);
+  if (checkerErr) {
+    console.error('fetchUserRole attendance_checker error:', checkerErr);
   }
-  if (userRec?.role) {
-    return normalizeRole(userRec.role);
-  }
+  if (checkerRec) return 'attendance checker';
 
   return 'user';
 };

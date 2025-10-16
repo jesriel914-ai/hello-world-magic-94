@@ -105,22 +105,27 @@ export default function OfficerAccounts() {
     // TODO: Implement delete functionality
   };
 
-  // Load ROTC Officer accounts from database
+  // Load Attendance Checker accounts from database
   const loadOfficerAccounts = async () => {
     setIsLoading(true);
     try {
       const { data, error } = await supabase
-        .from('users')
+        .from('attendance_checker')
         .select('*')
-        .eq('role', 'ROTC officer')
         .order('created_at', { ascending: false });
 
       if (error) throw error;
       
-      setAccounts(data || []);
+      // Map the data to include role property
+      const accountsWithRole = (data || []).map(account => ({
+        ...account,
+        role: 'attendance checker'
+      }));
+      
+      setAccounts(accountsWithRole);
     } catch (error) {
-      console.error('Error loading officer accounts:', error);
-      toast.error('Failed to load officer accounts');
+      console.error('Error loading attendance checker accounts:', error);
+      toast.error('Failed to load attendance checker accounts');
     } finally {
       setIsLoading(false);
     }
@@ -142,7 +147,7 @@ export default function OfficerAccounts() {
         <div className="container mx-auto p-4">
           <div className="text-center flex items-center justify-center gap-2">
             <Loader2 className="h-4 w-4 animate-spin" />
-            Loading officer accounts...
+            Loading attendance checker accounts...
           </div>
         </div>
       </Layout>
@@ -155,7 +160,7 @@ export default function OfficerAccounts() {
         <div className="px-6 py-4">
           <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-4">
             <div>
-              <h1 className="text-lg font-bold tracking-tight">OFFICER ACCOUNT MANAGEMENT</h1>
+              <h1 className="text-lg font-bold tracking-tight">ATTENDANCE CHECKER MANAGEMENT</h1>
             </div>
           </div>
           
@@ -164,7 +169,7 @@ export default function OfficerAccounts() {
 
           <div className="bg-white rounded-lg shadow-sm p-4 border border-gray-200">
             <div className="flex items-center justify-between mb-3">
-              <h3 className="text-base font-semibold text-education-navy">List of Officer Accounts</h3>
+              <h3 className="text-base font-semibold text-education-navy">List of Attendance Checkers</h3>
               <Button onClick={handleAddAccount} className="flex items-center gap-2 h-8 text-xs">
                 <Plus className="h-3 w-3" />
                 Add Account

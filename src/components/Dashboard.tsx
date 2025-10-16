@@ -289,12 +289,12 @@ const Dashboard = () => {
         .maybeSingle();
       if (adminData) profile = adminData;
       if (!profile) {
-        const { data: userData } = await supabase
-          .from('users')
-          .select('id, email, role, first_name, last_name, status, created_at, updated_at')
+        const { data: checkerData } = await supabase
+          .from('attendance_checker')
+          .select('id, email, first_name, last_name, status, created_at, updated_at')
           .eq('id', user.id)
           .maybeSingle();
-        if (userData) profile = userData;
+        if (checkerData) profile = checkerData;
       }
       setUserProfile(profile);
     } catch (error) {
@@ -345,10 +345,7 @@ const Dashboard = () => {
   const getDashboardTitle = () => {
     const roleLabels = {
       admin: 'ADMIN',
-      'ROTC admin': 'ROTC ADMIN',
-      Instructor: 'INSTRUCTOR',
-      'SSG officer': 'SSG OFFICER',
-      'ROTC officer': 'ROTC OFFICER'
+      'attendance checker': 'ATTENDANCE CHECKER'
     };
     return `${roleLabels[userRole as keyof typeof roleLabels] || 'User'} DASHBOARD`;
   };
@@ -385,12 +382,7 @@ const Dashboard = () => {
     }));
   }, [chartData]);
 
-  // Redirect ROTC Officer to Take Attendance page
-  useEffect(() => {
-    if (userRole === 'ROTC officer') {
-      navigate('/take-attendance');
-    }
-  }, [userRole, navigate]);
+  // No redirect needed for attendance checker
 
   return (
     <div className="flex-1 space-y-4 px-6 py-4 opacity-100 transition-opacity duration-300">
