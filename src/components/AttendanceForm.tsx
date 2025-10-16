@@ -91,28 +91,18 @@ const AttendanceForm = ({ onSuccess, onSubmit, initialData }: AttendanceFormProp
   }, [user?.id]);
 
   const allowedTypes: AttendanceType[] = useMemo(() => {
-    if (currentRole === "admin" || currentRole === "ROTC admin") {
+    if (currentRole === "admin") {
       return ["class", "event", "other"];
     }
     
-    if (currentRole === "Instructor") {
-      return ["class"];
-    }
-    
-    if (currentRole === "SSG officer" || currentRole === "ROTC officer") {
-      return ["event", "other"];
+    if (currentRole === "attendance checker") {
+      return ["class", "event", "other"];
     }
     
     if (!currentRole && !roleReady) {
       const cached = getCachedUserRole();
-      if (cached === "admin" || cached === "ROTC admin") {
+      if (cached === "admin" || cached === "attendance checker") {
         return ["class", "event", "other"];
-      }
-      if (cached === "Instructor") {
-        return ["class"];
-      }
-      if (cached === "SSG officer" || cached === "ROTC officer") {
-        return ["event", "other"];
       }
     }
     
@@ -122,10 +112,6 @@ const AttendanceForm = ({ onSuccess, onSubmit, initialData }: AttendanceFormProp
   const [attendanceType, setAttendanceType] = useState<AttendanceType>(() => {
     if (initialData?.attendanceType) {
       return initialData.attendanceType;
-    }
-    const cached = getCachedUserRole();
-    if (cached === "SSG officer" || cached === "ROTC officer") {
-      return "event";
     }
     return "class";
   });
@@ -143,11 +129,7 @@ const AttendanceForm = ({ onSuccess, onSubmit, initialData }: AttendanceFormProp
   useEffect(() => {
     if (roleReady && allowedTypes.length > 0) {
       if (!allowedTypes.includes(attendanceType)) {
-        if (currentRole === "SSG officer" || currentRole === "ROTC officer") {
-          setAttendanceType(allowedTypes.includes("event") ? "event" : allowedTypes[0]);
-        } else {
-          setAttendanceType(allowedTypes[0]);
-        }
+        setAttendanceType(allowedTypes[0]);
       }
     }
   }, [roleReady, allowedTypes, attendanceType, currentRole]);

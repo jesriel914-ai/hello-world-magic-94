@@ -179,10 +179,7 @@ const Header = ({ isMobile = false }: HeaderProps) => {
 
   const getPanelLabel = () => {
     if (userRole === 'admin') return 'Admin Panel';
-    if (userRole === 'ROTC admin') return 'ROTC Admin Panel';
-    if (userRole === 'Instructor') return 'Instructor Panel';
-    if (userRole === 'SSG officer') return 'SSG Officer Panel';
-    if (userRole === 'ROTC officer') return 'ROTC Officer Panel';
+    if (userRole === 'attendance checker') return 'Attendance Checker Panel';
     return 'User Panel';
   };
 

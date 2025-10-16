@@ -6,7 +6,6 @@ import {
   Users, 
   FileText, 
   CalendarClock,
-  Book,
 } from "lucide-react";
 import { Link, useLocation } from "react-router-dom";
 
@@ -19,47 +18,7 @@ export const MobileNavigation = ({ userRole = 'user' }: MobileNavigationProps) =
 
   const getNavItems = (userRole: string = '') => {
     if (userRole === 'admin') {
-      // Admin - naturally full access
-      return [
-        { 
-          icon: LayoutDashboard, 
-          label: "Dashboard", 
-          href: "/",
-          isActive: (path: string) => path === '/'
-        },
-        { 
-          icon: UserCheck, 
-          label: "Attendance", 
-          href: "/take-attendance",
-          isActive: (path: string) => path === '/take-attendance' || path.startsWith('/take-attendance/')
-        },
-        { 
-          icon: CalendarClock, 
-          label: "Sessions", 
-          href: "/schedule",
-          isActive: (path: string) => path === '/schedule' || path.startsWith('/sessions/') 
-        },
-        { 
-          icon: Users, 
-          label: "Students", 
-          href: "/students",
-          isActive: (path: string) => path === '/students'
-        },
-        { 
-          icon: FileText, 
-          label: "Reports", 
-          href: "/reports",
-          isActive: (path: string) => path === '/reports'
-        },
-        {
-          icon: Book, 
-          label: "Subjects", 
-          href: "/subjects",
-          isActive: (path: string) => path === '/subjects'
-        }
-      ];
-    } else if (userRole === 'ROTC admin') {
-      // ROTC Admin - same as admin but subject and allowed terms is restricted or hidden
+      // Admin - full access
       return [
         { 
           icon: LayoutDashboard, 
@@ -92,8 +51,8 @@ export const MobileNavigation = ({ userRole = 'user' }: MobileNavigationProps) =
           isActive: (path: string) => path === '/reports'
         }
       ];
-    } else if (userRole === 'Instructor') {
-      // Instructor
+    } else if (userRole === 'attendance checker') {
+      // Attendance Checker - limited access
       return [
         { 
           icon: LayoutDashboard, 
@@ -114,66 +73,10 @@ export const MobileNavigation = ({ userRole = 'user' }: MobileNavigationProps) =
           isActive: (path: string) => path === '/schedule' || path.startsWith('/sessions/') 
         },
         { 
-          icon: Users, 
-          label: "Students", 
-          href: "/students",
-          isActive: (path: string) => path === '/students'
-        },
-        { 
           icon: FileText, 
-          label: "Reports", 
-          href: "/reports",
-          isActive: (path: string) => path === '/reports'
-        },
-        {
-          icon: Book, 
-          label: "Subjects", 
-          href: "/subjects",
-          isActive: (path: string) => path === '/subjects'
-        }
-      ];
-    } else if (userRole === 'SSG officer') {
-      // SSG Officer - no subject
-      return [
-        { 
-          icon: LayoutDashboard, 
-          label: "Dashboard", 
-          href: "/",
-          isActive: (path: string) => path === '/'
-        },
-        { 
-          icon: UserCheck, 
-          label: "Attendance", 
-          href: "/take-attendance",
-          isActive: (path: string) => path === '/take-attendance' || path.startsWith('/take-attendance/')
-        },
-        { 
-          icon: CalendarClock, 
-          label: "Sessions", 
-          href: "/schedule",
-          isActive: (path: string) => path === '/schedule' || path.startsWith('/sessions/') 
-        },
-        { 
-          icon: Users, 
-          label: "Students", 
-          href: "/students",
-          isActive: (path: string) => path === '/students'
-        },
-        { 
-          icon: FileText, 
-          label: "Reports", 
-          href: "/reports",
-          isActive: (path: string) => path === '/reports'
-        }
-      ];
-    } else if (userRole === 'ROTC officer') {
-      // ROTC Officer - only Take Attendance, Profile, Log Out
-      return [
-        { 
-          icon: UserCheck, 
-          label: "Attendance", 
-          href: "/take-attendance",
-          isActive: (path: string) => path === '/take-attendance' || path.startsWith('/take-attendance/')
+          label: "Excuse", 
+          href: "/excuse-application",
+          isActive: (path: string) => path === '/excuse-application'
         }
       ];
     } else {
@@ -190,6 +93,12 @@ export const MobileNavigation = ({ userRole = 'user' }: MobileNavigationProps) =
           label: "Attendance", 
           href: "/take-attendance",
           isActive: (path: string) => path === '/take-attendance' || path.startsWith('/take-attendance/')
+        },
+        { 
+          icon: FileText, 
+          label: "Excuse", 
+          href: "/excuse-application",
+          isActive: (path: string) => path === '/excuse-application'
         }
       ];
     }

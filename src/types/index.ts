@@ -50,7 +50,7 @@ export interface User {
   id: string;
   email: string;
   name: string;
-  role: 'admin' | 'staff' | 'ssg_officer';
+  role: 'admin' | 'attendance checker';
   avatar_url?: string;
   created_at?: string;
   updated_at?: string;

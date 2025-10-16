@@ -89,7 +89,6 @@ const getNavItems = (userRole: string = '') => {
       },
       { icon: Users, label: "Students", href: "/students" },
       { icon: BarChartBig, label: "Reports", href: "/reports" },
-      { icon: Book, label: "Subjects", href: "/subjects" },
       { 
         icon: FileText, 
         label: "Excuse Application", 
@@ -98,8 +97,7 @@ const getNavItems = (userRole: string = '') => {
       },
       { icon: Brain, label: "Model Training", href: "/model-training-signature-classify" },
       { icon: CalendarDays, label: "Allowed Terms", href: "/academic-year" },
-      { icon: UserCog, label: "Accounts", href: "/accounts" },
-      { icon: UserCog, label: "Attendance Checkers", href: "/officer-accounts" }
+      { icon: UserCog, label: "Accounts", href: "/accounts" }
     ];
   } else if (userRole === 'attendance checker') {
     // Attendance Checker - limited access

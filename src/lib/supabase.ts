@@ -25,7 +25,7 @@ export const getCurrentUser = async () => {
       id: user.id,
       email: user.email || '',
       name: `${profile?.first_name || ''} ${profile?.last_name || ''}`.trim(),
-      role: (profile as any)?.role || (adminData ? 'admin' : 'SSG officer'),
+      role: (profile as any)?.role || (adminData ? 'admin' : 'attendance checker'),
       avatar_url: (profile as any)?.avatar_url || '',
     },
     error,

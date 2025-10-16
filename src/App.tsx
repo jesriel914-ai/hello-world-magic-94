@@ -11,12 +11,10 @@ import Sessions from "./pages/Sessions";
 import TakeAttendance from "./pages/TakeAttendance";
 import TakeAttendanceSession from "./pages/TakeAttendanceSession";
 import Accounts from "./pages/Accounts";
-import OfficerAccounts from "./pages/OfficerAccounts";
 import NotFound from "./pages/NotFound";
 import Login from "./pages/Login";
 import ExcuseApplication from "./pages/ExcuseApplication";
 import AllowedTerms from "./pages/AllowedTerms";
-import Subjects from "./pages/Subjects";
 import AISignatureModelTraining from "./pages/AISignatureModelTraining";
 import SiameseSignatureModelTraining from "./pages/SiameseSignatureModelTraining";
 import { AuthProvider } from "./contexts/AuthContext";
@@ -124,16 +122,6 @@ const AppRoutes = () => {
       }
     />
     <Route
-      path="/officer-accounts"
-      element={
-        <ProtectedRoute>
-          <RoleProtectedRoute allowedRoles={['admin']}>
-            <OfficerAccounts />
-          </RoleProtectedRoute>
-        </ProtectedRoute>
-      }
-    />
-    <Route
       path="/excuse-application"
       element={
         <ProtectedRoute>
@@ -147,16 +135,6 @@ const AppRoutes = () => {
         <ProtectedRoute>
           <RoleProtectedRoute allowedRoles={['admin']}>
             <AllowedTerms />
-          </RoleProtectedRoute>
-        </ProtectedRoute>
-      }
-    />
-    <Route
-      path="/subjects"
-      element={
-        <ProtectedRoute>
-          <RoleProtectedRoute allowedRoles={['admin']}>
-            <Subjects />
           </RoleProtectedRoute>
         </ProtectedRoute>
       }
