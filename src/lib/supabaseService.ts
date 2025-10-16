@@ -233,9 +233,6 @@ export const fetchSessionStudents = async (sessionId: number): Promise<SessionWi
     return allStudents;
   };
 
-  // Get the section value - check all possible field names
-  const sectionValue = sessionData.section || sessionData.session_section;
-
   let allStudents: Student[] = [];
   
   // Build the base query for fetching students
@@ -262,12 +259,6 @@ export const fetchSessionStudents = async (sessionId: number): Promise<SessionWi
         yearValue = yearValue.replace(' Year', '');
       }
       baseQuery = baseQuery.eq('year', yearValue);
-    }
-    
-    // Apply section filter if specified and not "all"
-    if (sectionValue && !isAllValue(sectionValue)) {
-      const sectionFilter = sectionValue.trim();
-      baseQuery = baseQuery.eq('section', sectionFilter);
     }
     
     // Execute the query with pagination
@@ -312,7 +303,6 @@ export const fetchSessionStudents = async (sessionId: number): Promise<SessionWi
     time_out: sessionData.time_out || null,
     program: sessionData.program,
     year: sessionData.year,
-    section: sessionData.section,
     description: sessionData.description || '',
     type: sessionData.type || 'class',
     status: sessionData.status || 'not completed' // Include status field
