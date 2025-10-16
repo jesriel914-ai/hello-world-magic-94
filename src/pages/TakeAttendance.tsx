@@ -177,12 +177,12 @@ const TakeAttendanceContent: React.FC = () => {
         (adminRows || []).forEach((r: any) => {
           creatorsMap.set(r.id, { first_name: r.first_name, last_name: r.last_name, role: 'admin' });
         });
-        const { data: userRows } = await supabase
-          .from('users')
-          .select('id, first_name, last_name, role')
+        const { data: checkerRows } = await supabase
+          .from('attendance_checker')
+          .select('id, first_name, last_name')
           .in('id', creatorIds as any);
-        (userRows || []).forEach((r: any) => {
-          creatorsMap.set(r.id, { first_name: r.first_name, last_name: r.last_name, role: r.role || 'user' });
+        (checkerRows || []).forEach((r: any) => {
+          creatorsMap.set(r.id, { first_name: r.first_name, last_name: r.last_name, role: 'attendance checker' });
         });
       }
 

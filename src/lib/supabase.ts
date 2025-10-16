@@ -14,7 +14,7 @@ export const getCurrentUser = async () => {
     .eq('id', user.id)
     .maybeSingle();
   const { data: userData } = adminData ? { data: null as any } : await supabase
-    .from('users')
+    .from('attendance_checker')
     .select('*')
     .eq('id', user.id)
     .maybeSingle();
