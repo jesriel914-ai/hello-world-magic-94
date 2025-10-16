@@ -19,7 +19,7 @@ export interface Database {
           username?: string | null;
           full_name?: string | null;
           avatar_url?: string | null;
-          role: 'admin' | 'instructor' | 'user';
+          role: 'admin' | 'attendance checker' | 'user';
           email?: string | null;
         };
         Insert: {
@@ -28,7 +28,7 @@ export interface Database {
           username?: string | null;
           full_name?: string | null;
           avatar_url?: string | null;
-          role?: 'admin' | 'instructor' | 'user';
+          role?: 'admin' | 'attendance checker' | 'user';
           email?: string | null;
         };
         Update: {
@@ -37,7 +37,7 @@ export interface Database {
           username?: string | null;
           full_name?: string | null;
           avatar_url?: string | null;
-          role?: 'admin' | 'instructor' | 'user';
+          role?: 'admin' | 'attendance checker' | 'user';
           email?: string | null;
         };
       };
