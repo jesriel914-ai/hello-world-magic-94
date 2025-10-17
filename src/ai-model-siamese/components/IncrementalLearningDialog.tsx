@@ -1,7 +1,16 @@
+//filepath: src/ai-model-siamese/components/IncrementalLearningDialog.tsx
 import React, { useState, useEffect } from 'react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Progress } from '@/components/ui/progress';
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogHeader,
+  DialogTitle,
+  DialogTrigger,
+} from '@/components/ui/dialog';
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -16,7 +25,8 @@ import {
   AlertTriangle,
   Trash2,
   Plus,
-  RefreshCw
+  RefreshCw,
+  X
 } from 'lucide-react';
 import { siameseModelService } from '../lib/SiameseAIModelService';
 
@@ -26,9 +36,15 @@ interface SampleData {
   type?: 'genuine' | 'forged';
 }
 
-interface IncrementalLearningProps {}
+interface IncrementalLearningDialogProps {
+  isOpen: boolean;
+  onOpenChange: (open: boolean) => void;
+}
 
-const IncrementalLearning: React.FC<IncrementalLearningProps> = () => {
+const IncrementalLearningDialog: React.FC<IncrementalLearningDialogProps> = ({ 
+  isOpen, 
+  onOpenChange 
+}) => {
   const [trainedStudents, setTrainedStudents] = useState<Array<{
     student_id: string;
     metadata: any;
@@ -48,22 +64,36 @@ const IncrementalLearning: React.FC<IncrementalLearningProps> = () => {
     recommendation?: string;
   } | null>(null);
 
-  // Load trained students
+  // Load trained students when dialog opens
   useEffect(() => {
-    const loadTrainedStudents = async () => {
-      setIsLoadingStudents(true);
-      try {
-        const students = await siameseModelService.listTrainedStudents();
-        setTrainedStudents(students);
-      } catch (error) {
-        console.error('Failed to load trained students:', error);
-      } finally {
-        setIsLoadingStudents(false);
-      }
-    };
-    
-    loadTrainedStudents();
-  }, []);
+    if (isOpen) {
+      const loadTrainedStudents = async () => {
+        setIsLoadingStudents(true);
+        try {
+          const students = await siameseModelService.listTrainedStudents();
+          setTrainedStudents(students);
+        } catch (error) {
+          console.error('Failed to load trained students:', error);
+        } finally {
+          setIsLoadingStudents(false);
+        }
+      };
+      
+      loadTrainedStudents();
+    }
+  }, [isOpen]);
+
+  // Reset form when dialog closes
+  useEffect(() => {
+    if (!isOpen) {
+      setSelectedStudent('');
+      setNewGenuineSamples([]);
+      setNewForgedSamples([]);
+      setRetrainingCheck(null);
+      setIsProcessing(false);
+      setProcessingMessage('');
+    }
+  }, [isOpen]);
 
   // Check if retraining is needed when samples change
   useEffect(() => {
@@ -203,14 +233,8 @@ const IncrementalLearning: React.FC<IncrementalLearningProps> = () => {
       // Success
       alert(`Successfully added samples via incremental learning!\n\nGenuine: ${newGenuineSamples.length}\nForged: ${newForgedSamples.length}`);
       
-      // Clear samples
-      setNewGenuineSamples([]);
-      setNewForgedSamples([]);
-      setRetrainingCheck(null);
-      
-      // Reload students to update metadata
-      const students = await siameseModelService.listTrainedStudents();
-      setTrainedStudents(students);
+      // Close dialog
+      onOpenChange(false);
       
     } catch (error) {
       console.error('Failed to add samples:', error);
@@ -222,21 +246,22 @@ const IncrementalLearning: React.FC<IncrementalLearningProps> = () => {
   };
 
   return (
-    <Card className="h-[605px] w-full flex flex-col">
-      <CardHeader className="pb-2">
-        <CardTitle className="flex items-center justify-between">
-          <div className="flex items-center gap-2">
+    <Dialog open={isOpen} onOpenChange={onOpenChange}>
+      <DialogContent className="max-w-2xl max-h-[90vh] overflow-hidden flex flex-col">
+        <DialogHeader>
+          <DialogTitle className="flex items-center gap-2">
             <RefreshCw className="w-5 h-5" />
             Incremental Learning
-          </div>
-        </CardTitle>
-      </CardHeader>
-      <CardContent className="flex-1 overflow-hidden flex flex-col">
-        <div className="flex-1 overflow-y-auto overlay-scrollbar-container space-y-4">
-          
+          </DialogTitle>
+          <DialogDescription>
+            Add new signature samples to an existing student model without retraining from scratch.
+          </DialogDescription>
+        </DialogHeader>
+        
+        <div className="flex-1 overflow-y-auto space-y-6">
           {/* Info Box */}
-          <div className="text-xs text-blue-700 p-3 bg-blue-50 rounded-lg border border-blue-200">
-            <div className="font-semibold mb-1">💡 What is Incremental Learning?</div>
+          <div className="text-sm text-blue-700 p-4 bg-blue-50 rounded-lg border border-blue-200">
+            <div className="font-semibold mb-2">💡 What is Incremental Learning?</div>
             <p>
               Add new signature samples to an existing student model <strong>without retraining from scratch</strong>.
               The model updates its knowledge efficiently, saving time and computational resources.
@@ -244,7 +269,7 @@ const IncrementalLearning: React.FC<IncrementalLearningProps> = () => {
           </div>
 
           {/* Student Selection */}
-          <div className="space-y-2">
+          <div className="space-y-3">
             <label className="text-sm font-medium">Select Student</label>
             <DropdownMenu>
               <DropdownMenuTrigger asChild>
@@ -290,17 +315,17 @@ const IncrementalLearning: React.FC<IncrementalLearningProps> = () => {
 
           {/* Retraining Check Warning */}
           {retrainingCheck?.needs_retraining && (
-            <div className="p-3 bg-yellow-50 border border-yellow-200 rounded-lg">
-              <div className="flex items-start gap-2">
+            <div className="p-4 bg-yellow-50 border border-yellow-200 rounded-lg">
+              <div className="flex items-start gap-3">
                 <AlertTriangle className="w-5 h-5 text-yellow-600 flex-shrink-0 mt-0.5" />
                 <div className="flex-1">
                   <div className="font-semibold text-yellow-900 text-sm">
                     Full Retraining Recommended
                   </div>
-                  <div className="text-xs text-yellow-700 mt-1">
+                  <div className="text-sm text-yellow-700 mt-1">
                     {retrainingCheck.reason}
                   </div>
-                  <div className="text-xs text-yellow-600 mt-1 italic">
+                  <div className="text-sm text-yellow-600 mt-1 italic">
                     {retrainingCheck.recommendation}
                   </div>
                 </div>
@@ -310,8 +335,8 @@ const IncrementalLearning: React.FC<IncrementalLearningProps> = () => {
 
           {/* Upload Buttons */}
           {selectedStudent && (
-            <div className="space-y-3">
-              <div className="flex gap-2">
+            <div className="space-y-4">
+              <div className="flex gap-3">
                 <label className="flex-1">
                   <Button 
                     variant="secondary" 
@@ -320,8 +345,8 @@ const IncrementalLearning: React.FC<IncrementalLearningProps> = () => {
                     asChild
                   >
                     <span>
-                      <Plus className="w-4 h-4 mr-1" />
-                      Add Genuine
+                      <Plus className="w-4 h-4 mr-2" />
+                      Add Genuine Samples
                     </span>
                   </Button>
                   <input 
@@ -341,8 +366,8 @@ const IncrementalLearning: React.FC<IncrementalLearningProps> = () => {
                     asChild
                   >
                     <span>
-                      <Plus className="w-4 h-4 mr-1" />
-                      Add Forged
+                      <Plus className="w-4 h-4 mr-2" />
+                      Add Forged Samples
                     </span>
                   </Button>
                   <input 
@@ -365,19 +390,19 @@ const IncrementalLearning: React.FC<IncrementalLearningProps> = () => {
 
           {/* Sample Preview */}
           {(newGenuineSamples.length > 0 || newForgedSamples.length > 0) && (
-            <div className="space-y-3">
+            <div className="space-y-4">
               {/* Genuine Samples */}
               {newGenuineSamples.length > 0 && (
                 <div>
-                  <div className="text-xs font-medium text-green-700 mb-2">
+                  <div className="text-sm font-medium text-green-700 mb-3">
                     Genuine Samples ({newGenuineSamples.length})
                   </div>
-                  <div className="border rounded-lg p-2 bg-green-50 overflow-x-auto overlay-scrollbar-container">
-                    <div className="flex gap-1">
+                  <div className="border rounded-lg p-3 bg-green-50 overflow-x-auto">
+                    <div className="flex gap-2">
                       {newGenuineSamples.map((sample, index) => (
                         <div 
                           key={index}
-                          className="flex-shrink-0 w-16 h-16 border border-gray-300 rounded overflow-hidden relative group"
+                          className="flex-shrink-0 w-20 h-20 border border-gray-300 rounded overflow-hidden relative group"
                         >
                           <img 
                             src={sample.thumbnail}
@@ -388,7 +413,7 @@ const IncrementalLearning: React.FC<IncrementalLearningProps> = () => {
                             className="absolute top-0 right-0 bg-red-500 text-white rounded-full w-5 h-5 flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity"
                             onClick={() => removeSample(index, 'genuine')}
                           >
-                            <Trash2 className="w-3 h-3" />
+                            <X className="w-3 h-3" />
                           </button>
                         </div>
                       ))}
@@ -400,15 +425,15 @@ const IncrementalLearning: React.FC<IncrementalLearningProps> = () => {
               {/* Forged Samples */}
               {newForgedSamples.length > 0 && (
                 <div>
-                  <div className="text-xs font-medium text-red-700 mb-2">
+                  <div className="text-sm font-medium text-red-700 mb-3">
                     Forged Samples ({newForgedSamples.length})
                   </div>
-                  <div className="border rounded-lg p-2 bg-red-50 overflow-x-auto overlay-scrollbar-container">
-                    <div className="flex gap-1">
+                  <div className="border rounded-lg p-3 bg-red-50 overflow-x-auto">
+                    <div className="flex gap-2">
                       {newForgedSamples.map((sample, index) => (
                         <div 
                           key={index}
-                          className="flex-shrink-0 w-16 h-16 border border-gray-300 rounded overflow-hidden relative group"
+                          className="flex-shrink-0 w-20 h-20 border border-gray-300 rounded overflow-hidden relative group"
                         >
                           <img 
                             src={sample.thumbnail}
@@ -419,7 +444,7 @@ const IncrementalLearning: React.FC<IncrementalLearningProps> = () => {
                             className="absolute top-0 right-0 bg-red-500 text-white rounded-full w-5 h-5 flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity"
                             onClick={() => removeSample(index, 'forged')}
                           >
-                            <Trash2 className="w-3 h-3" />
+                            <X className="w-3 h-3" />
                           </button>
                         </div>
                       ))}
@@ -431,12 +456,20 @@ const IncrementalLearning: React.FC<IncrementalLearningProps> = () => {
           )}
         </div>
 
-        {/* Action Button */}
-        <div className="border-t pt-4 mt-auto">
+        {/* Action Buttons */}
+        <div className="border-t pt-4 flex gap-3">
+          <Button
+            variant="outline"
+            onClick={() => onOpenChange(false)}
+            disabled={isProcessing}
+            className="flex-1"
+          >
+            Cancel
+          </Button>
           <Button
             onClick={handleAddSamples}
             disabled={!selectedStudent || (newGenuineSamples.length === 0 && newForgedSamples.length === 0) || isProcessing}
-            className="w-full"
+            className="flex-1"
           >
             {isProcessing ? (
               <>
@@ -450,16 +483,16 @@ const IncrementalLearning: React.FC<IncrementalLearningProps> = () => {
               </>
             )}
           </Button>
-          
-          {isProcessing && (
-            <div className="text-xs text-gray-500 mt-2 text-center">
-              This won't retrain from scratch - only updating with new data
-            </div>
-          )}
         </div>
-      </CardContent>
-    </Card>
+        
+        {isProcessing && (
+          <div className="text-sm text-gray-500 text-center mt-2">
+            This won't retrain from scratch - only updating with new data
+          </div>
+        )}
+      </DialogContent>
+    </Dialog>
   );
 };
 
-export default IncrementalLearning;
+export default IncrementalLearningDialog;

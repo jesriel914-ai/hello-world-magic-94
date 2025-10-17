@@ -30,6 +30,7 @@ const SiameseSignatureModelTraining: React.FC = () => {
         
         {isMobile ? (
           <div className="flex flex-col space-y-4">
+            <TrainingSetup classes={classes} setClasses={setClasses} />
             <Verification />  {/* No props */}
           </div>
         ) : (

@@ -134,7 +134,7 @@ if __name__ == "__main__":
         metadata = trainer.add_new_genuine_samples(student_id, new_samples)
         print(f"Updated metadata: {metadata}")
     else:
-        print(f"Recommendation: {check['recommendation']}")id
+        print(f"Recommendation: {check['recommendation']}")
         
         if not student_dir.exists():
             raise FileNotFoundError(f"No trained model found for {student_id}")
