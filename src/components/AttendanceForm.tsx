@@ -15,7 +15,6 @@ export interface SessionData {
   title: string;
   program: string;
   year: string;
-  section: string;
   date: string;
   timeIn: string;
   timeOut: string;
@@ -36,7 +35,6 @@ interface Student {
   full_name: string;
   program: string;
   year: string;
-  section: string;
 }
 
 const AttendanceForm = ({ onSuccess, onSubmit, initialData }: AttendanceFormProps) => {
@@ -120,7 +118,6 @@ const AttendanceForm = ({ onSuccess, onSubmit, initialData }: AttendanceFormProp
     title: initialData?.title || "",
     program: initialData?.program || "",
     year: initialData?.year || "",
-    section: initialData?.section || "",
     date: initialData?.date || "",
     timeIn: initialData?.timeIn || "",
     timeOut: initialData?.timeOut || "",
@@ -139,8 +136,7 @@ const AttendanceForm = ({ onSuccess, onSubmit, initialData }: AttendanceFormProp
   const [studentOptions, setStudentOptions] = useState<{
     programs: string[];
     years: string[];
-    sections: { [key: string]: string[] };
-  }>({ programs: [], years: [], sections: {} });
+  }>({ programs: [], years: [] });
   
   // State for students table
   const [students, setStudents] = useState<Student[]>([]);
@@ -148,12 +144,6 @@ const AttendanceForm = ({ onSuccess, onSubmit, initialData }: AttendanceFormProp
   const [searchQuery, setSearchQuery] = useState("");
   const [displayLimit, setDisplayLimit] = useState(50);
   
-  // Available sections based on selected program and year
-  const availableSections = useCallback(() => {
-    if (!formData.program || !formData.year) return [];
-    const key = `${formData.program}|${formData.year}`;
-    return studentOptions.sections[key] || [];
-  }, [formData.program, formData.year, studentOptions.sections]);
   
   // Fetch students for the table
   const fetchStudentsForTable = useCallback(async () => {
@@ -175,7 +165,7 @@ const AttendanceForm = ({ onSuccess, onSubmit, initialData }: AttendanceFormProp
         while (true) {
           let query = supabase
             .from('students')
-            .select('id, student_id, firstname, surname, program, year, section')
+            .select('id, student_id, firstname, surname, program, year')
             .order('surname', { ascending: true })
             .range(from, from + pageSize - 1);
 
@@ -189,10 +179,6 @@ const AttendanceForm = ({ onSuccess, onSubmit, initialData }: AttendanceFormProp
             query = query.eq('year', yearShort);
           }
 
-          // Apply section filter only if specified and not "All Sections"
-          if (formData.section && formData.section !== 'All Sections') {
-            query = query.eq('section', formData.section);
-          }
 
           const { data, error } = await query;
 
@@ -225,112 +211,14 @@ const AttendanceForm = ({ onSuccess, onSubmit, initialData }: AttendanceFormProp
     } finally {
       setLoadingStudents(false);
     }
-  }, [formData.program, formData.year, formData.section]);
+  }, [formData.program, formData.year]);
 
-  // Fetch students when program, year, or section changes
+  // Fetch students when program or year changes
   useEffect(() => {
     fetchStudentsForTable();
   }, [fetchStudentsForTable]);
 
-  // Fetch students for sections
-  const fetchStudents = async (program: string, year: string) => {
-    try {
-      const yearShort = year.replace(' Year', '');
-      
-      const fetchAllStudents = async () => {
-        interface StudentSection {
-          section: string | null;
-        }
-        
-        const allStudents: StudentSection[] = [];
-        let from = 0;
-        const pageSize = 1000;
-        
-        while (true) {
-          const { data, error } = await supabase
-            .from('students')
-            .select('section')
-            .eq('program', program)
-            .eq('year', yearShort)
-            .not('section', 'is', null)
-            .range(from, from + pageSize - 1);
-          
-          if (error) throw error;
-          
-          if (!data || data.length === 0) break;
-          
-          allStudents.push(...data);
-          
-          if (data.length < pageSize) break;
-          
-          from += pageSize;
-        }
-        
-        return allStudents;
-      };
-      
-      const data = await fetchAllStudents();
-      
-      return (data || []).map(student => ({
-        section: student.section || 'Uncategorized'
-      }));
-    } catch (error) {
-      console.error('Error fetching students:', error);
-      toast.error('Failed to load student data');
-      return [];
-    }
-  };
 
-  // Load student sections when program or year changes
-  const loadStudentSections = useCallback(async (program: string, year: string) => {
-    if (!program || !year || program === 'All Programs' || year === 'All Year Levels') {
-      const key = `${program}|${year}`;
-      setStudentOptions(prev => {
-        const currentSections = prev.sections[key] || [];
-        if (currentSections.length === 0) {
-          return prev;
-        }
-        return {
-          ...prev,
-          sections: {
-            ...prev.sections,
-            [key]: []
-          }
-        };
-      });
-      return;
-    }
-    
-    const key = `${program}|${year}`;
-    
-    if (studentOptions.sections[key] && studentOptions.sections[key].length > 0) {
-      return;
-    }
-    
-    setLoadingOptions(true);
-    try {
-      const students = await fetchStudents(program, year);
-      
-      const sections = [...new Set(students.map(student => student.section).filter(Boolean))];
-      
-      if (sections.length === 0) {
-        sections.push('Default Section');
-      }
-      
-      setStudentOptions(prev => ({
-        ...prev,
-        sections: {
-          ...prev.sections,
-          [key]: sections
-        }
-      }));
-    } catch (error) {
-      console.error('Error in loadStudentSections:', error);
-      toast.error('Failed to load student sections');
-    } finally {
-      setLoadingOptions(false);
-    }
-  }, [studentOptions.sections]);
 
   // Fetch programs from students table
   const loadPrograms = useCallback(async () => {
@@ -391,11 +279,6 @@ const AttendanceForm = ({ onSuccess, onSubmit, initialData }: AttendanceFormProp
     loadPrograms();
   }, [loadPrograms]);
 
-  useEffect(() => {
-    if (formData.program && formData.year) {
-      loadStudentSections(formData.program, formData.year);
-    }
-  }, [formData.program, formData.year, loadStudentSections]);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -404,7 +287,6 @@ const AttendanceForm = ({ onSuccess, onSubmit, initialData }: AttendanceFormProp
       ...formData,
       program: formData.program === 'All Programs' ? 'All Programs' : formData.program,
       year: formData.year === 'All Year Levels' ? 'All Years' : formData.year,
-      section: formData.section === 'All Sections' ? '' : formData.section,
       attendanceType: attendanceType
     };
     
@@ -420,7 +302,6 @@ const AttendanceForm = ({ onSuccess, onSubmit, initialData }: AttendanceFormProp
           title: "",
           program: "",
           year: "",
-          section: "",
           date: "",
           timeIn: "",
           timeOut: "",
@@ -500,7 +381,6 @@ const AttendanceForm = ({ onSuccess, onSubmit, initialData }: AttendanceFormProp
                     ...prev,
                     program: value,
                     year: prev.program !== value ? "" : prev.year,
-                    section: prev.program !== value ? "" : prev.section
                   }));
                 }}
                 disabled={loadingOptions}
@@ -537,7 +417,6 @@ const AttendanceForm = ({ onSuccess, onSubmit, initialData }: AttendanceFormProp
                   setFormData(prev => ({
                     ...prev,
                     year: newYear,
-                    section: prev.year !== newYear ? "" : prev.section
                   }));
                 }}
                 disabled={loadingOptions}
@@ -564,46 +443,6 @@ const AttendanceForm = ({ onSuccess, onSubmit, initialData }: AttendanceFormProp
               </Select>
             </div>
 
-            {/* Section */}
-            {(attendanceType === "class" || attendanceType === "other") && (
-              <div className="space-y-1.5">
-                <Label htmlFor="section" className="text-sm">Section</Label>
-                <Select
-                  value={formData.section}
-                  onValueChange={(value) => setFormData({...formData, section: value})}
-                  disabled={
-                    !formData.program || 
-                    !formData.year ||
-                    formData.program === 'All Programs' ||
-                    formData.year === 'All Year Levels' ||
-                    loadingOptions
-                  }
-                >
-                  <SelectTrigger className="w-full h-9 text-sm bg-gray-100">
-                    <SelectValue placeholder={
-                      availableSections().length === 0 ? "No sections available" : "Select section"
-                    } />
-                  </SelectTrigger>
-                  <SelectContent>
-                    {loadingOptions ? (
-                      <div className="flex items-center justify-center p-2">
-                        <Loader2 className="h-4 w-4 animate-spin" />
-                      </div>
-                    ) : availableSections().length === 0 ? (
-                      <div className="p-2 text-sm text-muted-foreground">
-                        No sections available
-                      </div>
-                    ) : (
-                      availableSections().map((section) => (
-                        <SelectItem key={section} value={section}>
-                          {section}
-                        </SelectItem>
-                      ))
-                    )}
-                  </SelectContent>
-                </Select>
-              </div>
-            )}
 
             {/* Date */}
             <div className="space-y-1.5">
@@ -680,7 +519,6 @@ const AttendanceForm = ({ onSuccess, onSubmit, initialData }: AttendanceFormProp
                       <th scope="col" className="px-3 py-1.5 text-left font-semibold">Student ID</th>
                       <th scope="col" className="px-3 py-1.5 text-left font-semibold">Program</th>
                       <th scope="col" className="px-3 py-1.5 text-left font-semibold">Year</th>
-                      <th scope="col" className="px-3 py-1.5 text-left font-semibold">Section</th>
                     </tr>
                   </thead>
                   <tbody className="bg-white divide-y divide-gray-200">
@@ -713,7 +551,6 @@ const AttendanceForm = ({ onSuccess, onSubmit, initialData }: AttendanceFormProp
                             <td className="px-3 py-1.5 text-xs text-gray-600">{student.student_id}</td>
                             <td className="px-3 py-1.5 text-xs text-gray-600">{student.program}</td>
                             <td className="px-3 py-1.5 text-xs text-gray-600">{student.year}</td>
-                            <td className="px-3 py-1.5 text-xs text-gray-600">{student.section}</td>
                           </tr>
                         ))
                     )}
@@ -757,7 +594,7 @@ const AttendanceForm = ({ onSuccess, onSubmit, initialData }: AttendanceFormProp
           <Button 
             type="submit" 
             className="bg-education-blue hover:bg-education-blue/90"
-            disabled={formData.type === 'class' && (!formData.section || formData.section === 'All Sections')}
+            disabled={false}
           >
             {initialData?.id ? 'Update Session' : 'Create Session'}
           </Button>

@@ -94,7 +94,7 @@ export const deleteSession = async (id: number): Promise<void> => {
 };
 
 // Student operations
-export const fetchStudents = async (program?: string, year?: string, section?: string): Promise<Student[]> => {
+export const fetchStudents = async (program?: string, year?: string): Promise<Student[]> => {
   try {
     
     // Helper function to fetch all students with pagination
@@ -140,57 +140,10 @@ export const fetchStudents = async (program?: string, year?: string, section?: s
     // Fetch all matching students with pagination
     const allStudents = await fetchAllStudents(baseQuery);
     
-    // If no section filter or 'All Sections', return all matching students
-    if (!section || section === 'All Sections' || !allStudents?.length) {
-      return allStudents?.map(s => ({
-        ...s,
-        full_name: `${s.firstname} ${s.surname}`
-      })) || [];
-    }
-
-    // Normalize section for comparison (trim and make uppercase)
-    const normalizedSection = section.trim().toUpperCase();
-    console.log('Filtering by section:', { original: section, normalized: normalizedSection });
-
-    // Try different section matching strategies
-    const filteredStudents = allStudents.filter(student => {
-      if (!student.section) return false;
-      
-      const studentSection = student.section.trim().toUpperCase();
-      
-      // 1. Try exact match
-      if (studentSection === normalizedSection) return true;
-      
-      // 2. Try without spaces
-      if (studentSection.replace(/\s+/g, '') === normalizedSection.replace(/\s+/g, '')) {
-        return true;
-      }
-      
-      // 3. Try matching just the section number/letter part (e.g., '1D' from 'BPED 1D')
-      const sectionNumber = normalizedSection.match(/\d+[A-Za-z]*/)?.[0];
-      if (sectionNumber && studentSection.includes(sectionNumber)) {
-        return true;
-      }
-      
-      return false;
-    });
-
-    console.log(`Filtered to ${filteredStudents.length} students matching section '${section}'`);
-    
-    // If we found matches with section filter, return them
-    if (filteredStudents.length > 0) {
-      return filteredStudents.map(s => ({
-        ...s,
-        full_name: `${s.firstname} ${s.surname}`
-      }));
-    }
-    
-    // If no matches with section filter, return all students that matched program/year
-    console.log('No students matched section filter, returning all students matching program/year');
-    return allStudents.map(s => ({
+    return allStudents?.map(s => ({
       ...s,
       full_name: `${s.firstname} ${s.surname}`
-    }));
+    })) || [];
   } catch (error) {
     console.error('Error fetching students:', error);
     throw error;
@@ -255,7 +208,7 @@ export const fetchSessionStudents = async (sessionId: number): Promise<SessionWi
   const isAllValue = (value?: string) => {
     if (!value) return true;
     const lowerValue = value.toLowerCase().trim();
-    return lowerValue.includes('all') || lowerValue === '' || lowerValue === 'all programs' || lowerValue === 'all year levels' || lowerValue === 'all sections';
+    return lowerValue.includes('all') || lowerValue === '' || lowerValue === 'all programs' || lowerValue === 'all year levels';
   };
 
   // Helper function to fetch all students with pagination
@@ -281,8 +234,6 @@ export const fetchSessionStudents = async (sessionId: number): Promise<SessionWi
     return allStudents;
   };
 
-  // Get the section value - check all possible field names
-  const sectionValue = sessionData.section || sessionData.session_section;
 
   let allStudents: Student[] = [];
   
@@ -312,11 +263,6 @@ export const fetchSessionStudents = async (sessionId: number): Promise<SessionWi
       baseQuery = baseQuery.eq('year', yearValue);
     }
     
-    // Apply section filter if specified and not "all"
-    if (sectionValue && !isAllValue(sectionValue)) {
-      const sectionFilter = sectionValue.trim();
-      baseQuery = baseQuery.eq('section', sectionFilter);
-    }
     
     // Execute the query with pagination
     allStudents = await fetchAllStudents(baseQuery);
@@ -360,7 +306,6 @@ export const fetchSessionStudents = async (sessionId: number): Promise<SessionWi
     time_out: sessionData.time_out || null,
     program: sessionData.program,
     year: sessionData.year,
-    section: sessionData.section,
     description: sessionData.description || '',
     type: sessionData.type || 'class',
     status: sessionData.status || 'not completed' // Include status field

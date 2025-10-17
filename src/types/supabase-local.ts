@@ -10,7 +10,6 @@ export interface LocalSession {
   created_by_user_id?: string;
   program: string;
   year: string;
-  section: string;
   description?: string;
   capacity: string | number;
   date: string;
@@ -26,7 +25,6 @@ export interface LocalStudent {
   middlename?: string;
   program: string;
   year: string;
-  section: string;
   sex?: string;
   created_at?: string;
   updated_at?: string;

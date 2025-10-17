@@ -46,7 +46,7 @@ interface StudentSelectionModalProps {
     
     // Local format function for modal display with full details
     const formatStudentDisplay = (student: Student): string => {
-      return `${student.firstname} ${student.surname}\n${student.student_id} ${student.program} ${student.year} ${student.section}`;
+      return `${student.firstname} ${student.surname}\n${student.student_id} ${student.program} ${student.year}`;
     };
     
     const [internalOpen, setInternalOpen] = useState(false);

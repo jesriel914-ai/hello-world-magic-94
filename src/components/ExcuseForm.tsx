@@ -66,7 +66,7 @@ export default function ExcuseForm({ initialData, onSuccess, onCancel, markAsCha
     try {
       const { data: sessionsData, error } = await supabase
         .from('sessions')
-        .select('id, title, type, date, time_in, time_out, program, year, section, status')
+        .select('id, title, type, date, time_in, time_out, program, year, status')
         .eq('status', 'completed')
         .order('date', { ascending: false });
 
@@ -116,7 +116,6 @@ export default function ExcuseForm({ initialData, onSuccess, onCancel, markAsCha
             surname,
             program,
             year,
-            section
           )
         `)
         .eq('session_id', sessionId)
@@ -134,7 +133,6 @@ export default function ExcuseForm({ initialData, onSuccess, onCancel, markAsCha
           full_name: `${record.students.firstname} ${record.students.surname}`,
           program: record.students.program,
           year: record.students.year,
-          section: record.students.section
         }));
 
       setAbsentStudents(studentsData);
@@ -149,7 +147,7 @@ export default function ExcuseForm({ initialData, onSuccess, onCancel, markAsCha
   const loadSessionById = async (sessionId: number) => {
     const { data, error } = await supabase
       .from('sessions')
-      .select('id, title, type, date, time_in, time_out, program, year, section')
+      .select('id, title, type, date, time_in, time_out, program, year')
       .eq('id', sessionId)
       .single();
     if (data) setSelectedSession(data);
@@ -158,7 +156,7 @@ export default function ExcuseForm({ initialData, onSuccess, onCancel, markAsCha
   const loadStudentById = async (studentId: number) => {
     const { data, error } = await supabase
       .from('students')
-      .select('id, firstname, surname, student_id, program, year, section')
+      .select('id, firstname, surname, student_id, program, year')
       .eq('id', studentId)
       .single();
     if (data) setSelectedStudent(data);
@@ -286,12 +284,6 @@ export default function ExcuseForm({ initialData, onSuccess, onCancel, markAsCha
                 <Label className="text-sm">Year</Label>
                 <div className="h-9 px-3 py-2 text-sm bg-gray-100 rounded-md border border-input flex items-center">
                   {selectedStudent?.year || '-'}
-                </div>
-              </div>
-              <div className="space-y-1.5">
-                <Label className="text-sm">Section</Label>
-                <div className="h-9 px-3 py-2 text-sm bg-gray-100 rounded-md border border-input flex items-center">
-                  {selectedStudent?.section || '-'}
                 </div>
               </div>
             </div>
@@ -454,7 +446,6 @@ export default function ExcuseForm({ initialData, onSuccess, onCancel, markAsCha
                         <th className="px-2 py-1 text-left font-semibold uppercase">Name</th>
                         <th className="px-2 py-1 text-left font-semibold uppercase">Program</th>
                         <th className="px-2 py-1 text-left font-semibold uppercase">Year</th>
-                        <th className="px-2 py-1 text-left font-semibold uppercase">Section</th>
                         <th className="px-2 py-1 text-right font-semibold uppercase"></th>
                       </tr>
                     </thead>
@@ -484,7 +475,6 @@ export default function ExcuseForm({ initialData, onSuccess, onCancel, markAsCha
                             <td className="px-2 py-1 whitespace-nowrap">{student.full_name}</td>
                             <td className="px-2 py-1 whitespace-nowrap">{student.program}</td>
                             <td className="px-2 py-1 whitespace-nowrap">{student.year}</td>
-                            <td className="px-2 py-1 whitespace-nowrap">{student.section}</td>
                             <td className="px-2 py-1 whitespace-nowrap text-right">
                               <Button
                                 variant="outline"

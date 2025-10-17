@@ -87,7 +87,6 @@ import type { Session as SessionType } from "@/types";
 type Student = {
   program: string;
   year: string;
-  section: string;
 };
 
 type AttendanceRecord = {
@@ -111,7 +110,6 @@ interface Session extends Omit<SessionType, 'time_in' | 'time_out'> {
   absent?: number;
   program: string;
   year: string;
-  section: string;
   status: 'not completed' | 'completed';
   date: string;
 }
@@ -352,20 +350,19 @@ const Schedule = () => {
         return;
       }
       
-      // 2. Get unique program, year, section combinations to minimize queries
+      // 2. Get unique program, year combinations to minimize queries
       const uniqueCombinations = new Set<string>();
       
       // Process each session to create unique combinations
       sessions.forEach(session => {
         const program = session.program || 'All Programs';
         const year = session.year || 'All Year Levels';
-        const section = session.section || 'All Sections';
-        uniqueCombinations.add(`${program}::${year}::${section}`);
+        uniqueCombinations.add(`${program}::${year}`);
       });
       
       // 3. Fetch student counts for each unique combination in a single batch
       const studentCountPromises = Array.from(uniqueCombinations).map(async (combo) => {
-        const [program, year, section] = combo.split('::');
+        const [program, year] = combo.split('::');
         
         let query = supabase
           .from('students')
@@ -388,12 +385,9 @@ const Schedule = () => {
             query = query.eq('year', yearValue);
           }
         }
-        if (section && !section.toLowerCase().includes('all')) {
-          query = query.eq('section', section);
-        }
         
         const { count } = await query;
-        return { program, year, section, count: count || 0 };
+        return { program, year, count: count || 0 };
       });
       
       // 4. Wait for all student count queries to complete
@@ -401,8 +395,8 @@ const Schedule = () => {
       
       // 5. Create a map for quick lookup of student counts
       const studentCountMap = new Map();
-      studentCounts.forEach(({ program, year, section, count }) => {
-        studentCountMap.set(`${program}::${year}::${section}`, count);
+      studentCounts.forEach(({ program, year, count }) => {
+        studentCountMap.set(`${program}::${year}`, count);
       });
       
       // 6. Fetch attendance counts per session and format
@@ -422,8 +416,7 @@ const Schedule = () => {
       const formattedSessions = sessions.map(session => {
         const program = session.program || 'All Programs';
         const year = session.year || 'All Year Levels';
-        const section = session.section || 'All Sections';
-        const sessionKey = `${program}::${year}::${section}`;
+        const sessionKey = `${program}::${year}`;
         const studentCount = studentCountMap.get(sessionKey) || 0;
         const att = attendanceMap.get(session.id) || { present: 0, absent: 0 };
         
@@ -441,7 +434,6 @@ const Schedule = () => {
           absent: att.absent,
           program: session.program || 'General',
           year: session.year || 'All Year Levels',
-          section: session.section || 'All Sections',
           status: session.status || 'not completed',
           date: session.date,
           created_at: session.created_at || new Date().toISOString(),
@@ -535,12 +527,12 @@ const Schedule = () => {
         // Recalculate student counts for cached sessions
         const uniqueCombinations = new Set(
           cached.sessions
-            .filter(s => s.program && s.year && s.section)
-            .map(s => `${s.program}::${s.year}::${s.section}`)
+        .filter(s => s.program && s.year)
+        .map(s => `${s.program}::${s.year}`)
         );
         
         const studentCountPromises = Array.from(uniqueCombinations).map(async (combo) => {
-          const [program, year, section] = combo.split('::');
+          const [program, year] = combo.split('::');
           
           let query = supabase
             .from('students')
@@ -560,21 +552,18 @@ const Schedule = () => {
               query = query.eq('year', yearValue);
             }
           }
-          if (section && !section.toLowerCase().includes('all')) {
-            query = query.eq('section', section);
-          }
           
           const { count } = await query;
-          return { program, year, section, count: count || 0 };
+          return { program, year, count: count || 0 };
         });
         
         const studentCounts = await Promise.all(studentCountPromises);
-        studentCounts.forEach(({ program, year, section, count }) => {
-          studentCountMap.set(`${program}::${year}::${section}`, count);
+        studentCounts.forEach(({ program, year, count }) => {
+          studentCountMap.set(`${program}::${year}`, count);
         });
         
         const formattedSessions = cached.sessions.map(session => {
-          const sessionKey = `${session.program || 'all'}::${session.year || 'all'}::${session.section || 'all'}`;
+          const sessionKey = `${session.program || 'all'}::${session.year || 'all'}`;
           const studentCount = studentCountMap.get(sessionKey) || 0;
           const attendance = cached.attendanceMap.get(session.id) || { present: 0, absent: 0 };
           
@@ -592,7 +581,6 @@ const Schedule = () => {
             absent: attendance.absent,
             program: session.program || 'General',
             year: session.year || 'All Year Levels',
-            section: session.section || 'All Sections',
             status: session.status || 'not completed',
             date: session.date,
             created_at: session.created_at || new Date().toISOString(),
@@ -642,16 +630,16 @@ const Schedule = () => {
         timestamp: Date.now()
       });
       
-      // Get unique program, year, section combinations to minimize queries
+      // Get unique program, year combinations to minimize queries
       const uniqueCombinations = new Set(
         sessions
-          .filter(s => s.program && s.year && s.section)
-          .map(s => `${s.program}::${s.year}::${s.section}`)
+        .filter(s => s.program && s.year)
+        .map(s => `${s.program}::${s.year}`)
       );
       
       // Fetch student counts for each unique combination in a single batch
       const studentCountPromises = Array.from(uniqueCombinations).map(async (combo) => {
-        const [program, year, section] = combo.split('::');
+        const [program, year] = combo.split('::');
         
         let query = supabase
           .from('students')
@@ -673,12 +661,9 @@ const Schedule = () => {
             query = query.eq('year', yearValue);
           }
         }
-        if (section && !section.toLowerCase().includes('all')) {
-          query = query.eq('section', section);
-        }
         
         const { count } = await query;
-        return { program, year, section, count: count || 0 };
+        return { program, year, count: count || 0 };
       });
       
       // Wait for all student count queries to complete
@@ -686,13 +671,13 @@ const Schedule = () => {
       
       // Create a map for quick lookup of student counts
       const studentCountMap = new Map();
-      studentCounts.forEach(({ program, year, section, count }) => {
-        studentCountMap.set(`${program}::${year}::${section}`, count);
+      studentCounts.forEach(({ program, year, count }) => {
+        studentCountMap.set(`${program}::${year}`, count);
       });
       
       // Format sessions with student counts and attendance counts
       const formattedSessions = sessions.map(session => {
-        const sessionKey = `${session.program || 'all'}::${session.year || 'all'}::${session.section || 'all'}`;
+        const sessionKey = `${session.program || 'all'}::${session.year || 'all'}`;
         const studentCount = studentCountMap.get(sessionKey) || 0;
         const attendance = attendanceMap.get(session.id) || { present: 0, absent: 0 };
         
@@ -710,7 +695,6 @@ const Schedule = () => {
           absent: attendance.absent,
           program: session.program || 'General',
           year: session.year || 'All Year Levels',
-          section: session.section || 'All Sections',
           status: session.status || 'not completed',
           date: session.date,
           created_at: session.created_at || new Date().toISOString(),
@@ -983,7 +967,6 @@ const Schedule = () => {
       students: 0,
       program: data.program || 'General',
       year: data.year || 'All Year Levels',
-      section: data.section || 'All Sections',
       status: 'not completed',
       date: sessionDate,
       created_at: new Date().toISOString(),
@@ -1010,7 +993,6 @@ const Schedule = () => {
         time_out: sessionData.timeOut,
         program: sessionData.program || 'General',
         year: sessionData.year || 'All Year Levels',
-        section: sessionData.section || 'All Sections',
         status: 'not completed',
         date: formattedDate
       };
@@ -1046,9 +1028,6 @@ const Schedule = () => {
               countQuery = countQuery.eq('year', yearValue);
             }
             
-            if (sessionForSupabase.section && !sessionForSupabase.section.toLowerCase().includes('all')) {
-              countQuery = countQuery.eq('section', sessionForSupabase.section.trim());
-            }
             
             const { count } = await countQuery;
             studentCount = count || 0;
@@ -1106,9 +1085,6 @@ const Schedule = () => {
               countQuery = countQuery.eq('year', yearValue);
             }
             
-            if (sessionForSupabase.section && !sessionForSupabase.section.toLowerCase().includes('all')) {
-              countQuery = countQuery.eq('section', sessionForSupabase.section.trim());
-            }
             
             const { count } = await countQuery;
             studentCount = count || 0;
@@ -1227,7 +1203,6 @@ const Schedule = () => {
         program: session.program || '',
         // Ensure we handle the year properly
         year: session.year || 'All Year Levels',
-        section: session.section || '',
         date: session.date,
         timeIn,
         timeOut,
@@ -1319,7 +1294,7 @@ const Schedule = () => {
   }, []);
 
   // No need for a full page loading state anymore
-  // The loading indicator is now shown in the sessions list section
+  // The loading indicator is now shown in the sessions list
 
   // Handle error state
   if (error) {

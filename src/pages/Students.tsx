@@ -20,7 +20,6 @@ interface Student {
   surname: string;
   program: string;
   year: string;
-  section: string;
   sex?: string;
   status?: string;
 }
@@ -60,7 +59,7 @@ const Students = () => {
   const [uniqueYears, setUniqueYears] = useState<string[]>([]);
 
   // Sorting state
-  type StudentSortKey = 'name' | 'student_id' | 'program' | 'year' | 'section' | 'sex';
+  type StudentSortKey = 'name' | 'student_id' | 'program' | 'year' | 'sex';
   const [sortKey, setSortKey] = useState<StudentSortKey>('name');
   const [sortDir, setSortDir] = useState<'asc' | 'desc'>('asc');
 
@@ -358,8 +357,6 @@ const Students = () => {
           const ya = (a.year || '').toString();
           const yb = (b.year || '').toString();
           return ya.localeCompare(yb) * dir;
-        case 'section':
-          return (a.section || '').localeCompare(b.section || '') * dir;
         case 'sex':
           return (a.sex || '').localeCompare(b.sex || '') * dir;
         default:
@@ -562,14 +559,6 @@ const Students = () => {
                   </th>
                   <th scope="col" className="px-3 py-2 text-left font-semibold uppercase">
                     <div className="flex items-center gap-1">
-                      Section
-                      <button type="button" onClick={() => handleSort('section')} className="p-0.5 text-gray-500 hover:text-black">
-                        {sortKey === 'section' ? (
-                          sortDir === 'asc' ? <ChevronsUp className="w-3.5 h-3.5 text-black" /> : <ChevronsDown className="w-3.5 h-3.5 text-black" />
-                        ) : (
-                          <ChevronsUp className="w-3.5 h-3.5 opacity-40 text-black" />
-                        )}
-                      </button>
                     </div>
                   </th>
                   <th scope="col" className="px-3 py-2 text-left font-semibold uppercase">
@@ -624,9 +613,6 @@ const Students = () => {
                         </td>
                         <td className="px-3 py-1 whitespace-nowrap">
                           {student.year}
-                        </td>
-                        <td className="px-3 py-1 whitespace-nowrap">
-                          {student.section || 'N/A'}
                         </td>
                         <td className="px-3 py-1 whitespace-nowrap">
                           {student.sex || 'N/A'}

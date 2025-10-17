@@ -71,7 +71,6 @@ type ExcuseApplication = {
     student_id: string;
     program: string;
     year: string;
-    section: string;
   };
   sessions?: {
     id: number;
@@ -155,7 +154,6 @@ const ExcuseApplicationContent = () => {
             student_id,
             program,
             year,
-            section
           ),
           sessions!session_id (
             id,
@@ -697,12 +695,6 @@ const ExcuseApplicationContent = () => {
                         <Label className="text-sm">Year</Label>
                         <div className="h-9 px-3 py-2 text-sm bg-gray-100 rounded-md border border-input flex items-center">
                           {selectedExcuse.students?.year || 'N/A'}
-                        </div>
-                      </div>
-                      <div className="space-y-1.5">
-                        <Label className="text-sm">Section</Label>
-                        <div className="h-9 px-3 py-2 text-sm bg-gray-100 rounded-md border border-input flex items-center">
-                          {selectedExcuse.students?.section || 'N/A'}
                         </div>
                       </div>
                     </div>

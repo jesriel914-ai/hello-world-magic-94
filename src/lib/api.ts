@@ -23,7 +23,6 @@ export interface Session {
   students: number;
   program: string;
   year: string;
-  section: string;
   description: string;
   capacity: string;
   date: string;

@@ -8,7 +8,6 @@ const headers = [
   'student_id',
   'program',
   'year',
-  'section',
   'sex'
 ];
 
@@ -27,7 +26,6 @@ const exampleData = [
     student_id: '2023-001',
     program: 'Computer Science',
     year: '1st',
-    section: 'BSCS 1A',
     sex: 'Male'
   },
   {
@@ -37,7 +35,6 @@ const exampleData = [
     student_id: '2023-002',
     program: 'Information Technology',
     year: '2nd',
-    section: 'BSIT 2B',
     sex: 'Female'
   }
 ];

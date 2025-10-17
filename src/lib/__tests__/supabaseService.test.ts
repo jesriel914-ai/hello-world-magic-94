@@ -84,7 +84,6 @@ describe('supabaseService', () => {
         instructor: 'John Doe',
         program: 'Computer Science',
         year: '2023',
-        section: 'A',
         description: 'Test session',
         capacity: '30',
         date: '2023-01-01',
@@ -107,8 +106,8 @@ describe('supabaseService', () => {
   describe('fetchStudents', () => {
     it('should fetch students with filters', async () => {
       const mockStudents = [
-        { id: 1, firstname: 'John', surname: 'Doe', program: 'CS', year: '2023', section: 'A' },
-        { id: 2, firstname: 'Jane', surname: 'Smith', program: 'CS', year: '2023', section: 'A' },
+        { id: 1, firstname: 'John', surname: 'Doe', program: 'CS', year: '2023' },
+        { id: 2, firstname: 'Jane', surname: 'Smith', program: 'CS', year: '2023' },
       ];
       
       (mockSupabase.from('students').select as jest.Mock).mockResolvedValueOnce({
@@ -122,7 +121,6 @@ describe('supabaseService', () => {
       expect(mockSupabase.from('students').select).toHaveBeenCalledWith('*');
       expect(mockSupabase.from('students').eq).toHaveBeenCalledWith('program', 'CS');
       expect(mockSupabase.from('students').eq).toHaveBeenCalledWith('year', '2023');
-      expect(mockSupabase.from('students').eq).toHaveBeenCalledWith('section', 'A');
       expect(result).toEqual([
         { ...mockStudents[0], full_name: 'John Doe' },
         { ...mockStudents[1], full_name: 'Jane Smith' },
@@ -212,7 +210,6 @@ describe('supabaseService', () => {
         title: 'Test Session',
         program: 'Computer Science',
         year: '1st',
-        section: 'A',
         date: '2023-01-01',
         time_in: '10:00',
         time_out: '11:00',
@@ -221,8 +218,8 @@ describe('supabaseService', () => {
       };
 
       const mockStudents = [
-        { id: 1, firstname: 'John', surname: 'Doe', program: 'Computer Science', year: '1st', section: 'A' },
-        { id: 2, firstname: 'Jane', surname: 'Smith', program: 'Computer Science', year: '1st', section: 'A' }
+        { id: 1, firstname: 'John', surname: 'Doe', program: 'Computer Science', year: '1st' },
+        { id: 2, firstname: 'Jane', surname: 'Smith', program: 'Computer Science', year: '1st' }
       ];
 
       // Mock session fetch
@@ -262,7 +259,6 @@ describe('supabaseService', () => {
         title: 'Test Session',
         program: 'All Programs',
         year: '1st',
-        section: 'A',
         date: '2023-01-01',
         time_in: '10:00',
         time_out: '11:00',
@@ -271,8 +267,8 @@ describe('supabaseService', () => {
       };
 
       const mockStudents = [
-        { id: 1, firstname: 'John', surname: 'Doe', program: 'Computer Science', year: '1st', section: 'A' },
-        { id: 2, firstname: 'Jane', surname: 'Smith', program: 'Engineering', year: '1st', section: 'A' }
+        { id: 1, firstname: 'John', surname: 'Doe', program: 'Computer Science', year: '1st' },
+        { id: 2, firstname: 'Jane', surname: 'Smith', program: 'Engineering', year: '1st' }
       ];
 
       // Mock session fetch
@@ -312,7 +308,6 @@ describe('supabaseService', () => {
         title: 'Test Session',
         program: 'Computer Science',
         year: 'All Year Levels',
-        section: 'A',
         date: '2023-01-01',
         time_in: '10:00',
         time_out: '11:00',
@@ -321,8 +316,8 @@ describe('supabaseService', () => {
       };
 
       const mockStudents = [
-        { id: 1, firstname: 'John', surname: 'Doe', program: 'Computer Science', year: '1st', section: 'A' },
-        { id: 2, firstname: 'Jane', surname: 'Smith', program: 'Computer Science', year: '2nd', section: 'A' }
+        { id: 1, firstname: 'John', surname: 'Doe', program: 'Computer Science', year: '1st' },
+        { id: 2, firstname: 'Jane', surname: 'Smith', program: 'Computer Science', year: '2nd' }
       ];
 
       // Mock session fetch
@@ -356,13 +351,12 @@ describe('supabaseService', () => {
       expect(result.count).toBe(2);
     });
 
-    it('should handle "All Sections" selection correctly', async () => {
+    it('should handle session selection correctly', async () => {
       const mockSession = {
         id: 1,
         title: 'Test Session',
         program: 'Computer Science',
         year: '1st',
-        section: 'All Sections',
         date: '2023-01-01',
         time_in: '10:00',
         time_out: '11:00',
@@ -371,8 +365,8 @@ describe('supabaseService', () => {
       };
 
       const mockStudents = [
-        { id: 1, firstname: 'John', surname: 'Doe', program: 'Computer Science', year: '1st', section: 'A' },
-        { id: 2, firstname: 'Jane', surname: 'Smith', program: 'Computer Science', year: '1st', section: 'B' }
+        { id: 1, firstname: 'John', surname: 'Doe', program: 'Computer Science', year: '1st' },
+        { id: 2, firstname: 'Jane', surname: 'Smith', program: 'Computer Science', year: '1st' }
       ];
 
       // Mock session fetch
@@ -381,13 +375,13 @@ describe('supabaseService', () => {
         error: null,
       });
 
-      // Mock student count (should not filter by section)
+      // Mock student count
       (mockSupabase.from('students').select as jest.Mock).mockResolvedValueOnce({
         count: 2,
         error: null,
       });
 
-      // Mock student fetch (should not filter by section)
+      // Mock student fetch
       (mockSupabase.from('students').select as jest.Mock).mockResolvedValueOnce({
         data: mockStudents,
         error: null,

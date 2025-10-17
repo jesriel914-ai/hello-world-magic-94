@@ -430,7 +430,6 @@ export type Database = {
           description: string | null
           id: number
           program: string
-          section: string
           time_in: string | null
           time_out: string | null
           title: string
@@ -446,7 +445,6 @@ export type Database = {
           description?: string | null
           id?: number
           program: string
-          section: string
           time_in?: string | null
           time_out?: string | null
           title: string
@@ -462,7 +460,6 @@ export type Database = {
           description?: string | null
           id?: number
           program?: string
-          section?: string
           time_in?: string | null
           time_out?: string | null
           title?: string
@@ -517,7 +514,6 @@ export type Database = {
           id: number
           middlename: string | null
           program: string
-          section: string
           sex: string | null
           student_id: string
           surname: string
@@ -530,7 +526,6 @@ export type Database = {
           id?: number
           middlename?: string | null
           program: string
-          section: string
           sex?: string | null
           student_id: string
           surname: string
@@ -543,7 +538,6 @@ export type Database = {
           id?: number
           middlename?: string | null
           program?: string
-          section?: string
           sex?: string | null
           student_id?: string
           surname?: string

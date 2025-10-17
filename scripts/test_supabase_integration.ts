@@ -30,7 +30,6 @@ const testSession = {
   capacity: 30,
   program: 'CS',
   year: '2023',
-  section: 'A',
   description: 'Test session description',
 };
 
@@ -40,7 +39,6 @@ const testStudent = {
   surname: 'Doe',
   program: 'CS',
   year: '2023',
-  section: 'A',
 };
 
 async function runTests() {

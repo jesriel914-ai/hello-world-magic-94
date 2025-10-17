@@ -13,7 +13,6 @@ interface SessionResponse {
   title: string;
   program: string;
   year: string;
-  section: string;
   date: string;
   time: string;
   description: string;
@@ -25,7 +24,6 @@ interface Session {
   title: string;
   program: string;
   year: string;
-  section: string;
   date: string;
   time_in: string;
   time_out: string;
@@ -83,7 +81,6 @@ export default function SessionStudents({ sessionId, onClose, onSessionUpdated }
           title: sessionData.title,
           program: sessionData.program,
           year: sessionData.year,
-          section: sessionData.section,
           date: sessionData.date,
           time_in: sessionData.time_in || '',
           time_out: sessionData.time_out || '',
@@ -316,17 +313,6 @@ export default function SessionStudents({ sessionId, onClose, onSessionUpdated }
               </div>
             </div>
 
-            {/* Section */}
-            <div className="space-y-1.5">
-              <Label className="text-sm">Section</Label>
-              <div className="h-9 px-3 py-2 text-sm bg-gray-100 rounded-md border border-input flex items-center">
-                {loading && !session ? (
-                  <Loader2 className="h-4 w-4 animate-spin text-gray-400" />
-                ) : (
-                  session?.section || ''
-                )}
-              </div>
-            </div>
 
             {/* Date */}
             <div className="space-y-1.5">
@@ -405,7 +391,6 @@ export default function SessionStudents({ sessionId, onClose, onSessionUpdated }
                       <th scope="col" className="px-3 py-1.5 text-left font-semibold">Student ID</th>
                       <th scope="col" className="px-3 py-1.5 text-left font-semibold">Program</th>
                       <th scope="col" className="px-3 py-1.5 text-left font-semibold">Year</th>
-                      <th scope="col" className="px-3 py-1.5 text-left font-semibold">Section</th>
                       <th scope="col" className="px-3 py-1.5 text-left font-semibold">Status</th>
                     </tr>
                   </thead>
@@ -434,7 +419,6 @@ export default function SessionStudents({ sessionId, onClose, onSessionUpdated }
                             <td className="px-3 py-1.5 text-xs text-gray-600">{student.student_id}</td>
                             <td className="px-3 py-1.5 text-xs text-gray-600">{student.program}</td>
                             <td className="px-3 py-1.5 text-xs text-gray-600">{student.year}</td>
-                            <td className="px-3 py-1.5 text-xs text-gray-600">{student.section}</td>
                             <td className="px-3 py-1.5 text-xs">
                               {attendance ? (
                                 attendance.status === 'present' ? (

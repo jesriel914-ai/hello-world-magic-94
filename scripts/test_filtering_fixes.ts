@@ -5,7 +5,7 @@ import { supabase } from '../src/lib/supabase';
 const isAllValue = (value?: string) => {
   if (!value) return true;
   const lowerValue = value.toLowerCase().trim();
-  return lowerValue.includes('all') || lowerValue === '' || lowerValue === 'all programs' || lowerValue === 'all year levels' || lowerValue === 'all sections';
+  return lowerValue.includes('all') || lowerValue === '' || lowerValue === 'all programs' || lowerValue === 'all year levels';
 };
 
 // Test function to validate student count calculation
@@ -15,31 +15,27 @@ async function testStudentCountCalculation() {
   // Test cases
   const testCases = [
     {
-      name: 'Specific Program, Year, and Section',
+      name: 'Specific Program and Year',
       program: 'Computer Science',
       year: '1st',
-      section: 'A',
-      expectedBehavior: 'Should only show students from Computer Science, 1st year, section A'
+      expectedBehavior: 'Should only show students from Computer Science, 1st year'
     },
     {
-      name: 'All Programs, Specific Year, Specific Section',
+      name: 'All Programs, Specific Year',
       program: 'All Programs',
       year: '1st',
-      section: 'A',
-      expectedBehavior: 'Should show all students from 1st year, section A across all programs'
+      expectedBehavior: 'Should show all students from 1st year across all programs'
     },
     {
-      name: 'Specific Program, All Year Levels, Specific Section',
+      name: 'Specific Program, All Year Levels',
       program: 'Computer Science',
       year: 'All Year Levels',
-      section: 'A',
-      expectedBehavior: 'Should show all students from Computer Science, section A across all years'
+      expectedBehavior: 'Should show all students from Computer Science across all years'
     },
     {
-      name: 'All Programs, All Year Levels, All Sections',
+      name: 'All Programs, All Year Levels',
       program: 'All Programs',
       year: 'All Year Levels',
-      section: 'All Sections',
       expectedBehavior: 'Should show all students'
     }
   ];
@@ -73,12 +69,6 @@ async function testStudentCountCalculation() {
         console.log('No year filter applied (All Year Levels)');
       }
       
-      if (testCase.section && !isAllValue(testCase.section)) {
-        countQuery = countQuery.eq('section', testCase.section.trim());
-        console.log(`Applied section filter: ${testCase.section}`);
-      } else {
-        console.log('No section filter applied (All Sections)');
-      }
       
       const { count, error } = await countQuery;
       
@@ -102,25 +92,21 @@ function testSessionKeyFormat() {
     {
       program: 'Computer Science',
       year: '1st Year',
-      section: 'A'
     },
     {
       program: 'All Programs',
       year: '1st',
-      section: 'A'
     },
     {
       program: 'Computer Science',
       year: 'All Year Levels',
-      section: 'All Sections'
     }
   ];
 
   for (const session of testSessions) {
     const program = session.program || 'All Programs';
     const year = session.year || 'All Year Levels';
-    const section = session.section || 'All Sections';
-    const sessionKey = `${program}::${year}::${section}`;
+    const sessionKey = `${program}::${year}`;
     
     console.log(`Session: ${JSON.stringify(session)}`);
     console.log(`Generated key: ${sessionKey}`);

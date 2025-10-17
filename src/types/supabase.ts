@@ -56,7 +56,6 @@ export interface Database {
           capacity: number;
           program: string;
           year: string;
-          section: string;
         };
         Insert: {
           id?: number;
@@ -72,7 +71,6 @@ export interface Database {
           capacity: number;
           program: string;
           year: string;
-          section: string;
         };
         Update: {
           id?: number;
@@ -88,7 +86,6 @@ export interface Database {
           capacity?: number;
           program?: string;
           year?: string;
-          section?: string;
         };
       };
       students: {
@@ -101,7 +98,6 @@ export interface Database {
           surname: string;
           program: string;
           year: string;
-          section: string;
           signature_url: string | null;
         };
         Insert: {
@@ -113,7 +109,6 @@ export interface Database {
           surname: string;
           program: string;
           year: string;
-          section: string;
           signature_url?: string | null;
         };
         Update: {
@@ -125,7 +120,6 @@ export interface Database {
           surname?: string;
           program?: string;
           year?: string;
-          section?: string;
           signature_url?: string | null;
         };
       };

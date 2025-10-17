@@ -64,7 +64,6 @@ type Session = {
   capacity: number;
   program: string;
   year: string;
-  section: string;
   enrolled_students?: Array<{
     id: string;
     name: string;
@@ -204,7 +203,6 @@ const TakeAttendanceContent: React.FC = () => {
         capacity: parseInt(session.capacity) || 0,
         program: session.program || '',
         year: session.year || '',
-        section: session.section || ''
       }));
       
       // Store in cache
@@ -434,7 +432,7 @@ const SessionCard: React.FC<SessionCardProps> = ({ session, onStartAttendance })
           <CardTitle className="text-base">{session.title}</CardTitle>
         </div>
         <div className="text-xs text-muted-foreground mt-1">
-          {session.program} • {session.year} {session.section && `• ${session.section}`}
+          {session.program} • {session.year}
         </div>
       </CardHeader>
       <CardContent className="p-4 pt-0">

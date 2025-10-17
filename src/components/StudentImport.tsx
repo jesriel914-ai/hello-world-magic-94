@@ -13,7 +13,6 @@ interface StudentImportData {
   student_id: string;
   program: string;
   year: string;
-  section: string;
   sex: string;
   [key: string]: string;
 }
@@ -40,8 +39,7 @@ const StudentImport: React.FC<StudentImportProps> = ({ onImportComplete, onImpor
     'firstname',
     'student_id',
     'program',
-    'year',
-    'section'
+    'year'
   ];
 
   type StudentRecord = Record<string, string | number | null | undefined>;
@@ -228,7 +226,6 @@ data = result.data as StudentRecord[];
       'student_id',
       'program',
       'year',
-      'section',
       'sex'
     ];
 
@@ -246,7 +243,6 @@ data = result.data as StudentRecord[];
         student_id: '2023-001',
         program: 'Computer Science',
         year: '1st',
-        section: 'BSCS 1A',
         sex: 'Male'
       },
       {
@@ -255,7 +251,6 @@ data = result.data as StudentRecord[];
         student_id: '2023-002',
         program: 'Information Technology',
         year: '2nd',
-        section: 'BSIT 2B',
         sex: 'Female'
       }
     ];
@@ -462,7 +457,6 @@ data = result.data as StudentRecord[];
                           <th className="px-3 py-2 text-left font-semibold text-gray-700">Name</th>
                           <th className="px-3 py-2 text-left font-semibold text-gray-700">Program</th>
                           <th className="px-3 py-2 text-left font-semibold text-gray-700">Year</th>
-                          <th className="px-3 py-2 text-left font-semibold text-gray-700">Section</th>
                         </tr>
                       </thead>
                       <tbody>
@@ -485,7 +479,6 @@ data = result.data as StudentRecord[];
                               <td className="px-3 py-1.5 text-gray-600">{`${student.surname}, ${student.firstname}`}</td>
                               <td className="px-3 py-1.5 text-gray-600">{student.program}</td>
                               <td className="px-3 py-1.5 text-gray-600">{student.year}</td>
-                              <td className="px-3 py-1.5 text-gray-600">{student.section}</td>
                             </tr>
                           ))
                         )}

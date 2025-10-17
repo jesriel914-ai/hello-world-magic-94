@@ -38,7 +38,6 @@ type Session = {
   description: string;
   program: string;
   year: string;
-  section: string;
   date: string;
   time_in: string;
   time_out: string;
@@ -1314,7 +1313,7 @@ const TakeAttendanceSession = () => {
                           <span className="text-gray-500">Program:</span> <span className="font-medium text-gray-900">{session.program}</span>
                         </p>
                         <p className="text-sm">
-                          <span className="text-gray-500">Year{session.section && ' & Section'}:</span> <span className="font-medium text-gray-900">{session.year}{session.section && ` - ${session.section}`}</span>
+                          <span className="text-gray-500">Year:</span> <span className="font-medium text-gray-900">{session.year}</span>
                         </p>
                         <p className="text-sm">
                           <span className="text-gray-500">Date:</span> <span className="font-medium text-gray-900">

@@ -144,7 +144,7 @@ const Dashboard = () => {
       // Fetch 5 latest COMPLETED sessions ordered by updated_at (when they were marked completed)
       const { data: sessions, error } = await supabase
         .from('sessions')
-        .select('id, title, type, date, time_in, time_out, program, year, section, status')
+        .select('id, title, type, date, time_in, time_out, program, year, status')
         .eq('status', 'completed')
         .order('updated_at', { ascending: false })
         .limit(5);
@@ -173,9 +173,6 @@ const Dashboard = () => {
               countQuery = countQuery.eq('year', yearValue);
             }
             
-            if (session.section && !session.section.toLowerCase().includes('all')) {
-              countQuery = countQuery.eq('section', session.section);
-            }
             
             const { count } = await countQuery;
             studentCount = count || 0;

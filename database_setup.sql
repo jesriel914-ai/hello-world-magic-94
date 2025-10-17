@@ -165,7 +165,6 @@ create table public.sessions (
   title text not null,
   program text not null,
   year text not null,
-  section text not null,
   date date not null,
   time_in text null,
   time_out text null,
@@ -195,7 +194,7 @@ create table public.sessions (
   )
 ) TABLESPACE pg_default;
 
-create index IF not exists idx_sessions_program_year_section on public.sessions using btree (program, year, section) TABLESPACE pg_default;
+create index IF not exists idx_sessions_program_year on public.sessions using btree (program, year) TABLESPACE pg_default;
 
 create trigger update_sessions_updated_at BEFORE
 update on sessions for EACH row
@@ -231,7 +230,6 @@ create table public.students (
   surname text not null,
   program text not null,
   year text not null,
-  section text not null,
   sex text null,
   created_at timestamp with time zone null default now(),
   updated_at timestamp with time zone null default now(),
@@ -239,7 +237,7 @@ create table public.students (
   constraint students_student_id_key unique (student_id)
 ) TABLESPACE pg_default;
 
-create index IF not exists idx_students_program_year_section on public.students using btree (program, year, section) TABLESPACE pg_default;
+create index IF not exists idx_students_program_year on public.students using btree (program, year) TABLESPACE pg_default;
 
 create trigger update_students_updated_at BEFORE
 update on students for EACH row

@@ -518,7 +518,7 @@ const BatchUpload: React.FC<BatchUploadProps> = ({
 
                           {folder.isValid && folder.matchedStudent && (
                             <div className="ml-6 text-xs text-gray-600">
-                              Matched: {folder.matchedStudent.program} {folder.matchedStudent.year}-{folder.matchedStudent.section}
+                              Matched: {folder.matchedStudent.program} {folder.matchedStudent.year}
                             </div>
                           )}
                         </div>
