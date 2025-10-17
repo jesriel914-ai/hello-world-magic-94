@@ -4,7 +4,7 @@ Flask API Server for Siamese Signature Training, Verification & Classification
 FIXED: Proper classification database updates after training
 """
 
-from flask import Flask, request, jsonify
+from flask import Flask, request, jsonify, make_response
 from flask_cors import CORS
 import time
 import os
@@ -36,6 +36,25 @@ CORS(app,
          "supports_credentials": False,
          "max_age": 3600
      }})
+
+# Add explicit OPTIONS handler for preflight requests
+@app.before_request
+def handle_preflight():
+    if request.method == "OPTIONS":
+        response = make_response()
+        response.headers.add("Access-Control-Allow-Origin", "*")
+        response.headers.add('Access-Control-Allow-Headers', "Content-Type, Authorization, ngrok-skip-browser-warning")
+        response.headers.add('Access-Control-Allow-Methods', "GET, POST, OPTIONS")
+        response.headers.add('Access-Control-Max-Age', "3600")
+        return response
+
+# Add CORS headers to all responses
+@app.after_request
+def after_request(response):
+    response.headers.add('Access-Control-Allow-Origin', '*')
+    response.headers.add('Access-Control-Allow-Headers', 'Content-Type, Authorization, ngrok-skip-browser-warning')
+    response.headers.add('Access-Control-Allow-Methods', 'GET, POST, OPTIONS')
+    return response
 
 # Initialize all services
 trainer = SiameseSignatureTrainer(base_dir='models')
