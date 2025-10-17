@@ -1,6 +1,6 @@
 """
 google drive filepath: siamese_training/siamese_incremental_trainer.py
-Incremental Learning for Siamese Signature Verification
+Incremental Learning for Siamese Signature Verification - FIXED
 Add new samples WITHOUT retraining from scratch
 """
 
@@ -35,29 +35,25 @@ class SiameseIncrementalTrainer:
         
         print("🔄 Incremental Learning Trainer initialized")
     
-    def add_new_genuine_samples(
+    def check_if_retraining_needed(
         self,
         student_id: str,
-        new_genuine_samples: List[str],
-        update_threshold: bool = True
-    ) -> Dict:
+        new_sample_count: int
+    ) -> Dict[str, any]:
         """
-        Add new GENUINE samples to existing student model
-        WITHOUT retraining the entire model
+        FIXED: Determine if full retraining is recommended instead of incremental update
         
         Args:
             student_id: Student identifier
-            new_genuine_samples: List of image paths for new genuine samples
-            update_threshold: Whether to recalculate verification threshold
+            new_sample_count: Number of new samples to add
         
         Returns:
-            Updated metadata
+            {
+                'needs_retraining': bool,
+                'reason': str,
+                'recommendation': str
+            }
         """
-        print(f"\n{'='*60}")
-        print(f"INCREMENTAL LEARNING: Adding Genuine Samples")
-        print(f"Student: {student_id}")
-        print(f"{'='*60}")
-        
         student_dir = self.base_dir / student_id
         
         if not student_dir.exists():
@@ -115,26 +111,31 @@ class SiameseIncrementalTrainer:
                 'reason': 'Model is suitable for incremental update',
                 'recommendation': 'Proceed with incremental learning'
             }
-
-
-# Standalone testing
-if __name__ == "__main__":
-    trainer = SiameseIncrementalTrainer(base_dir='models')
     
-    # Example: Add new genuine samples
-    student_id = "2025001"
-    new_samples = ["new_signature_1.jpg", "new_signature_2.jpg"]
-    
-    # Check if retraining is needed
-    check = trainer.check_if_retraining_needed(student_id, len(new_samples))
-    print(f"Retraining check: {check}")
-    
-    if not check['needs_retraining']:
-        # Proceed with incremental learning
-        metadata = trainer.add_new_genuine_samples(student_id, new_samples)
-        print(f"Updated metadata: {metadata}")
-    else:
-        print(f"Recommendation: {check['recommendation']}")
+    def add_new_genuine_samples(
+        self,
+        student_id: str,
+        new_genuine_samples: List[str],
+        update_threshold: bool = True
+    ) -> Dict:
+        """
+        Add new GENUINE samples to existing student model
+        WITHOUT retraining the entire model
+        
+        Args:
+            student_id: Student identifier
+            new_genuine_samples: List of image paths for new genuine samples
+            update_threshold: Whether to recalculate verification threshold
+        
+        Returns:
+            Updated metadata
+        """
+        print(f"\n{'='*60}")
+        print(f"INCREMENTAL LEARNING: Adding Genuine Samples")
+        print(f"Student: {student_id}")
+        print(f"{'='*60}")
+        
+        student_dir = self.base_dir / student_id
         
         if not student_dir.exists():
             raise FileNotFoundError(f"No trained model found for {student_id}")
@@ -206,8 +207,7 @@ if __name__ == "__main__":
             print(f"\n✅ Created initial embeddings: {len(merged_embeddings)}")
         
         # Optional: Remove outliers or oldest samples if too many
-        # This prevents the reference set from growing too large
-        max_references = 50  # Configurable
+        max_references = 50
         if len(merged_embeddings) > max_references:
             print(f"\n⚠️  Too many references ({len(merged_embeddings)}), keeping best {max_references}...")
             merged_embeddings = self._select_representative_samples(
@@ -390,24 +390,23 @@ if __name__ == "__main__":
         except Exception as e:
             print(f"⚠️  Failed to calculate threshold: {e}")
             return None
+
+
+# Standalone testing
+if __name__ == "__main__":
+    trainer = SiameseIncrementalTrainer(base_dir='models')
     
-    def check_if_retraining_needed(
-        self,
-        student_id: str,
-        new_sample_count: int
-    ) -> Dict[str, any]:
-        """
-        Determine if full retraining is recommended instead of incremental update
-        
-        Args:
-            student_id: Student identifier
-            new_sample_count: Number of new samples to add
-        
-        Returns:
-            {
-                'needs_retraining': bool,
-                'reason': str,
-                'recommendation': str
-            }
-        """
-        student_dir = self.base_dir / student_
+    # Example: Add new genuine samples
+    student_id = "2025001"
+    new_samples = ["new_signature_1.jpg", "new_signature_2.jpg"]
+    
+    # Check if retraining is needed
+    check = trainer.check_if_retraining_needed(student_id, len(new_samples))
+    print(f"Retraining check: {check}")
+    
+    if not check['needs_retraining']:
+        # Proceed with incremental learning
+        metadata = trainer.add_new_genuine_samples(student_id, new_samples)
+        print(f"Updated metadata: {metadata}")
+    else:
+        print(f"Recommendation: {check['recommendation']}")

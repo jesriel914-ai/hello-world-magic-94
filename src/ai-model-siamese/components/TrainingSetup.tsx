@@ -30,7 +30,6 @@ import {
 } from '@/components/ui/dropdown-menu';
 import StudentSelectionModal from '@/components/model-training-ui/components/StudentSelectionModal';
 import BatchUpload from './BatchUpload';
-import IncrementalLearningDialog from './IncrementalLearningDialog';
 import type { Student } from '@/types';
 import { fetchStudents } from '@/lib/supabaseService';
 import { siameseModelService } from '../lib/SiameseAIModelService';
@@ -83,7 +82,6 @@ const TrainingSetup: React.FC<TrainingSetupProps> = ({ classes, setClasses }) =>
   const [totalFiles, setTotalFiles] = useState(0);
   const [processedFiles, setProcessedFiles] = useState(0);
   const [sampleDisplayMode, setSampleDisplayMode] = useState<'genuine' | 'forged'>('genuine');
-  const [incrementalLearningOpen, setIncrementalLearningOpen] = useState(false);
 
   // Load students for batch upload
   const loadStudentsForBatchUpload = async () => {
@@ -432,10 +430,6 @@ const TrainingSetup: React.FC<TrainingSetupProps> = ({ classes, setClasses }) =>
                 <Upload className="w-4 h-4 mr-2" />
                 Batch Upload
               </DropdownMenuItem>
-              <DropdownMenuItem onClick={() => setIncrementalLearningOpen(true)}>
-                <RefreshCw className="w-4 h-4 mr-2" />
-                Incremental Learning
-              </DropdownMenuItem>
             </DropdownMenuContent>
           </DropdownMenu>
         </CardTitle>
@@ -693,10 +687,6 @@ const TrainingSetup: React.FC<TrainingSetupProps> = ({ classes, setClasses }) =>
         students={allStudents}
       />
 
-      <IncrementalLearningDialog
-        isOpen={incrementalLearningOpen}
-        onOpenChange={setIncrementalLearningOpen}
-      />
 
       {/* Processing Upload Progress Dialog */}
       <Dialog open={isProcessingUpload} onOpenChange={() => {}}>
