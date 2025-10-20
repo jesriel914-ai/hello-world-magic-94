@@ -1,8 +1,14 @@
-//filepath: ai-model-siamese/components/TrainingSetup.tsx
-import React, { useState } from 'react';
+// filepath: src/ai-model-siamese/components/TrainingSetup.tsx
+/**
+ * Updated Training Setup - Batch Training Support
+ * Sends all students at once, training continues even if frontend disconnects
+ */
+
+import React, { useState, useEffect } from 'react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Progress } from '@/components/ui/progress';
+import { useToast } from '@/hooks/use-toast';
 import { 
   Brain, 
   Plus, 
@@ -14,13 +20,8 @@ import {
   Download,
   ChevronDown,
   MoreVertical,
-  Shield,
-  AlertTriangle,
-  ChevronLeft,
-  ChevronRight,
-  Users,
   User,
-  RefreshCw
+  AlertCircle
 } from 'lucide-react';
 import {
   DropdownMenu,
@@ -28,11 +29,6 @@ import {
   DropdownMenuItem,
   DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu';
-import StudentSelectionModal from '@/components/model-training-ui/components/StudentSelectionModal';
-import BatchUpload from './BatchUpload';
-import type { Student } from '@/types';
-import { fetchStudents } from '@/lib/supabaseService';
-import { siameseModelService } from '../lib/SiameseAIModelService';
 import {
   Dialog,
   DialogContent,
@@ -40,6 +36,11 @@ import {
   DialogHeader,
   DialogTitle,
 } from '@/components/ui/dialog';
+import StudentSelectionModal from '@/components/model-training-ui/components/StudentSelectionModal';
+import BatchUpload from './BatchUpload';
+import type { Student } from '@/types';
+import { fetchStudents } from '@/lib/supabaseService';
+import { siameseService, type TrainingStatus } from '../lib/SiameseService';
 
 // Interfaces
 export interface ClassData {
@@ -66,14 +67,13 @@ interface TrainingSetupProps {
 }
 
 const TrainingSetup: React.FC<TrainingSetupProps> = ({ classes, setClasses }) => {
+  const { toast } = useToast();
   const [isTraining, setIsTraining] = useState(false);
   const [isModelLoaded, setIsModelLoaded] = useState(false);
   const [trainingProgress, setTrainingProgress] = useState(0);
+  const [currentTrainingStudent, setCurrentTrainingStudent] = useState('');
   const [isUploading, setIsUploading] = useState(false);
-  const [hasUploaded, setHasUploaded] = useState(false);
-  const [isDownloading, setIsDownloading] = useState(false);
   const [hasExportedToCloud, setHasExportedToCloud] = useState(false);
-  const [hasDownloadedToPC, setHasDownloadedToPC] = useState(false);
   const [batchUploadOpen, setBatchUploadOpen] = useState(false);
   const [allStudents, setAllStudents] = useState<Student[]>([]);
   const [isProcessingUpload, setIsProcessingUpload] = useState(false);
@@ -81,7 +81,53 @@ const TrainingSetup: React.FC<TrainingSetupProps> = ({ classes, setClasses }) =>
   const [currentProcessingStudent, setCurrentProcessingStudent] = useState('');
   const [totalFiles, setTotalFiles] = useState(0);
   const [processedFiles, setProcessedFiles] = useState(0);
-  const [sampleDisplayMode, setSampleDisplayMode] = useState<'genuine' | 'forged'>('genuine');
+  const [isDownloading, setIsDownloading] = useState(false);
+  
+  // Training status polling
+  const [trainingStatus, setTrainingStatus] = useState<TrainingStatus | null>(null);
+
+  // Poll training status while training
+  useEffect(() => {
+    if (!isTraining) return;
+
+    const pollInterval = setInterval(async () => {
+      try {
+        const status = await siameseService.getTrainingStatus();
+        setTrainingStatus(status);
+        
+        // Update UI
+        if (status.current_student) {
+          setCurrentTrainingStudent(status.current_student);
+        }
+        setTrainingProgress(status.progress);
+        
+        // Check if training complete
+        if (!status.is_training) {
+          clearInterval(pollInterval);
+          setIsTraining(false);
+          setCurrentTrainingStudent('');
+          
+          if (status.error) {
+            toast({
+              title: 'Training Failed',
+              description: status.error,
+              variant: 'destructive',
+            });
+          } else {
+            setIsModelLoaded(true);
+            toast({
+              title: 'Training Complete',
+              description: `Successfully trained ${status.completed_students} student${status.completed_students !== 1 ? 's' : ''}`,
+            });
+          }
+        }
+      } catch (error) {
+        console.error('Error polling training status:', error);
+      }
+    }, 2000); // Poll every 2 seconds
+
+    return () => clearInterval(pollInterval);
+  }, [isTraining, toast]);
 
   // Load students for batch upload
   const loadStudentsForBatchUpload = async () => {
@@ -91,7 +137,11 @@ const TrainingSetup: React.FC<TrainingSetupProps> = ({ classes, setClasses }) =>
       setBatchUploadOpen(true);
     } catch (error) {
       console.error('Error loading students:', error);
-      alert('Failed to load students for validation');
+      toast({
+        title: 'Error',
+        description: 'Failed to load students for validation',
+        variant: 'destructive',
+      });
     }
   };
 
@@ -103,8 +153,9 @@ const TrainingSetup: React.FC<TrainingSetupProps> = ({ classes, setClasses }) =>
       setUploadProgress(0);
       setProcessedFiles(0);
       
-      // Calculate total files
-      const total = validFolders.reduce((sum, folder) => sum + folder.genuineFiles.length + folder.forgedFiles.length, 0);
+      const total = validFolders.reduce((sum, folder) => 
+        sum + folder.genuineFiles.length + folder.forgedFiles.length, 0
+      );
       setTotalFiles(total);
       
       const samplesMap = new Map<string, { genuine: SampleData[], forged: SampleData[] }>();
@@ -120,80 +171,16 @@ const TrainingSetup: React.FC<TrainingSetupProps> = ({ classes, setClasses }) =>
         // Process genuine files
         for (const file of genuineFiles) {
           try {
-            const img = new Image();
-            await new Promise<void>((resolve, reject) => {
-              img.onload = async () => {
-                try {
-                  const canvas = document.createElement('canvas');
-                  canvas.width = 224;
-                  canvas.height = 224;
-                  const ctx = canvas.getContext('2d');
-                  
-                  if (ctx) {
-                    ctx.drawImage(img, 0, 0, 224, 224);
-                    const thumbnail = canvas.toDataURL('image/jpeg', 0.8);
-                    
-                    genuineSamples.push({
-                      thumbnail,
-                      timestamp: Date.now(),
-                      type: 'genuine'
-                    });
-                  }
-                  
-                  filesProcessed++;
-                  setProcessedFiles(filesProcessed);
-                  setUploadProgress((filesProcessed / total) * 100);
-                  
-                  resolve();
-                } catch (error) {
-                  reject(error);
-                }
-              };
-              
-              img.onerror = () => reject(new Error(`Failed to load image: ${file.name}`));
-              img.src = URL.createObjectURL(file);
+            const thumbnail = await processImageFile(file);
+            genuineSamples.push({
+              thumbnail,
+              timestamp: Date.now(),
+              type: 'genuine'
             });
-          } catch (error) {
-            console.error('Error processing file:', error);
-          }
-        }
-        
-        // Process forged files
-        for (const file of forgedFiles) {
-          try {
-            const img = new Image();
-            await new Promise<void>((resolve, reject) => {
-              img.onload = async () => {
-                try {
-                  const canvas = document.createElement('canvas');
-                  canvas.width = 224;
-                  canvas.height = 224;
-                  const ctx = canvas.getContext('2d');
-                  
-                  if (ctx) {
-                    ctx.drawImage(img, 0, 0, 224, 224);
-                    const thumbnail = canvas.toDataURL('image/jpeg', 0.8);
-                    
-                    forgedSamples.push({
-                      thumbnail,
-                      timestamp: Date.now(),
-                      type: 'forged'
-                    });
-                  }
-                  
-                  filesProcessed++;
-                  setProcessedFiles(filesProcessed);
-                  setUploadProgress((filesProcessed / total) * 100);
-                  
-                  resolve();
-                } catch (error) {
-                  reject(error);
-                }
-              };
-              
-              img.onerror = () => reject(new Error(`Failed to load image: ${file.name}`));
-              img.src = URL.createObjectURL(file);
-            });
+            
+            filesProcessed++;
+            setProcessedFiles(filesProcessed);
+            setUploadProgress((filesProcessed / total) * 100);
           } catch (error) {
             console.error('Error processing file:', error);
           }
@@ -212,8 +199,40 @@ const TrainingSetup: React.FC<TrainingSetupProps> = ({ classes, setClasses }) =>
     } catch (error) {
       console.error('Error processing batch upload:', error);
       setIsProcessingUpload(false);
-      alert('Failed to process batch upload: ' + (error instanceof Error ? error.message : 'Unknown error'));
+      toast({
+        title: 'Error',
+        description: 'Failed to process batch upload: ' + (error instanceof Error ? error.message : 'Unknown error'),
+        variant: 'destructive',
+      });
     }
+  };
+
+  // Process image file to base64
+  const processImageFile = (file: File): Promise<string> => {
+    return new Promise((resolve, reject) => {
+      const img = new Image();
+      img.onload = () => {
+        try {
+          const canvas = document.createElement('canvas');
+          canvas.width = 224;
+          canvas.height = 224;
+          const ctx = canvas.getContext('2d');
+          
+          if (ctx) {
+            ctx.drawImage(img, 0, 0, 224, 224);
+            const thumbnail = canvas.toDataURL('image/jpeg', 0.8);
+            resolve(thumbnail);
+          } else {
+            reject(new Error('Failed to get canvas context'));
+          }
+        } catch (error) {
+          reject(error);
+        }
+      };
+      
+      img.onerror = () => reject(new Error(`Failed to load image: ${file.name}`));
+      img.src = URL.createObjectURL(file);
+    });
   };
 
   // Add multiple students
@@ -246,11 +265,8 @@ const TrainingSetup: React.FC<TrainingSetupProps> = ({ classes, setClasses }) =>
       };
     });
     
-    // Remove the first class if it's the placeholder (no student and no samples)
     const shouldRemovePlaceholder = classes.length === 1 && !classes[0].student && 
-                                     classes[0].samples.length === 0 && 
-                                     classes[0].genuineSamples.length === 0 && 
-                                     classes[0].forgedSamples.length === 0;
+                                     classes[0].samples.length === 0;
     
     if (shouldRemovePlaceholder) {
       setClasses(newClasses);
@@ -272,7 +288,7 @@ const TrainingSetup: React.FC<TrainingSetupProps> = ({ classes, setClasses }) =>
     setClasses(newClasses);
   };
 
-  // Update class name (student)
+  // Update class student
   const updateClassName = (index: number, student: Student) => {
     const newClasses = [...classes];
     newClasses[index].student = student;
@@ -289,123 +305,160 @@ const TrainingSetup: React.FC<TrainingSetupProps> = ({ classes, setClasses }) =>
     try {
       for (let i = 0; i < files.length; i++) {
         const file = files[i];
+        const thumbnail = await processImageFile(file);
         
-        const img = new Image();
-        await new Promise<void>((resolve, reject) => {
-          img.onload = async () => {
-            try {
-              const canvas = document.createElement('canvas');
-              canvas.width = 224;
-              canvas.height = 224;
-              const ctx = canvas.getContext('2d');
-              
-              if (ctx) {
-                ctx.drawImage(img, 0, 0, 224, 224);
-                const thumbnail = canvas.toDataURL('image/jpeg', 0.8);
-                
-                const sampleData = {
-                  thumbnail,
-                  timestamp: Date.now(),
-                  type
-                };
-                
-                if (type === 'genuine') {
-                  newClasses[classIndex].genuineSamples.push(sampleData);
-                } else {
-                  newClasses[classIndex].forgedSamples.push(sampleData);
-                }
-                
-                // Also add to main samples array for backward compatibility
-                newClasses[classIndex].samples.push(sampleData);
-              }
-              resolve();
-            } catch (error) {
-              reject(error);
-            }
-          };
-          
-          img.onerror = () => reject(new Error(`Failed to load image: ${file.name}`));
-          img.src = URL.createObjectURL(file);
-        });
+        const sampleData = {
+          thumbnail,
+          timestamp: Date.now(),
+          type
+        };
+        
+        if (type === 'genuine') {
+          newClasses[classIndex].genuineSamples.push(sampleData);
+        } else {
+          newClasses[classIndex].forgedSamples.push(sampleData);
+        }
+        
+        newClasses[classIndex].samples.push(sampleData);
       }
       
       setClasses(newClasses);
       
     } catch (error) {
       console.error('Error processing files:', error);
+      toast({
+        title: 'Upload Error',
+        description: 'Failed to process some images',
+        variant: 'destructive',
+      });
     }
     
     event.target.value = '';
   };
 
-  // Training function - calls Python training pipeline
+  // Batch training function
   const trainModel = async () => {
-    const validClasses = classes.filter(cls => cls.student && (cls.genuineSamples.length > 0 || cls.forgedSamples.length > 0));
+    const validClasses = classes.filter(cls => 
+      cls.student && (cls.genuineSamples.length > 0 || cls.forgedSamples.length > 0)
+    );
     
     if (validClasses.length < 1) {
-      alert('Please add students and upload samples before training!');
+      toast({
+        title: 'Cannot Train',
+        description: 'Please add students and upload samples before training!',
+        variant: 'destructive',
+      });
+      return;
+    }
+
+    // Check for students with insufficient genuine samples
+    const insufficientStudents = validClasses.filter(cls => cls.genuineSamples.length < 2);
+    if (insufficientStudents.length > 0) {
+      toast({
+        title: 'Insufficient Samples',
+        description: `${insufficientStudents.length} student(s) have less than 2 genuine samples. Please add more.`,
+        variant: 'destructive',
+      });
       return;
     }
 
     setIsTraining(true);
     setTrainingProgress(0);
+    setCurrentTrainingStudent('');
 
     try {
-      console.log('Starting Siamese training for all students...');
+      console.log('🚀 Starting batch training for all students...');
       
-      // Train model for each student
-      for (let i = 0; i < validClasses.length; i++) {
-        const cls = validClasses[i];
-        const studentId = cls.student?.student_id || `student_${i}`;
-        
-        console.log(`Training model for student: ${studentId}`);
-        
-        // Call the Siamese training service
-        const metadata = await siameseModelService.trainModel(
-          studentId,
-          cls.genuineSamples,
-          cls.forgedSamples
-        );
-        
-        console.log('Training completed for student:', metadata);
-        
-        // Update progress
-        const progress = ((i + 1) / validClasses.length) * 100;
-        setTrainingProgress(progress);
+      // Check API health first
+      const isOnline = await siameseService.healthCheck();
+      if (!isOnline) {
+        throw new Error('API server is offline. Please start the Python backend with Cloudflare tunnel.');
       }
+      
+      // Prepare batch training data
+      const studentsData = validClasses.map(cls => ({
+        studentId: cls.student!.student_id,
+        genuineSamples: cls.genuineSamples,
+        forgedSamples: cls.forgedSamples
+      }));
+      
+      // Send all students in one batch request
+      const result = await siameseService.trainBatch(studentsData);
+      
+      console.log('✅ Batch training request sent:', result);
+      
+      toast({
+        title: 'Training Started',
+        description: `Training ${result.total_students} student${result.total_students !== 1 ? 's' : ''} in background. You can close this page.`,
+      });
 
-      setIsModelLoaded(true);
-      console.log('All models trained successfully!');
+      // Training will continue in background
+      // UI will update via polling (useEffect)
 
     } catch (error) {
       console.error('Training failed:', error);
-      alert(`Training failed: ${error}`);
-    } finally {
       setIsTraining(false);
       setTrainingProgress(0);
+      setCurrentTrainingStudent('');
+      
+      toast({
+        title: 'Training Failed',
+        description: error instanceof Error ? error.message : 'Unknown error occurred',
+        variant: 'destructive',
+      });
     }
   };
 
-  // Mock export functions
+  // Export to cloud
   const exportToS3Handler = async () => {
     setIsUploading(true);
     try {
-      await new Promise(resolve => setTimeout(resolve, 2000));
+      const result = await siameseService.exportToCloud();
       setHasExportedToCloud(true);
+      
+      toast({
+        title: 'Export Successful',
+        description: 'Model exported to cloud storage',
+      });
     } catch (error) {
       console.error('Export failed:', error);
+      toast({
+        title: 'Export Failed',
+        description: error instanceof Error ? error.message : 'Unknown error',
+        variant: 'destructive',
+      });
     } finally {
       setIsUploading(false);
     }
   };
 
+  // Download model
   const exportToLocalHandler = async () => {
     setIsDownloading(true);
     try {
-      await new Promise(resolve => setTimeout(resolve, 1500));
-      setHasDownloadedToPC(true);
+      const blob = await siameseService.downloadModel();
+      
+      // Trigger download
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = 'siamese_model.zip';
+      document.body.appendChild(a);
+      a.click();
+      document.body.removeChild(a);
+      URL.revokeObjectURL(url);
+      
+      toast({
+        title: 'Download Complete',
+        description: 'Model downloaded successfully',
+      });
     } catch (error) {
       console.error('Download failed:', error);
+      toast({
+        title: 'Download Failed',
+        description: error instanceof Error ? error.message : 'Unknown error',
+        variant: 'destructive',
+      });
     } finally {
       setIsDownloading(false);
     }
@@ -481,7 +534,6 @@ const TrainingSetup: React.FC<TrainingSetupProps> = ({ classes, setClasses }) =>
                   <div className="border-t border-gray-200 my-3"></div>
                   
                   <div className="space-y-3">
-                    {/* Upload Buttons */}
                     <div className="flex items-center justify-between">
                       <div className="flex gap-2">
                         <label className="cursor-pointer">
@@ -521,7 +573,6 @@ const TrainingSetup: React.FC<TrainingSetupProps> = ({ classes, setClasses }) =>
                       </div>
                     </div>
                     
-                    {/* Sample Display */}
                     <div className="border-solid border-gray-300 rounded-lg p-1 min-h-[100px] bg-gray-50 overflow-x-auto overlay-scrollbar-container border-[0.5px]">
                       {cls.samples.length > 0 ? (
                         <div className="flex gap-1">
@@ -532,14 +583,14 @@ const TrainingSetup: React.FC<TrainingSetupProps> = ({ classes, setClasses }) =>
                             >
                               <img 
                                 src={sample.thumbnail} 
-                                alt={`${cls.student ? formatStudentDisplay(cls.student) : 'Unassigned'} sample ${sampleIndex + 1}`} 
+                                alt={`Sample ${sampleIndex + 1}`} 
                                 className="w-full h-full object-cover filter grayscale"
                               />
                               <div className="absolute top-0 left-0 bg-black bg-opacity-50 text-white text-xs px-1 rounded-br">
                                 {sample.type === 'genuine' ? 'G' : 'F'}
                               </div>
                               <button
-                                className="absolute top-0 right-0 bg-red-500 text-white rounded-full w-5 h-5 flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity transform scale-90 group-hover:scale-100"
+                                className="absolute top-0 right-0 bg-red-500 text-white rounded-full w-5 h-5 flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity"
                                 onClick={(e) => {
                                   e.stopPropagation();
                                   const newClasses = [...classes];
@@ -605,9 +656,21 @@ const TrainingSetup: React.FC<TrainingSetupProps> = ({ classes, setClasses }) =>
                 Model Trained
               </div>
             ) : isTraining ? (
-              <div className="flex items-center gap-2 text-yellow-600">
-                <Loader2 className="w-4 h-4 animate-spin" />
-                Training...
+              <div className="space-y-2">
+                <div className="flex items-center gap-2 text-yellow-600">
+                  <Loader2 className="w-4 h-4 animate-spin" />
+                  Training in progress...
+                </div>
+                {currentTrainingStudent && (
+                  <div className="text-xs text-gray-600">
+                    Current: {currentTrainingStudent}
+                  </div>
+                )}
+                {trainingStatus && (
+                  <div className="text-xs text-gray-600">
+                    {trainingStatus.completed_students} / {trainingStatus.total_students} students complete
+                  </div>
+                )}
               </div>
             ) : (
               <div className="text-gray-600">
@@ -625,13 +688,24 @@ const TrainingSetup: React.FC<TrainingSetupProps> = ({ classes, setClasses }) =>
             </div>
           )}
           
+          {isTraining && (
+            <div className="mb-4 p-3 bg-blue-50 border border-blue-200 rounded-lg">
+              <div className="flex items-start gap-2">
+                <AlertCircle className="w-4 h-4 text-blue-600 mt-0.5 flex-shrink-0" />
+                <div className="text-xs text-blue-700">
+                  <strong>Training continues in background.</strong> You can close this page and come back later. Progress is tracked on the server.
+                </div>
+              </div>
+            </div>
+          )}
+          
           <div className="flex gap-3">
             <Button 
               onClick={trainModel}
               disabled={classes.filter(cls => cls.samples.length > 0).length < 1 || isTraining}
               className="flex-1"
             >
-              <User className="w-4 h-4 mr-2" />
+              <Brain className="w-4 h-4 mr-2" />
               {isTraining ? 'Training...' : 'Train Model'}
             </Button>
             
@@ -687,8 +761,6 @@ const TrainingSetup: React.FC<TrainingSetupProps> = ({ classes, setClasses }) =>
         students={allStudents}
       />
 
-
-      {/* Processing Upload Progress Dialog */}
       <Dialog open={isProcessingUpload} onOpenChange={() => {}}>
         <DialogContent className="sm:max-w-md" hideCloseButton>
           <DialogHeader>
