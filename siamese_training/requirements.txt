@@ -1,0 +1,29 @@
+# filepath: siamese_training/requirements.txt
+
+# Signature Recognition - Genuine Only Training
+# Optimized for Colab T4 GPU with TensorFlow 2.19
+
+# Core ML Framework
+tensorflow==2.19.0
+
+# Numerical computing
+numpy==1.26.4
+scipy==1.13.0
+
+# Computer vision
+opencv-python==4.10.0.84
+pillow==10.3.0
+
+# Web API framework
+flask==3.0.3
+flask-cors==4.0.1
+werkzeug==3.0.3
+
+# Utilities
+python-dateutil==2.9.0
+
+# Optional: Visualization
+matplotlib==3.9.0
+
+# Optional: Progress bars
+tqdm==4.66.4
