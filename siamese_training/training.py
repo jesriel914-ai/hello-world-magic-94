@@ -13,8 +13,9 @@ from typing import Dict, List, Tuple
 import tensorflow as tf
 from tensorflow import keras
 
-from preprocessing import preprocess_batch, create_pairs_from_data, augment_signature
+from preprocessing import preprocess_batch, augment_signature
 from model import SiameseNetwork
+from data_generator import SiamesePairGenerator, ValidationPairGenerator
 
 # Storage paths
 MODEL_DIR = 'model_storage'
@@ -141,17 +142,18 @@ class IncrementalTrainer:
         return changes
     
     def prepare_training_data(self, students_data: Dict[str, Dict], 
-                             use_augmentation: bool = True) -> Tuple[np.ndarray, np.ndarray]:
+                             use_augmentation: bool = True) -> Tuple[Dict, int]:
         """
-        Prepare training pairs from student data
+        Prepare training data WITHOUT creating all pairs at once
+        Returns processed images dict instead
         
         Args:
             students_data: Dict of {student_id: {'genuine': [...], 'forged': [...]}}
             use_augmentation: Whether to use data augmentation
         
         Returns:
-            pairs: Training pairs (N, 2, 224, 224, 3)
-            labels: Labels (N,)
+            processed_data: Dict of {student_id: preprocessed_images}
+            estimated_pairs: Estimated number of pairs
         """
         print("\n🔄 Preparing training data...")
         
@@ -168,7 +170,7 @@ class IncrementalTrainer:
             # Preprocess genuine samples
             genuine_processed = preprocess_batch(genuine_samples, is_base64=True, normalize=True)
             
-            # Apply augmentation if enabled
+            # Apply augmentation if enabled (but limit to avoid memory issues)
             if use_augmentation and len(genuine_samples) < 50:
                 augmented = []
                 for img in genuine_processed:
@@ -180,13 +182,14 @@ class IncrementalTrainer:
             
             print(f"   ✅ {student_id}: {len(genuine_processed)} samples prepared")
         
-        # Create pairs
-        print("\n🔗 Creating training pairs...")
-        pairs, labels = create_pairs_from_data(processed_data)
+        # Estimate pairs (for info only)
+        total_samples = sum(len(imgs) for imgs in processed_data.values())
+        estimated_pairs = total_samples * (total_samples - 1) // 2
         
-        print(f"   ✅ Created {len(pairs)} pairs ({np.sum(labels == 1)} positive, {np.sum(labels == 0)} negative)")
+        print(f"\n📊 Total samples: {total_samples}")
+        print(f"   Estimated pairs: {estimated_pairs} (generated on-the-fly)")
         
-        return pairs, labels
+        return processed_data, estimated_pairs
     
     def train_batch(self, students_data: Dict[str, Dict], 
                    epochs: int = EPOCHS,
@@ -221,11 +224,11 @@ class IncrementalTrainer:
                 'students_trained': 0
             }
         
-        # Prepare training data
-        pairs, labels = self.prepare_training_data(students_data, use_augmentation=True)
+        # Prepare training data (memory-efficient - no pairs yet)
+        processed_data, estimated_pairs = self.prepare_training_data(students_data, use_augmentation=True)
         
-        if len(pairs) == 0:
-            raise ValueError("No training pairs generated. Check your data.")
+        if len(processed_data) == 0:
+            raise ValueError("No training data generated. Check your data.")
         
         # For incremental learning: If we already have a trained model,
         # we do fine-tuning with lower learning rate
@@ -244,6 +247,20 @@ class IncrementalTrainer:
         else:
             print("\n🆕 Fresh Training Mode")
             print("   Training from pretrained weights...")
+        
+        # Create data generators (memory-efficient)
+        print("\n🔧 Creating data generators...")
+        train_generator = SiamesePairGenerator(
+            processed_data=processed_data,
+            batch_size=batch_size,
+            positive_ratio=0.5
+        )
+        
+        val_generator = ValidationPairGenerator(
+            processed_data=processed_data,
+            batch_size=batch_size,
+            num_pairs=min(500, len(processed_data) * 10)
+        )
         
         # Create callbacks
         training_callbacks = [
@@ -271,20 +288,18 @@ class IncrementalTrainer:
             
             training_callbacks.append(ProgressCallback())
         
-        # Train model
+        # Train model with generator
         print(f"\n🎯 Training Configuration:")
         print(f"   Epochs: {epochs}")
         print(f"   Batch Size: {batch_size}")
-        print(f"   Pairs: {len(pairs)}")
         print(f"   Learning Rate: {self.model.learning_rate}")
+        print(f"   Using memory-efficient generators")
         print(f"\n{'='*60}\n")
         
-        history = self.model.train(
-            pairs=pairs,
-            labels=labels,
+        history = self.model.siamese_model.fit(
+            train_generator,
             epochs=epochs,
-            batch_size=batch_size,
-            validation_split=0.1,
+            validation_data=val_generator,
             verbose=1,
             callbacks=training_callbacks
         )

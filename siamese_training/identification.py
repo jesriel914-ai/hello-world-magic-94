@@ -9,15 +9,15 @@ from typing import Dict, Optional, Tuple
 from preprocessing import preprocess_signature, is_likely_signature
 from training import get_trainer
 
-# Thresholds for decision making
-ACCEPT_THRESHOLD = 0.5       # Distance < 0.5 → ACCEPT (high confidence match)
-REJECT_THRESHOLD = 0.8       # Distance > 0.8 → REJECT/UNKNOWN (too far)
-NONSIG_THRESHOLD = 1.2       # Distance > 1.2 → NON_SIGNATURE (definitely not a signature)
+# Thresholds for decision making (STRICTER for better accuracy)
+ACCEPT_THRESHOLD = 0.35      # Distance < 0.35 → ACCEPT (high confidence match)
+REJECT_THRESHOLD = 0.7       # Distance > 0.7 → REJECT/UNKNOWN (too far)
+NONSIG_THRESHOLD = 1.0       # Distance > 1.0 → NON_SIGNATURE (definitely not a signature)
 
-# Confidence mapping
-CONFIDENCE_HIGH = 0.9        # Distance < 0.3
-CONFIDENCE_MEDIUM = 0.7      # Distance < 0.5
-CONFIDENCE_LOW = 0.5         # Distance < 0.8
+# Confidence mapping (updated for stricter thresholds)
+CONFIDENCE_HIGH = 0.9        # Distance < 0.2
+CONFIDENCE_MEDIUM = 0.7      # Distance < 0.35
+CONFIDENCE_LOW = 0.5         # Distance < 0.7
 
 
 class SignatureIdentifier:
@@ -157,6 +157,7 @@ class SignatureIdentifier:
     def _distance_to_confidence(self, distance: float) -> float:
         """
         Convert Euclidean distance to confidence score (0-1)
+        STRICTER mapping to reduce false positives
         
         Args:
             distance: Euclidean distance
@@ -166,27 +167,28 @@ class SignatureIdentifier:
         """
         # Map distance to confidence using exponential decay
         # Lower distance → higher confidence
+        # STRICTER thresholds to avoid false matches
         
-        if distance < 0.2:
+        if distance < 0.15:
+            return 0.98
+        elif distance < 0.2:
             return 0.95
-        elif distance < 0.3:
+        elif distance < 0.25:
             return 0.90
-        elif distance < 0.4:
+        elif distance < 0.3:
             return 0.85
+        elif distance < 0.35:
+            return 0.75  # ACCEPT threshold
         elif distance < 0.5:
-            return 0.75
-        elif distance < 0.6:
-            return 0.65
+            return 0.60
         elif distance < 0.7:
-            return 0.55
-        elif distance < 0.8:
-            return 0.45
+            return 0.40  # REJECT threshold
+        elif distance < 0.9:
+            return 0.20
         elif distance < 1.0:
-            return 0.30
-        elif distance < 1.2:
-            return 0.15
+            return 0.10  # NONSIG threshold
         else:
-            return 0.05
+            return 0.02
     
     def _make_decision(self, student_id: str, distance: float, confidence: float) -> Tuple[str, str]:
         """
@@ -215,15 +217,15 @@ class SignatureIdentifier:
             )
         
         # Uncertain: distance in gray area
-        if distance > ACCEPT_THRESHOLD:
+        if distance > ACCEPT_THRESHOLD and distance <= REJECT_THRESHOLD:
             return (
                 'UNCERTAIN',
                 f'❓ Uncertain match to {student_id}. Confidence is low ({confidence*100:.1f}%). Distance: {distance:.3f}. Consider re-training with more samples.'
             )
         
-        # Accept: strong match
+        # Accept: strong match (ONLY if very close)
         if distance <= ACCEPT_THRESHOLD:
-            if confidence >= 0.9:
+            if confidence >= 0.85:
                 return (
                     'ACCEPT',
                     f'✅ High confidence match! This signature belongs to {student_id}. Confidence: {confidence*100:.1f}%, Distance: {distance:.3f}'
