@@ -13,7 +13,7 @@ class SiamesePairGenerator(keras.utils.Sequence):
     Generates pairs on-the-fly during training to save memory
     """
     
-    def __init__(self, processed_data, batch_size=96, positive_ratio=0.5):
+    def __init__(self, processed_data, batch_size=96, positive_ratio=0.6):
         """
         Initialize generator
         
@@ -139,7 +139,7 @@ class ValidationPairGenerator(keras.utils.Sequence):
     Fixed validation pairs (not random)
     """
     
-    def __init__(self, processed_data, batch_size=96, num_pairs=500):
+    def __init__(self, processed_data, batch_size=96, num_pairs=1000):
         """
         Initialize validation generator with fixed pairs
         

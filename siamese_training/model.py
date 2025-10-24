@@ -20,7 +20,7 @@ EMBEDDING_DIM = 128
 
 def create_base_encoder(input_shape=(IMG_HEIGHT, IMG_WIDTH, IMG_CHANNELS), 
                         embedding_dim=EMBEDDING_DIM,
-                        trainable_layers=50):
+                        trainable_layers=100):
     """
     Create base encoder using MobileNetV2
     

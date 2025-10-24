@@ -27,7 +27,7 @@ METADATA_PATH = os.path.join(MODEL_DIR, 'metadata.json')
 # Training configuration
 BATCH_SIZE = 96  # Optimized for T4 GPU (12GB)
 EPOCHS = 30
-LEARNING_RATE = 1e-4
+LEARNING_RATE = 5e-4  # Increased from 1e-4 to prevent accuracy collapse
 
 
 class IncrementalTrainer:
@@ -167,19 +167,15 @@ class IncrementalTrainer:
                 print(f"⚠️  Skipping {student_id}: No genuine samples")
                 continue
             
-            # Preprocess genuine samples
-            genuine_processed = preprocess_batch(genuine_samples, is_base64=True, normalize=True)
+            # Preprocess genuine samples WITHOUT augmentation
+            genuine_processed = preprocess_batch(
+                genuine_samples, 
+                is_base64=True, 
+                normalize=True,
+                apply_augmentation=False  # Never augment
+            )
             
-            # Apply augmentation ONLY if explicitly enabled AND samples < 40
-            if use_augmentation and len(genuine_samples) < 40:
-                augmented = []
-                for img in genuine_processed:
-                    aug_imgs = augment_signature(img, augmentation_factor=2)
-                    augmented.extend(aug_imgs)
-                genuine_processed = np.array(augmented)
-                print(f"   ✅ {student_id}: {len(genuine_samples)} → {len(genuine_processed)} samples (augmented)")
-            else:
-                print(f"   ✅ {student_id}: {len(genuine_processed)} samples prepared")
+            print(f"   ✅ {student_id}: {len(genuine_processed)} samples prepared")
             
             processed_data[student_id] = genuine_processed
         
@@ -261,7 +257,7 @@ class IncrementalTrainer:
         val_generator = ValidationPairGenerator(
             processed_data=processed_data,
             batch_size=batch_size,
-            num_pairs=min(500, len(processed_data) * 10)
+            num_pairs=min(1000, len(processed_data) * 20)
         )
         
         # Create callbacks

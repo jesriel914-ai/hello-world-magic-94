@@ -146,7 +146,7 @@ def preprocess_signature(image_data, is_base64=True, normalize=True):
     return rgb
 
 
-def preprocess_batch(images_data, is_base64=True, normalize=True):
+def preprocess_batch(images_data, is_base64=True, normalize=True, apply_augmentation=False):
     """
     Preprocess a batch of signature images
     
@@ -154,6 +154,7 @@ def preprocess_batch(images_data, is_base64=True, normalize=True):
         images_data: List of base64 strings or numpy arrays
         is_base64: Whether inputs are base64 encoded
         normalize: Whether to normalize pixel values
+        apply_augmentation: Whether to apply augmentation (DEFAULT: False)
     
     Returns:
         numpy array: Batch of preprocessed images (N, 224, 224, 3)
@@ -162,7 +163,14 @@ def preprocess_batch(images_data, is_base64=True, normalize=True):
     
     for img_data in images_data:
         processed_img = preprocess_signature(img_data, is_base64, normalize)
-        processed.append(processed_img)
+        
+        if apply_augmentation:
+            # Apply augmentation (doubles samples)
+            augmented = augment_signature(processed_img, augmentation_factor=2)
+            processed.extend(augmented)
+        else:
+            # No augmentation - use original only
+            processed.append(processed_img)
     
     return np.array(processed, dtype=np.float32)
 
