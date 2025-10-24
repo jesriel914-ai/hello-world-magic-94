@@ -142,14 +142,14 @@ class IncrementalTrainer:
         return changes
     
     def prepare_training_data(self, students_data: Dict[str, Dict], 
-                             use_augmentation: bool = True) -> Tuple[Dict, int]:
+                             use_augmentation: bool = False) -> Tuple[Dict, int]:
         """
         Prepare training data WITHOUT creating all pairs at once
         Returns processed images dict instead
         
         Args:
             students_data: Dict of {student_id: {'genuine': [...], 'forged': [...]}}
-            use_augmentation: Whether to use data augmentation
+            use_augmentation: Whether to use data augmentation (DISABLED by default)
         
         Returns:
             processed_data: Dict of {student_id: preprocessed_images}
@@ -170,17 +170,18 @@ class IncrementalTrainer:
             # Preprocess genuine samples
             genuine_processed = preprocess_batch(genuine_samples, is_base64=True, normalize=True)
             
-            # Apply augmentation if enabled (but limit to avoid memory issues)
-            if use_augmentation and len(genuine_samples) < 50:
+            # Apply augmentation ONLY if explicitly enabled AND samples < 40
+            if use_augmentation and len(genuine_samples) < 40:
                 augmented = []
                 for img in genuine_processed:
                     aug_imgs = augment_signature(img, augmentation_factor=2)
                     augmented.extend(aug_imgs)
                 genuine_processed = np.array(augmented)
+                print(f"   ✅ {student_id}: {len(genuine_samples)} → {len(genuine_processed)} samples (augmented)")
+            else:
+                print(f"   ✅ {student_id}: {len(genuine_processed)} samples prepared")
             
             processed_data[student_id] = genuine_processed
-            
-            print(f"   ✅ {student_id}: {len(genuine_processed)} samples prepared")
         
         # Estimate pairs (for info only)
         total_samples = sum(len(imgs) for imgs in processed_data.values())
@@ -225,7 +226,8 @@ class IncrementalTrainer:
             }
         
         # Prepare training data (memory-efficient - no pairs yet)
-        processed_data, estimated_pairs = self.prepare_training_data(students_data, use_augmentation=True)
+        # Augmentation disabled by default to avoid confusion
+        processed_data, estimated_pairs = self.prepare_training_data(students_data, use_augmentation=False)
         
         if len(processed_data) == 0:
             raise ValueError("No training data generated. Check your data.")

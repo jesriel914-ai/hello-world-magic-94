@@ -188,7 +188,7 @@ class SiameseNetwork:
     def train(self, pairs, labels, epochs=30, batch_size=96, validation_split=0.1, 
               verbose=1, callbacks=None):
         """
-        Train the Siamese network
+        Train the Siamese network (legacy method - for backward compatibility)
         
         Args:
             pairs: Training pairs (N, 2, 224, 224, 3)
@@ -224,7 +224,7 @@ class SiameseNetwork:
         
         # Train model
         history = self.siamese_model.fit(
-            [input_a, input_b],
+            (input_a, input_b),  # Use tuple instead of list
             labels,
             epochs=epochs,
             batch_size=batch_size,

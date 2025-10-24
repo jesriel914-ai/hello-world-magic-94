@@ -125,7 +125,8 @@ class SiamesePairGenerator(keras.utils.Sequence):
         batch_b = batch_b[indices]
         labels = labels[indices]
         
-        return [batch_a, batch_b], labels
+        # Return as dictionary (TensorFlow format)
+        return (batch_a, batch_b), labels
     
     def on_epoch_end(self):
         """Called at the end of each epoch"""
@@ -206,4 +207,5 @@ class ValidationPairGenerator(keras.utils.Sequence):
         batch_b = self.pairs_b[start_idx:end_idx]
         batch_labels = self.labels[start_idx:end_idx]
         
-        return [batch_a, batch_b], batch_labels
+        # Return as tuple (TensorFlow format)
+        return (batch_a, batch_b), batch_labels
