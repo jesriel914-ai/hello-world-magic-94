@@ -1,0 +1,107 @@
+{
+  "students": {
+    "25P0209": {
+      "sample_count": 50,
+      "trained_date": "2025-10-25T01:25:52.779802",
+      "is_new": true
+    },
+    "25P0219": {
+      "sample_count": 55,
+      "trained_date": "2025-10-25T01:26:03.464335",
+      "is_new": true
+    },
+    "25P0230": {
+      "sample_count": 55,
+      "trained_date": "2025-10-25T01:26:03.903744",
+      "is_new": true
+    },
+    "25P0300": {
+      "sample_count": 50,
+      "trained_date": "2025-10-25T01:26:04.330336",
+      "is_new": true
+    },
+    "25P0314": {
+      "sample_count": 50,
+      "trained_date": "2025-10-25T01:26:04.750517",
+      "is_new": true
+    },
+    "25P0353": {
+      "sample_count": 50,
+      "trained_date": "2025-10-25T01:26:05.193904",
+      "is_new": true
+    },
+    "25P0366": {
+      "sample_count": 50,
+      "trained_date": "2025-10-25T01:26:05.645760",
+      "is_new": true
+    },
+    "25P0473": {
+      "sample_count": 47,
+      "trained_date": "2025-10-25T01:26:16.205870",
+      "is_new": true
+    },
+    "25P0493": {
+      "sample_count": 50,
+      "trained_date": "2025-10-25T01:26:16.655136",
+      "is_new": true
+    },
+    "25PO183": {
+      "sample_count": 45,
+      "trained_date": "2025-10-25T01:26:27.554538",
+      "is_new": true
+    },
+    "2450065": {
+      "sample_count": 50,
+      "trained_date": "2025-10-25T01:26:28.011874",
+      "is_new": true
+    },
+    "21S0723": {
+      "sample_count": 47,
+      "trained_date": "2025-10-25T01:26:28.432114",
+      "is_new": true
+    },
+    "22S0829": {
+      "sample_count": 50,
+      "trained_date": "2025-10-25T01:26:28.939731",
+      "is_new": true
+    },
+    "22S1449": {
+      "sample_count": 42,
+      "trained_date": "2025-10-25T01:26:39.328115",
+      "is_new": true
+    },
+    "25P0128": {
+      "sample_count": 50,
+      "trained_date": "2025-10-25T01:26:39.760747",
+      "is_new": true
+    },
+    "25P0135": {
+      "sample_count": 50,
+      "trained_date": "2025-10-25T01:26:40.196837",
+      "is_new": true
+    },
+    "25P0143": {
+      "sample_count": 50,
+      "trained_date": "2025-10-25T01:26:40.632013",
+      "is_new": true
+    },
+    "25P0159": {
+      "sample_count": 50,
+      "trained_date": "2025-10-25T01:26:41.064270",
+      "is_new": true
+    },
+    "25P0166": {
+      "sample_count": 47,
+      "trained_date": "2025-10-25T01:26:41.500194",
+      "is_new": true
+    },
+    "25P0207": {
+      "sample_count": 50,
+      "trained_date": "2025-10-25T01:26:41.939272",
+      "is_new": true
+    }
+  },
+  "version": 1,
+  "last_updated": "2025-10-25T01:26:42.701305",
+  "total_students": 20
+}
