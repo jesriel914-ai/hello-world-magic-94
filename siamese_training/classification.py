@@ -17,15 +17,14 @@ class SignatureClassifier:
         self.model = model_wrapper
         self.trainer = trainer
         
-        # RELAXED THRESHOLDS - Signatures are naturally similar
-        # Based on L2 normalized embeddings (distances typically 0-1 for signatures)
-        self.ACCEPT_THRESHOLD = 0.35     # Distance <= 0.35: Accept (relaxed from 0.25)
-        self.UNCERTAIN_THRESHOLD = 0.55  # 0.35 < d <= 0.55: Uncertain  
-        self.REJECT_THRESHOLD = 0.75     # 0.55 < d <= 0.75: Unknown student (relaxed from 0.65)
-        self.NONSIG_THRESHOLD = 1.0      # Distance > 1.0: Not a signature (relaxed from 0.85)
+        # STRICTER THRESHOLDS - Based on L2 normalized embeddings
+        self.ACCEPT_THRESHOLD = 0.25     # Distance <= 0.25: Strong match (was 0.4)
+        self.UNCERTAIN_THRESHOLD = 0.45  # 0.25 < d <= 0.45: Uncertain
+        self.REJECT_THRESHOLD = 0.65     # 0.45 < d <= 0.65: Unknown student (was 0.8)
+        self.NONSIG_THRESHOLD = 0.85     # Distance > 0.85: Not a signature (was 1.2)
         
-        # RELAXED confidence requirement
-        self.MIN_CONFIDENCE = 0.60       # Minimum confidence to accept (reduced from 70%)
+        # Confidence thresholds
+        self.MIN_CONFIDENCE = 0.70       # Minimum confidence to accept (70%)
         
     def classify(self, image_base64: str) -> Dict:
         """
